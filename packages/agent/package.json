@@ -1,0 +1,9 @@
+{
+  "name": "@repo/agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "GEO Repair fix-agent: system prompt, opencode driver, and run-event normalizer.",
+  "exports": {
+    "./prompts/*": "./prompts/*"
+  }
+}
