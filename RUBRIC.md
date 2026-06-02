@@ -77,6 +77,7 @@ measured and scored but only flagged, never auto-edited.
 | 20 | `favicon` | Metadata | Low | A | true (wire existing asset) / flag if none |
 | 21 | `hreflang` | Metadata | Low | A | partial (only when locales exist) |
 | 22 | `social-image-size` | Metadata | Low | A | true |
+| 23 | `markdown-twins` | Content | Low | B | true |
 
 **Check intent**
 
@@ -85,9 +86,21 @@ measured and scored but only flagged, never auto-edited.
    failure — measured but flag-only (CSR→SSR is out of scope for the agent).
 2. **`structured-data`** — JSON-LD presence + validity: `Organization`, `WebSite` site-wide;
    `Article` on article routes; `BreadcrumbList` on hierarchical pages. Real data only.
-3. **`meta-tags`** — `<title>` + meta description on every route (framework-idiomatic).
-4. **`open-graph`** — Open Graph + Twitter cards + a resolvable OG image (wire an existing
-   image, else a templated card; never AI-generated imagery).
+3. **`meta-tags`** — `<title>` + meta description present on every route (framework-idiomatic)
+   **and graded on attribute quality, not just presence**: title ~50–60 chars (≤ ~600px, no SERP
+   truncation), description ~120–160 chars, both non-empty, unique per route, not a generic /
+   duplicated placeholder. `pass` = present + in range; `partial` = present but off-length /
+   truncating / duplicated; `fail` = missing. Auto-fix = add a **missing** tag or safely derive one
+   (`<h1>` / frontmatter); **never silently reword existing human-written copy to hit a length**
+   (that's a meaning change → flag, score `partial`).
+4. **`open-graph`** — Open Graph + Twitter cards **graded for completeness**, not mere presence:
+   core OG (`og:title`, `og:description`, `og:url`, `og:type`, `og:site_name`, `og:image` +
+   `og:image:alt`; `og:locale` where applicable), a **correct `og:type`** (`website` site-wide,
+   `article` on article routes, `product` on product routes), and Twitter (`twitter:card` =
+   `summary_large_image` when a large image exists, else `summary`; `twitter:title` /
+   `twitter:description` / `twitter:image`). Plus a resolvable OG image (wire an existing image, else
+   a templated card; never AI-generated imagery). `partial` when tags exist but are incomplete or
+   `og:type` is wrong/missing.
 5. **`canonical-urls`** — Self-referential, absolute canonical per route.
 6. **`robots-ai-crawlers`** — robots allows AI crawlers (GPTBot, ChatGPT-User, OAI-SearchBot,
    ClaudeBot, anthropic-ai, PerplexityBot, Google-Extended, CCBot); never accidentally block;
@@ -145,9 +158,24 @@ measured and scored but only flagged, never auto-edited.
     `hreflang` annotations (+ `x-default`) mapping each page to its language variants. Tier A markup
     **only when translated routes already exist** — never invent locales or translations; partial /
     flag-only otherwise.
-22. **`social-image-size`** — The OG/Twitter image meets platform dimension minimums (≥ 1200×630,
-    sane aspect ratio) and declares `og:image:width` / `og:image:height`. Extends `open-graph` (#4):
-    it **validates the already-wired image's dimensions**, it does not select or generate one.
+22. **`social-image-size`** — The OG/Twitter image is fit for unfurling: dimensions ≥ 1200×630
+    (~1.91:1; ≥ 600×315 minimum), a web format (PNG/JPG/WebP — **not** SVG, which platforms reject),
+    a sane **file size** (under platform caps — ~5 MB Twitter / ~8 MB Facebook; aim < 1 MB for fast
+    unfurl), and declared `og:image:width` / `og:image:height` (+ `og:image:type`). Extends
+    `open-graph` (#4): it **validates / annotates the already-wired image**, it does **not** select,
+    resize, or generate one — wired image too small / heavy / wrong-format with no better asset → flag.
+23. **`markdown-twins`** — Does each primary page expose a clean **Markdown "twin"** — the same
+    rendered content served as `text/markdown` at a predictable URL (`<path>.md`), linked from the
+    HTML via `<link rel="alternate" type="text/markdown">` and indexed in `/llms.txt`? AI crawlers and
+    answer engines parse Markdown far more reliably than a JS-heavy DOM, so a faithful twin is the
+    cleanest possible "machine-eye view" of a page. **The only Tier B check** (derived content): the
+    twin is a *faithful reformat of the page's existing rendered content* — same headings, prose, FAQ,
+    and lists, **no new claims, no invented copy** (that would be Tier C). `pass` = twin present,
+    reachable (200, correct content-type), discoverable (alternate link + llms.txt entry), and faithful;
+    `partial` = twin exists but isn't linked/indexed, or covers only some primary pages; `fail` = none.
+    Auto-fix = generate twins from the page's own content source (Markdown/MDX raw, or the structured
+    content the page renders from) and wire discovery; **never** paraphrase or add material the page
+    doesn't already say. Pairs with `llms-txt` (#8) — llms.txt is the *index*, the twins are the *pages*.
 
 ## Planned expansions (not yet scored in v1)
 
@@ -156,7 +184,6 @@ land. Add them here first, then to `@repo/checker` and the agent playbook.
 
 | ID | Category | Tier | Notes |
 |----|----------|------|-------|
-| `markdown-twins` | Content | B | Faithful `.md` twin per flagged page (no new claims). |
 | `comparison-pages` | Content | C | Net-new competitor comparison; interview-gated, no unverifiable claims. |
 | `keywords` | Content | C | Keyword copy; gated; never invent lists. |
 | `mobile-responsive` | Rendering | Out of scope | Measured, flag-only (CSS layout — not agent-safe). |

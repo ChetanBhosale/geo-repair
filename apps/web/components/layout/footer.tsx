@@ -1,0 +1,64 @@
+import Link from "next/link"
+
+import { SITE } from "@/lib/seo"
+import { FOOTER_SECTIONS } from "@/lib/navigation"
+import { Logo } from "./logo"
+
+const TRUST_LINE = [
+  "Your code is never kept",
+  "Only the one repo you pick",
+  "Zero data retention, no model training",
+]
+
+export function Footer() {
+  return (
+    <footer className="border-t border-border bg-muted/30">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+          <div className="flex flex-col gap-3">
+            <Logo />
+            <p className="max-w-xs text-xs/relaxed text-muted-foreground">
+              The free checkup that scores your site for AI search engines like
+              ChatGPT, Perplexity, and Google AI, then ships a pull request that
+              fixes it.
+            </p>
+          </div>
+
+          {FOOTER_SECTIONS.map((section) => (
+            <nav key={section.title} aria-label={section.title}>
+              <h2 className="font-heading text-xs font-medium text-foreground">
+                {section.title}
+              </h2>
+              <ul className="mt-3 flex flex-col gap-2">
+                {section.links.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
+        </div>
+
+        <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <ul className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {TRUST_LINE.map((item, index) => (
+              <li key={item} className="flex items-center gap-2">
+                {index > 0 && <span aria-hidden className="text-border">·</span>}
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p>
+            © {new Date().getFullYear()} {SITE.name}
+          </p>
+        </div>
+      </div>
+    </footer>
+  )
+}

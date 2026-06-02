@@ -1,0 +1,21 @@
+# GEO Repair
+
+> GEO Repair runs a free checkup on your website to score how ready it is for AI search engines like ChatGPT, Perplexity, and Google AI Overviews, then opens a pull request that fixes what's holding you back. No code required.
+
+GEO Repair (publicly: "AI Search Optimization") scores a site across 23 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability. An AI agent then clones the one GitHub repository you pick into an ephemeral sandbox, applies the fixes, and opens a pull request for your review. Your code is never retained and is never used to train models.
+
+Every page on this site has a clean Markdown twin: append `.md` to its URL (the home page is at /index.md) for a faithful, machine-readable copy. The `.md` links below point to those twins.
+
+## Core pages
+
+- [Home](https://geo.repair/) ([.md](https://geo.repair/index.md)): Free AI search readiness checkup and automatic fix PRs.
+- [GEO & AEO checker](https://geo.repair/geo-aeo-checker) ([.md](https://geo.repair/geo-aeo-checker.md)): Free online GEO and AEO checker: test AI citation and AI visibility readiness.
+- [Security](https://geo.repair/security) ([.md](https://geo.repair/security.md)): Zero data retention, no model training, ephemeral sandbox, least-privilege single-repo scope.
+- [Pricing](https://geo.repair/pricing) ([.md](https://geo.repair/pricing.md)): Free checkup, a one-time fix sized to your sitemap (from $49), and optional $19/mo Autopilot.
+- [Contact](https://geo.repair/contact) ([.md](https://geo.repair/contact.md)): Get in touch with the GEO Repair team.
+
+## Resources
+
+- [Blog](https://geo.repair/blog) ([.md](https://geo.repair/blog.md)): Guides on AI search optimization and how AI crawlers read your site.
+- [Terms](https://geo.repair/terms) ([.md](https://geo.repair/terms.md)): Terms of service.
+- [Privacy](https://geo.repair/privacy) ([.md](https://geo.repair/privacy.md)): Privacy policy: zero retention, no training on your code.

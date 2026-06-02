@@ -202,6 +202,11 @@ Always read existing head/metadata before adding, to avoid duplicates.
 - **Remix:** per-route `meta` export. **SvelteKit:** `<svelte:head>` in `+page/layout.svelte`.
   **Vite SPA:** static shell in `index.html`; per-route titles only via an existing head
   manager — don't add a dep, flag the CSR limit.
+- **Quality, not just presence:** grade title length (~50–60 chars, no SERP truncation) and
+  description length (~120–160 chars); both non-empty, unique per route, no generic / duplicated
+  placeholder. Auto-fix = add a **missing** tag or derive one from the page's `<h1>` / frontmatter; a
+  present-but-too-long **human-written** title/description → **flag** and score `partial` (rewriting
+  copy to hit a length is a content change, outside Tier A) — never silently reword it.
 - _Meta keywords are low value: only if explicitly requested; never invent lists (→ Tier C)._
 
 ### Open Graph + Twitter cards + OG image wiring
@@ -212,6 +217,12 @@ Always read existing head/metadata before adding, to avoid duplicates.
 - **OG image, preferred order:** (1) an existing suitable image already in the repo →
   wire it; (2) **generate a templated card** (see below); (3) no image and no brand assets
   → skip the image and flag. Use `twitter:card=summary_large_image` when a large image exists.
+- **Completeness + correct `og:type`:** beyond title/description/image, set `og:url`,
+  `og:site_name`, `og:locale` (when known), `og:image:alt`, and a **correct `og:type`** — `website`
+  site-wide, `article` on article routes, `product` on product routes. Twitter: `twitter:card` =
+  `summary_large_image` when a large image exists (else `summary`), plus `twitter:title` /
+  `twitter:description` / `twitter:image`. Tags present but incomplete → fill the missing attributes
+  and score `partial` until complete; `og:type` wrong/missing → correct it.
 
 **Templated OG card generation (allowed — deterministic, on-brand):** render the page
 **title + site name + the site's existing logo/colors/fonts** into a 1200×630 card from a
@@ -390,18 +401,26 @@ generated image in the PR body**.
 - Validate the image `open-graph` **already wired**: ≥ 1200×630, roughly 1.91:1, and declare
   `og:image:width` / `og:image:height` so platforms don't re-fetch or mis-crop. Use
   `twitter:card=summary_large_image` when a large image is present.
+- **File size & format:** a web format (PNG/JPG/WebP — **not** SVG, which platforms reject) under
+  platform caps (~5 MB Twitter / ~8 MB Facebook; aim < 1 MB for fast unfurl), and declare
+  `og:image:type`. Oversized / unsupported with no better asset in the repo → **flag** (don't
+  re-encode or resize binaries headlessly unless an existing build step already does it).
 - _This **validates / annotates** the existing image — it does **not** select, resize, upscale, or
   generate one. Wired image too small and no larger asset exists → flag; never synthesize imagery._
 
-### Tier B — Markdown twins + content negotiation
+### Tier B — Markdown twins + content negotiation (`markdown-twins`, scored)
 
 Generate a `.md` twin per flagged page = a faithful reformat of the page's existing rendered
 content (same headings/prose/links, no new claims). Prefer the structured source
-(MDX/collections/CMS) over scraping HTML. Serve at a predictable path (`/<path>.md`) via the
-simplest **static** mechanism per framework (`public/`/`static/` files, or a route handler
-only if trivial); add `Accept`/User-Agent negotiation only when the framework makes it easy.
-_Twins must round-trip existing content; respect the file cap (only flagged pages); verify
-the build still passes._
+(MDX/collections/CMS, or the content module the page renders from) over scraping HTML, so the
+twin and the page stay in sync. Serve at a predictable path (`/<path>.md`, home at `/index.md`)
+via the simplest mechanism per framework — `public/`/`static/` files when the content is itself
+static, otherwise a small route handler / middleware rewrite that reads the same content source;
+add `Accept`/User-Agent negotiation only when the framework makes it easy.
+**Make the twin discoverable** (this is part of the check's `pass`, not optional): add a
+`<link rel="alternate" type="text/markdown" href="…">` on the HTML page and list the twin in
+`/llms.txt`. _Twins must round-trip existing content; respect the file cap (only flagged pages);
+verify the build still passes._
 
 ### Tier C — Comparison pages / FAQ generation / keywords (gated)
 

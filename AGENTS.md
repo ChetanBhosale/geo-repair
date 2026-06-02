@@ -111,6 +111,9 @@ the rubric (SSR content visible in no-JS HTML, metadata + JSON-LD present, robot
 - **Never promise citations or traffic.** We improve *technical readiness* immediately;
   actual outcomes (being cited by ChatGPT/Perplexity/Google AI) take weeks and aren't
   guaranteed. All copy, the re-check, and the support policy must reflect this.
+- **No em dashes in product copy.** Never use the em dash character in any
+  customer-facing string (copy, metadata, JSON-LD, OG text, alt text). Use commas,
+  colons, periods, or parentheses. See `apps/web/AGENTS.md` for the full rule.
 
 ## Trust messaging — the site must communicate this
 
@@ -142,6 +145,13 @@ Never overstate; if a claim ever stops being enforceable, change the copy, not t
 
 - **PostHog** is the analytics tool for this project. Instrument user-facing flows (checkup,
   connect-GitHub, checkout, run views) with consistent, well-named events.
+- **Track by default.** Any feature or surface that can reveal product or marketing insight ships
+  with PostHog tracking enabled — landing/demo interactions, CTAs, navigation, content engagement,
+  forms, funnels. A surface is not "done" until its meaningful interactions emit events. If a new
+  surface genuinely has nothing worth measuring, say so in the PR rather than silently skipping it.
+- **Event naming.** `snake_case`, `object_action` (e.g. `waitlist_joined`, `cta_clicked`).
+  Reuse one event with properties over inventing near-duplicates: `cta_clicked` with
+  `{ location, label }`, not `hero_cta_clicked` / `footer_cta_clicked`.
 - Loading analytics must not violate the SEO rules above — no render-blocking scripts, no
   client-only content. Keep the PostHog project key in env, never hardcoded.
 
