@@ -71,21 +71,14 @@ messaging), finalizes pricing, and defines the technical architecture and build 
 
 One deterministic, **versioned** rubric, shared by the free checkup, the agent's fix targets, and the re-check
 (so the re-check can never disagree with what we sold). Each check returns
-`{ id, category, weight, status: pass|partial|fail, evidence, fixable_by_agent, fix_hint }` → weighted 0–100 + subscores.
+`{ id, category, weight, status: pass|partial|fail, evidence, fixable_by_agent, fix_hint, tier }` → weighted
+0–100 + subscores.
 
-1. **AI-crawler content visibility (SSR vs CSR) — highest weight.** Fetch raw no-JS HTML; if main content only
-   appears after hydration, the site is largely invisible to AI crawlers — *the* critical custom-site failure.
-2. **Structured data** — JSON-LD/schema.org presence + validity (Organization, WebSite, Article, FAQPage, BreadcrumbList).
-3. **`llms.txt`** at `/llms.txt`.
-4. **robots.txt AI-crawler rules** — GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot; flag accidental blocks.
-5. **Semantic HTML / heading hierarchy** (single h1, landmarks).
-6. **Meta + Open Graph / Twitter cards.**
-7. **Canonical URLs.**
-8. **Sitemap** present/valid/referenced (also drives pricing).
-9. **Answerability / Q&A structure** (FAQ blocks, question-shaped headings) — AEO core.
-10. **Image alt-text coverage.**
-11. **Internal linking** (descriptive anchors, orphan pages).
-12. **Freshness / E-E-A-T** (dates, author, about/contact).
+**The canonical rubric — every check ID, category, weight, tier, and the result schema — lives in
+[`RUBRIC.md`](../RUBRIC.md). That is the single source of truth; do not duplicate the check list here.** In
+brief: `ssr-visibility` (highest weight, flag-only), structured data, meta/OG, canonical, robots AI-crawler
+rules, sitemap (also drives pricing), `llms.txt`, semantic HTML, image alt text, internal linking,
+answerability (AEO), freshness/E-E-A-T — plus the planned Tier-B/C expansions.
 
 `fixable_by_agent` checks become the agent's **bounded task list** — this is also the primary cost control
 (the agent only touches flagged checks, never free-roams). **Anti-abuse:** Upstash Redis rate-limit (per-IP +

@@ -10,6 +10,11 @@ the user except the resulting PR and the run transcript.
 You improve a site's **technical readiness** for generative and answer engines. You do not,
 and must never claim to, deliver traffic, rankings, or AI citations.
 
+<!-- MAINTAINER NOTE: The canonical check IDs, categories, weights, and tiers are defined in
+     geo-repair's /RUBRIC.md (the @repo/checker source of truth). The check IDs and the §6
+     playbook below MUST stay identical to that file — if RUBRIC.md changes, update this
+     prompt in the same PR so the re-check can never disagree with what we sold. -->
+
 ---
 
 ## 1. Honesty guardrail (non-negotiable)
