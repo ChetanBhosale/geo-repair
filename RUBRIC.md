@@ -45,7 +45,7 @@ Each check returns:
 |------|---------|------|
 | **A** | Structural / markup (metadata, OG, canonical, JSON-LD, sitemap, robots, llms.txt, alt text, semantic HTML, internal links, schema **for content that already exists**) | Auto |
 | **B** | Derived content — Markdown "twin" = faithful reformat of a page's existing rendered content, no new claims | Auto |
-| **C** | Net-new content (competitor comparison pages, invented FAQ Q&A, keyword copy) | **Only when `approved === true`**, via the agent's 3–5 question interview |
+| **C** | Net-new content (competitor comparison pages, invented FAQ Q&A, keyword copy) + optional on-brand generated thumbnails (≤ ~$0.10 each, opt-in) | **Only when `approved === true`**, set via the user's ~10-question MCQ intake (click-to-answer, optional free text per question; see `plan.md` → Tier C content gate) |
 | **Out of scope** | CSR→SSR conversion; mobile-responsive / CSS layout | **Never edited — flagged only** (can break the build, not build/typecheck-verifiable) |
 
 ## Canonical checks (v1)
@@ -68,6 +68,15 @@ measured and scored but only flagged, never auto-edited.
 | 11 | `internal-linking` | Content | Low | A | true |
 | 12 | `answerability` | Answerability | High | A (schema when Q&A exists) / C (net-new FAQ) | partial |
 | 13 | `freshness-eeat` | Content | Low | A (where dates/author derivable) | partial |
+| 14 | `interactive-labels` | Semantics | Low | A | true |
+| 15 | `indexability` | Crawl surface | High | A | partial |
+| 16 | `citation-quality` | Content | Medium | A (link existing refs) / C (net-new sourcing) | partial |
+| 17 | `definitions` | Answerability | Medium | A (mark up existing) / C (net-new) | partial |
+| 18 | `charset` | Rendering | Low | A | true |
+| 19 | `doctype` | Rendering | Low | A | true |
+| 20 | `favicon` | Metadata | Low | A | true (wire existing asset) / flag if none |
+| 21 | `hreflang` | Metadata | Low | A | partial (only when locales exist) |
+| 22 | `social-image-size` | Metadata | Low | A | true |
 
 **Check intent**
 
@@ -86,13 +95,59 @@ measured and scored but only flagged, never auto-edited.
 7. **`sitemap`** — Present, valid, referenced from robots. **Also drives pricing** (page count).
 8. **`llms-txt`** — `/llms.txt` (Markdown): site name, description, curated key-page links.
 9. **`semantic-html`** — One `<h1>`, correct heading hierarchy, landmarks
-   (`<header>/<nav>/<main>/<footer>`). Text-preserving structural fixes only.
+   (`<header>/<nav>/<main>/<footer>`), and a sound accessibility tree (valid roles, correct
+   parent/child nesting). Text-preserving structural fixes only.
 10. **`image-alt-text`** — Meaningful images have accurate `alt`; decorative → `alt=""`. No
     keyword-stuffing.
 11. **`internal-linking`** — Descriptive anchor text (no "click here"); no orphan pages.
 12. **`answerability` (AEO core)** — Question-shaped headings + FAQ blocks; `FAQPage` schema
     when Q&A already renders (Tier A). Net-new FAQ authoring is Tier C (gated).
 13. **`freshness-eeat`** — Visible dates, author, about/contact signals.
+14. **`interactive-labels`** — Every interactive element (button, link, input, select) has a
+    programmatic accessible name; no focusable control hidden from the accessibility tree
+    (`aria-hidden`); valid roles. The a11y tree is the "machine-eye view" AI agents use to
+    operate a page, and accessible names are a WCAG requirement — a dual SEO + agentic win.
+15. **`indexability`** — The page is *eligible* to appear in traditional search (and thus Google
+    AI Overviews): no `noindex` (meta robots **or** `X-Robots-Tag` response header), `robots.txt`
+    doesn't block Googlebot/Bingbot on real routes, self-referential canonical (not canonicalizing
+    the page away), 200 status. Distinct from `robots-ai-crawlers` (which targets GPTBot/ClaudeBot/
+    etc.) — a page can be open to AI crawlers yet `noindex` to Google. We check *eligibility*, not
+    live index status (querying Google for actual indexing is unreliable + against ToS).
+    **Preserve intentional `noindex`** (staging, private, thin/utility routes): auto-fix only
+    clearly-accidental blocks on primary content, else flag.
+    > _Advisory (not scored, not auto-fixed):_ surface whether a `google-site-verification` (or
+    > Bing `msvalidate.01`) meta tag is present. **Presence** hints Search Console / Webmaster
+    > Tools was set up via the meta method; **absence is inconclusive** (DNS / HTML-file /
+    > Analytics / Tag-Manager verification leave no HTML trace) and we can't add it (the token is
+    > the owner's). Use it only to nudge "consider setting up Search Console," never to move the score.
+16. **`citation-quality`** — Does the page's content **cite trusted external sources** (links to
+    research, `.gov`/`.edu`, standards bodies, primary data)? In a large citation study this was the
+    #2 predictor of whether ChatGPT/Perplexity/Claude *quote* a page. Tier A: where the prose already
+    names a source ("according to a 2024 Pew study"), wire the real outbound link. Tier C (gated):
+    adding net-new sourced claims — never invent a source or a statistic; only from intake/existing
+    content. Measured/flagged everywhere; auto-fix is link-wiring only. **Weighted conservatively
+    (single study) and never a citation promise** — see Honesty guardrail.
+17. **`definitions`** — Is key content **answer-first and defines its terms** ("X is Y" up front,
+    the question answered in the first sentence)? Top study predictors were direct answerability and
+    plain definitions. Tier A: structural only — surface an existing definition/answer to the top of
+    its section, mark it up (e.g. `DefinedTerm`) when the text already says it. Tier C (gated): writing
+    net-new definitions/answer-first intros. Overlaps with `answerability` (#12) but scores the
+    *definitional/answer-first* signal specifically; never rewrite meaning, only reorder/mark up
+    existing text unless Tier C is approved.
+18. **`charset`** — `<meta charset="utf-8">` declared early in `<head>` (within the first ~1024
+    bytes). Prevents mojibake across languages; trivial, deterministic structural fix.
+19. **`doctype`** — HTML5 `<!DOCTYPE html>` present so the browser renders in standards mode (not
+    quirks mode). Document-level structural fix; never touches content.
+20. **`favicon`** — Favicon + Apple touch icon wired (`<link rel="icon">`, `apple-touch-icon`).
+    Tier A: wire **existing** icon assets already in the repo; **flag only** when no asset exists
+    (never generate imagery — same rule as the OG image in `open-graph`). Low-weight branding signal.
+21. **`hreflang`** — When the site already serves multiple locales / translated routes, emit
+    `hreflang` annotations (+ `x-default`) mapping each page to its language variants. Tier A markup
+    **only when translated routes already exist** — never invent locales or translations; partial /
+    flag-only otherwise.
+22. **`social-image-size`** — The OG/Twitter image meets platform dimension minimums (≥ 1200×630,
+    sane aspect ratio) and declares `og:image:width` / `og:image:height`. Extends `open-graph` (#4):
+    it **validates the already-wired image's dimensions**, it does not select or generate one.
 
 ## Planned expansions (not yet scored in v1)
 
@@ -106,6 +161,44 @@ land. Add them here first, then to `@repo/checker` and the agent playbook.
 | `keywords` | Content | C | Keyword copy; gated; never invent lists. |
 | `mobile-responsive` | Rendering | Out of scope | Measured, flag-only (CSS layout — not agent-safe). |
 
+## Off-site citation placement (diagnostic — not scored, not fixable by a PR)
+
+Independent of everything on-page: AI often cites a **third-party comparison / roundup page you're
+not on**, or pulls from a handful of external sources in your category where you're absent. That's a
+**placement** problem, not a writing problem — and it's the most common honest answer to "why doesn't
+AI cite me." A repo PR **cannot fix it** (that content lives on sites we don't control), so we
+**diagnose and flag — never auto-fix, never score it.**
+
+- **What we surface:** for a set of key questions in the customer's category, the **URLs an AI engine
+  cites** (ChatGPT / Perplexity), whether the customer's domain appears, and **which external sources
+  got cited instead** — i.e. "for these N questions you're missing from, here's who got cited and the
+  pages you'd need to land on."
+- **Why advisory only:** results are **non-deterministic** (engine answers vary run to run), so — exactly
+  like Agentic readiness below — this is **never folded into the 0–100 score, the subscores, or anything
+  we commit to the customer.** It's a separate, clearly-labeled diagnostic, and `fixable_by_agent: false`.
+- **Honesty:** present it as "the off-site half we can *show* you but can't fix for you," paired with the
+  on-site fixes we *do* ship. Never imply landing on those sources is guaranteed, or that we can place
+  you there. Respect engine ToS + rate limits when querying.
+
+## Agentic readiness (experimental — not in the headline score)
+
+A second, emerging axis: how well the site can be **operated** by AI agents that click, fill
+forms, and transact — distinct from being **read/cited**, which every check above covers.
+Chrome's Lighthouse now ships an experimental "Agentic Browsing" category for exactly this.
+Because the standards are unsettled (and some signals are non-deterministic), we report these
+as a **separate pass/fail checklist (X of N)** — **never** folded into the 0–100 AI-search
+score we sell, and **never** part of what we commit to the customer.
+
+| ID | Category | Tier | fixable_by_agent | Notes |
+|----|----------|------|------------------|-------|
+| `interactive-labels` | Semantics | A | true | Already scored in v1 above (it's also a classic a11y win); the a11y tree is the agent's primary data model. |
+| `layout-stability` (CLS) | Rendering | Out of scope | false (flag only) | Visual stability so agents don't mis-click moving elements. CSS/loading concern — measured, never auto-edited (same class as `mobile-responsive`). |
+| `webmcp` | Crawl surface | roadmap | false (advisory) | Expose forms/logic as agent-callable tools via the WebMCP API. Net-new runtime behavior + a *proposed* standard — advisory only, a candidate future "agent-operable" premium line, never auto-added in v1. |
+
+These do **not** affect `score`, subscores, or anything we commit to the customer. Keep anything scored
+deterministic; runtime/JS-timing-dependent signals stay informational (Chrome warns agentic
+results fluctuate with JS-registration timing, DOM/a11y-tree variance, and CLS).
+
 ## Anti-abuse / crawler etiquette (free checkup)
 
 - Upstash Redis rate-limit (per-IP **and** per-domain); cache results per domain (~24h).
@@ -116,3 +209,10 @@ land. Add them here first, then to `@repo/checker` and the agent playbook.
 
 The rubric measures **technical readiness**, not outcomes. Neither the score nor the re-check
 may promise traffic, rankings, or AI citations — only that readiness improved. See `AGENTS.md`.
+
+**Page type caps citations — be honest about it.** Independent research shows informational /
+how-to / explainer pages get quoted by AI several times more than transactional pages; product,
+pricing, and shop pages have a structural citation ceiling **regardless of how clean their
+markup is**. So a high readiness score on a SaaS/ecommerce page does **not** imply it will get
+cited. `citation-quality` and `definitions` improve readiness on any page, but the durable
+citation win is *educational content* — surface that as guidance, never as a promise.

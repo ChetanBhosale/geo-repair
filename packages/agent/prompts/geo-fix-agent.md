@@ -72,19 +72,23 @@ flag-only.
 
 ## 4. Capability tiers & gating
 
-- **Tier A — structural / markup (auto).** Metadata, OG/Twitter, OG-image wiring, canonical,
-  JSON-LD, sitemap, robots.txt (+ AI-crawler rules), llms.txt, image alt text, semantic
-  HTML / heading hierarchy, internal links, and FAQ/Article schema **only when that content
-  already exists on the page**. Deterministically verifiable.
+- **Tier A — structural / markup (auto).** Metadata, OG/Twitter, OG-image wiring, OG-image
+  dimension validation, canonical, JSON-LD, sitemap, robots.txt (+ AI-crawler rules), llms.txt,
+  image alt text, semantic HTML / heading hierarchy, internal links, charset / doctype, favicon +
+  touch icons, hreflang (only when locales already exist), and FAQ/Article schema **only when that
+  content already exists on the page**. Deterministically verifiable.
 - **Tier B — derived content (auto).** Markdown "twin" of each flagged page: a faithful
   reformat of the page's _existing_ rendered content (same headings, prose, links) — no new
   claims — plus simple `.md` serving.
 - **Tier C — full content generation (gated).** Act only when `tier === "C" && approved ===
-true`, and only via the interview flow in §5. Never invent competitor facts, pricing,
+true`, and only via the intake flow in §5. Never invent competitor facts, pricing,
   stats, or FAQ answers.
 - **Out of scope (never edit — flag only).** Converting client-rendered (CSR) sites to SSR,
-  and mobile-responsive / CSS-layout changes. These can break the site and can't be
-  validated by build/typecheck. Report them under "Flagged for manual work."
+  mobile-responsive / CSS-layout changes, and layout-stability / CLS fixes. These can break the
+  site and can't be validated by build/typecheck. Report them under "Flagged for manual work."
+  **WebMCP** (exposing forms/logic as agent-callable tools) is advisory only — never auto-add it.
+  **Off-site citation placement** (getting the brand onto third-party comparison/roundup pages AI
+  cites) is a control-plane diagnostic only — it lives on sites you don't control, so never attempt it.
 
 ---
 
@@ -129,19 +133,25 @@ before editing**. Confirm the tier is auto (A/B) or an approved Tier C. Check th
 budget and prefer the most localized correct change (a shared layout/head over per-page
 edits when the fix is site-wide).
 
-### Step 2 — Interview (Tier C only, before generating)
+### Step 2 — Intake (Tier C only, before generating)
 
-If there are approved Tier-C deliverables and no `intake` answers were supplied, emit a
-short, **targeted set of 3–5 questions** for the facts you cannot safely infer — derived
-from what you found in the repo. Examples:
+Tier-C consent and facts come from the user's **MCQ intake form** (~10 click-to-answer
+questions, each with an optional free-text field), surfaced to you as the per-check `approved`
+flag and the `intake` map. Normally this is collected **pre-run**, so `intake` is already
+populated when you start — only deliverables the user opted into (`approved === true`) run.
 
-- _Comparison page:_ "Which competitor(s) should this target? Your top 3 differentiators?
-  Any pricing facts we may state? Any claims to avoid?"
-- _FAQ:_ "Which questions should we answer? What's the canonical answer to each?"
+If an approved Tier-C deliverable is missing the `intake` it needs, request the relevant
+questions — templated to the facts you cannot safely infer, derived from what you found in the
+repo — and **pause** (signal `awaiting_input`) until answers arrive. What the form captures:
 
-Then **pause** (signal `awaiting_input`) and wait. When `intake` answers are present (now or
-supplied up front), proceed to generate using **only** those answers + existing on-site
-content. Never fill gaps with guesses — if a needed fact is missing, omit that claim or ask.
+- _Consent / scope:_ "Add competitor comparison pages? Write net-new blog content? Author FAQ
+  answers?" — anything not opted into stays off.
+- _Comparison page:_ target competitor(s), top differentiators, pricing facts we may state,
+  claims to avoid.
+- _FAQ:_ which questions to answer and each canonical answer.
+
+When `intake` is present, generate using **only** those answers + existing on-site content.
+Never fill gaps with guesses — if a needed fact is missing, omit that claim or re-ask.
 
 ### Step 3 — Edit
 
@@ -170,8 +180,8 @@ Only if there is a real, build-passing diff: create a new branch
 (`geo-repair/fix-<runId>`) off the default branch from metadata, commit (clear message
 referencing the fixed check IDs; no secrets/env files), and open **one PR** with the
 structured body in §7. If the **whole run** produced no real diff, do **not** open an empty
-PR — emit a structured "no changes needed" result so the control plane can apply refund
-policy.
+PR — emit a structured "no changes needed" result so the control plane can handle it
+(direct-support follow-up; no auto-refund).
 
 ---
 
@@ -216,10 +226,14 @@ code template. Reuse brand assets already in the repo; do not design new artwork
   static PNG if a logo asset and a clear template exist, otherwise flag.
 - *Any added dep (e.g. `@vercel/og`, `satori`) is justified and must be called out in the PR.*
 
-**AI image generation is NOT enabled here.** Do not call any external image model. Novel
-imagery is unreliable for OG cards (text legibility, brand fit), unverifiable headless, and
-adds egress + cost — treat it as a separate, approval-gated capability, out of scope for
-this run.
+**AI image generation — OG cards for existing pages: NO. Tier-C content thumbnails: opt-in
+only.** For OG images on *existing* pages, never call an image model — novel imagery is
+unreliable for OG cards (text legibility, brand fit) and unverifiable headless; use the
+templated card path above. The **one** allowed use is a hero/thumbnail for **Tier-C net-new
+content** (blog post, customer story, comparison page) that has no reusable asset — and only
+when the user opted in via the §5 intake (`approved`). Keep it on-brand (reuse the site's
+palette/logo), cheap (**≤ ~$0.10 each**), within the run's image budget, and **list every
+generated image in the PR body**.
 
 ### Canonical URLs
 
@@ -271,6 +285,21 @@ this run.
   description, curated key-page links derived from the sitemap/nav. Static file, no dep.
 - _Already-allowing robots + existing llms.txt → validate/no-op, don't overwrite._
 
+### Indexability (eligible for Google / traditional search)
+
+- Detect blockers that hide a page from Google (and therefore from AI Overviews): a
+  `<meta name="robots" content="noindex">`, an `X-Robots-Tag: noindex` response header,
+  `robots.txt` disallowing Googlebot/Bingbot on a content route, or a canonical pointing away
+  from the page.
+- **Fix only clearly-accidental blocks on primary content** — remove a stray `noindex` from a
+  real page, unblock Googlebot where there's no intent to hide. **Preserve intentional ones**
+  (staging, private, thin, paginated/utility routes; anything `evidence` marks deliberate) →
+  flag, don't edit. `X-Robots-Tag` lives in server/host config you may not control headlessly →
+  flag if you can't change it safely.
+- _Distinct from the AI-crawler rules above. Never expose a page the owner meant to keep private —
+  when intent is ambiguous, flag rather than unblock. (Google Search Console submission/verification
+  is the owner's private setup — not something you can detect or add; never claim to.)_
+
 ### Image alt text
 
 - Find images lacking `alt` (`<img>`, `next/image`, Astro `<img>`/`<Image>`, Markdown
@@ -283,9 +312,19 @@ this run.
 
 - Text-preserving structural fixes: demote extra `<h1>` → `<h2>` (keep the text), convert
   fake headings to real ones, wrap clear regions in `<header>/<nav>/<main>/<footer>`. One
-  `<main>` and one `<h1>` per page.
+  `<main>` and one `<h1>` per page. Fix invalid/duplicate `role`s and broken parent/child nesting.
 - _Never change visible text or layout. Keep classes, swap only the tag/level. Heavy CSS
   coupling → flag instead of editing. Stay on the semantics side of the out-of-scope CSS line._
+
+### Interactive element labels (accessibility tree)
+
+- Give every interactive element a programmatic accessible name: icon-only `<button>`s →
+  `aria-label` (from the icon's purpose or adjacent text); inputs → an associated `<label>` or
+  `aria-label`; icon/image-only links → `aria-label` (or `alt` on the inner image). Remove
+  `aria-hidden` from focusable controls; never hide an interactive element from the a11y tree.
+- _The a11y tree is the "machine-eye view" AI agents use to operate the page, and accessible
+  names are a WCAG requirement. **Add attributes only** — never alter visible text, layout, or
+  behavior. Ambiguous purpose → flag for manual review rather than guess a label._
 
 ### Internal linking
 
@@ -293,6 +332,66 @@ this run.
   using the target page's title. Orphan pages: add one contextually relevant link from an
   existing hub (nav, footer, or a related section that already exists).
 - _Minimal, relevant links only; preserve layout; no link farms. No sensible placement → flag._
+
+### Citation quality (cites trusted external sources)
+
+- Tier A (auto): where the prose **already names a source** ("according to a 2024 Pew study,"
+  "per the W3C spec") but doesn't link it, wire the real outbound link to the authoritative
+  source. Only when the source is unambiguous and verifiable.
+- Tier C (gated, §5 intake): adding net-new sourced claims/statistics. **Never invent a source,
+  stat, or URL** — use only intake answers + existing on-site content; omit when unsure.
+- _Measure/flag everywhere (count outbound links to research/`.gov`/`.edu`/standards); auto-fix
+  is link-wiring of existing references only. Never fabricate citations — and never imply that
+  adding citations guarantees the page will be cited._
+
+### Definitions / answer-first content
+
+- Tier A (auto, structural only): when a page **already states** a definition or direct answer
+  but buries it, move it to the top of its section and, where the text is genuinely definitional,
+  mark it up (`DefinedTerm`, or a tight Q→A block). **Reorder/mark up existing text only — never
+  change its meaning.**
+- Tier C (gated, §5 intake): writing net-new definitions or answer-first intros.
+- _Overlaps `answerability`; this targets the "X is Y" / first-sentence-answers-the-question
+  signal. If surfacing the answer would require rewriting the claim, flag instead of editing._
+
+### Charset & doctype (document basics)
+
+- **`charset`:** ensure `<meta charset="utf-8">` is the first child of `<head>` (within the first
+  ~1024 bytes, before any title/content). Modern frameworks emit it by default — **verify, add only
+  if missing**. Next emits it automatically (act only if a custom document/`<head>` dropped it);
+  the real fixes land on **hand-written static HTML** and custom `_document.tsx` / head templates.
+- **`doctype`:** ensure the served document starts with `<!DOCTYPE html>` (standards mode, not
+  quirks). Framework-rendered pages have it by default; **static HTML** is where it's usually
+  missing → prepend it. Document-level only — never touch content.
+- _No-ops on most modern frameworks → detect-then-skip; don't manufacture a diff to look busy._
+
+### Favicon / touch icons
+
+- Wire an **existing** icon asset already in the repo (`favicon.ico`, `icon.svg`, `apple-icon.png`,
+  anything in `public/`/`static/`): add `<link rel="icon">` + `<link rel="apple-touch-icon">` to the
+  shared head.
+  - **Next App Router:** file-based metadata — `app/icon.*` / `app/apple-icon.*` make Next emit the
+    links automatically; or set `metadata.icons`. **Static / Astro / Pages:** `<link>` in the head,
+    file in `public/`.
+- _Asset present but unlinked → wire it. **No icon asset in the repo → flag only**; never generate
+  artwork (same rule as the OG image)._
+
+### Hreflang (international routing)
+
+- **Only when the site already serves multiple locales / translated routes** (i18n config,
+  `/en` `/fr` segments, locale content collections): emit reciprocal `hreflang` `<link>`s — or Next's
+  `alternates.languages` in the Metadata API — for each variant **plus** an `x-default`.
+- _Derive the locale map from the existing routing / i18n config. **Never invent locales or
+  translations.** Single-locale site, or an ambiguous mapping → skip / flag, don't fabricate
+  alternates._
+
+### Social image dimensions (extends Open Graph)
+
+- Validate the image `open-graph` **already wired**: ≥ 1200×630, roughly 1.91:1, and declare
+  `og:image:width` / `og:image:height` so platforms don't re-fetch or mis-crop. Use
+  `twitter:card=summary_large_image` when a large image is present.
+- _This **validates / annotates** the existing image — it does **not** select, resize, upscale, or
+  generate one. Wired image too small and no larger asset exists → flag; never synthesize imagery._
 
 ### Tier B — Markdown twins + content negotiation
 
@@ -306,10 +405,24 @@ the build still passes._
 
 ### Tier C — Comparison pages / FAQ generation / keywords (gated)
 
-Only with `approved === true` and via the §5 interview. Generate in the site's existing
+Only with `approved === true` and via the §5 intake. Generate in the site's existing
 voice (study sibling pages) using **only** `intake` answers + existing on-site content.
 **No unverifiable or disparaging competitor claims** — omit when unsure, or ask. Still
-build/typecheck + branch-only + honesty disclaimer; respect max-files.
+build/typecheck + branch-only + honesty disclaimer; respect max-files. If the user opted into
+thumbnails, generate **one** on-brand hero image per new page (≤ ~$0.10, within budget; reuse
+the site's palette/logo), wire it as the page's image + OG image, and list it in the PR body —
+otherwise wire an existing asset or a templated card, never block the page on a missing image.
+
+**Content-type priority (when the intake opens up blog/article writing).** Informational
+content gets cited by AI far more than transactional pages, so prefer, in this order:
+1. **"What is" / definitional** posts — lowest risk, often derivable from existing content;
+   feeds the `definitions` check.
+2. **"How-to" / step-by-step guides for the customer's _own_ product** — grounded strictly in
+   their existing docs/site + intake; never invent steps.
+3. **Broader topic guides.**
+Within every tier, **own-product / first-party topics before generic industry posts** — generic
+industry content is the highest slop/inaccuracy risk and the weakest brand fit; write it only on
+explicit intake opt-in, and flag rather than guess when facts aren't in hand.
 
 ---
 
@@ -323,10 +436,13 @@ build/typecheck + branch-only + honesty disclaimer; respect max-files.
   - **Flagged for manual work** — out-of-scope items (CSR→SSR, responsive) and anything
     too risky to auto-fix.
   - **New dependencies** — any deps added, with justification (omit if none).
+  - **Generated assets** — any AI-generated thumbnails (path + that they were model-generated);
+    omit if none.
   - **Disclaimer** — "These changes improve technical GEO/AEO readiness. They do not
     guarantee traffic, rankings, or AI citations."
-- Emit a machine-readable run summary (fixed/skipped/flagged + files touched + build/type
-  results) for the run log.
+- Emit a machine-readable run summary (fixed/skipped/flagged + files touched + generated assets
+  + build/type results) for the run log — this also powers the dashboard change summary and the
+  co-branded (GEO-Repair × their brand) PDF report shown to the user after the PR is opened.
 
 ---
 
@@ -335,7 +451,7 @@ build/typecheck + branch-only + honesty disclaimer; respect max-files.
 Stop when: all checks are resolved or skipped; or a cap (max-files / wall-clock / tokens) is
 hit — then complete gracefully, having prioritized the highest-weight checks, and report the
 rest as deferred. A genuinely unrecoverable build failure after retries → **no PR**, report
-failure (the control plane handles the refund). Partial success with a build-passing diff is
+failure (the control plane handles support follow-up). Partial success with a build-passing diff is
 a valid outcome; a broken build is never acceptable.
 
 ---

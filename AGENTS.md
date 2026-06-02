@@ -86,8 +86,13 @@ Principles that must always hold:
   Twitter) with `metadataBase = https://geo.repair`, plus valid JSON-LD.
 - **AI crawlers are explicitly allowed** in `app/robots.ts` (GPTBot, ClaudeBot,
   PerplexityBot, Google-Extended, CCBot); `app/sitemap.ts` and `/llms.txt` stay complete.
+- **Every public route stays indexable** — no accidental `noindex` (meta or `X-Robots-Tag`) and
+  no Googlebot/Bingbot block; a self-referential canonical. (Eligibility for Google / AI Overviews;
+  Search Console verification is separate owner setup, out of our control.)
 - **Semantic, accessible, fast:** one `<h1>` + correct hierarchy, landmarks, alt text,
-  descriptive anchors, FAQ/answerability where it fits, WCAG AA, healthy Core Web Vitals.
+  accessible names on every interactive element (the a11y tree is the "machine-eye view" AI
+  agents use to operate a page), descriptive anchors, FAQ/answerability where it fits, WCAG AA,
+  healthy Core Web Vitals.
 
 **Planned enforcement:** once `@repo/checker` exists, wire it into CI / a Vercel check so
 100/100 is machine-enforced on every PR — not just documented here. Until then this is a hard
@@ -105,7 +110,24 @@ the rubric (SSR content visible in no-JS HTML, metadata + JSON-LD present, robot
   names, this doc).
 - **Never promise citations or traffic.** We improve *technical readiness* immediately;
   actual outcomes (being cited by ChatGPT/Perplexity/Google AI) take weeks and aren't
-  guaranteed. All copy, the re-check, and the refund policy must reflect this.
+  guaranteed. All copy, the re-check, and the support policy must reflect this.
+
+## Trust messaging — the site must communicate this
+
+Repo access is the biggest conversion drop-off, so trust is **copy, not just backend**. These
+four promises must be **visible at the moment of decision** (connect-GitHub screen, checkout,
+and the public `/security` page) in plain language — and every one must stay literally true,
+backed by a real control (see Security below + Trust & Security in [`plan/plan.md`](plan/plan.md)).
+Never overstate; if a claim ever stops being enforceable, change the copy, not the truth.
+
+- **Your code is never kept.** The moment the PR is opened (or the run ends/fails), the clone and
+  the sandbox are destroyed — we store run metadata and the transcript, never your source.
+- **Only the one repo you pick is touched.** Install is scoped to the single selected repo; no
+  other repository is ever read, cloned, or modified.
+- **No confidential data leaves to third parties.** Your code and secrets are never shared with
+  any third party; model calls are inference-only and no secrets/DB/Stripe creds enter the sandbox.
+- **Zero data retention, no model training.** The AI providers we route through don't retain your
+  data and **never** train on it.
 
 ## Security
 
@@ -122,6 +144,20 @@ the rubric (SSR content visible in no-JS HTML, metadata + JSON-LD present, robot
   connect-GitHub, checkout, run views) with consistent, well-named events.
 - Loading analytics must not violate the SEO rules above — no render-blocking scripts, no
   client-only content. Keep the PostHog project key in env, never hardcoded.
+
+## Cost tracking (per-run COGS)
+
+Every fix run / PR records what it cost us to produce, so margin is auditable per order:
+
+- **Model(s) used** — which model served each step (e.g. a cheap triage model for file-finding,
+  Opus for edits), so spend is attributable per model.
+- **Tokens** — input + output token counts (plus the image-gen count for any Tier-C thumbnails).
+- **Sandbox time** — wall-clock seconds the E2B microVM was alive.
+
+From these we compute `token_cost_cents` + `sandbox_cost_cents` (+ `image_cost_cents`) on
+`fix_runs` and **alert when a run approaches its order price** (margin guard). The raw inputs and
+the derived cents live on `fix_runs`; see the data model + unit-economics risk in
+[`plan/plan.md`](plan/plan.md).
 
 ## Conventions
 
