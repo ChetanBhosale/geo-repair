@@ -44,7 +44,31 @@ const PRIORITY_WEIGHT: Record<Priority, number> = {
 
 // --- small helpers ----------------------------------------------------------
 
-const TRUSTED_CITE = /(\.gov|\.edu|\.gov\.[a-z]{2}|wikipedia\.org|doi\.org|nih\.gov|who\.int|arxiv\.org|nature\.com|ncbi\.nlm\.nih\.gov|oecd\.org|europa\.eu)(\/|$)/i;
+// Authoritative outbound sources that signal citation quality. Beyond academia/government this
+// includes web-standards bodies, official platform/developer documentation, and major research/
+// analyst firms - the credible primary sources a real business or tech blog actually cites.
+const TRUSTED_CITE_HOSTS: string[] = [
+  // Government, academia, primary research
+  "\\.gov", "\\.edu", "\\.gov\\.[a-z]{2}", "\\.ac\\.[a-z]{2}",
+  "wikipedia\\.org", "doi\\.org", "arxiv\\.org", "nature\\.com",
+  "nih\\.gov", "ncbi\\.nlm\\.nih\\.gov", "who\\.int", "oecd\\.org", "europa\\.eu",
+  // Web standards / specifications
+  "w3\\.org", "ietf\\.org", "rfc-editor\\.org", "whatwg\\.org", "iso\\.org",
+  "ecma-international\\.org", "unicode\\.org",
+  // Official platform / developer documentation
+  "developer\\.mozilla\\.org", "developer\\.apple\\.com", "support\\.apple\\.com",
+  "developers\\.google\\.com", "developer\\.android\\.com", "support\\.google\\.com",
+  "learn\\.microsoft\\.com", "docs\\.microsoft\\.com", "web\\.dev",
+  // Major research / analyst / data firms
+  "pewresearch\\.org", "gartner\\.com", "forrester\\.com", "statista\\.com",
+  "mckinsey\\.com", "hbr\\.org",
+];
+const TRUSTED_CITE = new RegExp(`(${TRUSTED_CITE_HOSTS.join("|")})([\\/:?#]|$)`, "i");
+
+// Social network + share-button hosts. These are footer icons / "share on X" links, not
+// citations, so citation-quality excludes them. (Share buttons point at these same hosts, e.g.
+// facebook.com/sharer, twitter.com/intent, linkedin.com/share, so a host match catches both.)
+const SOCIAL_HOST = /(twitter\.com|\/\/x\.com|\.x\.com|facebook\.com|fb\.com|linkedin\.com|instagram\.com|youtube\.com|youtu\.be|tiktok\.com|pinterest\.com|threads\.net|mastodon|reddit\.com|t\.me|wa\.me|whatsapp\.com|snapchat\.com|discord\.(gg|com))/i;
 const QUESTION_START = /^(how|what|why|when|where|who|which|can|is|are|does|do|should|will)\b/i;
 const DATE_HINT = /\b(20\d{2}|19\d{2})\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}\b/i;
 
@@ -182,13 +206,16 @@ const EVALUATORS: Record<string, (ctx: CheckContext) => Verdict> = {
         fixHint: "Add a unique <title> (about 50 to 60 chars) and meta description (about 120 to 160 chars) per route.",
       };
     }
-    const titleOk = title.length >= 30 && title.length <= 60;
-    const descOk = desc.length >= 110 && desc.length <= 160;
+    // Generous, real-world tolerances: only flag lengths that genuinely truncate or read thin,
+    // not every templated title. (Google shows ~60 chars but longer titles still work; a 70-180
+    // char description is fine.) Present-and-non-placeholder is the core signal here.
+    const titleOk = title.length >= 15 && title.length <= 80;
+    const descOk = desc.length >= 70 && desc.length <= 200;
     if (titleOk && descOk) {
-      return { status: "pass", reason: "Title and meta description are present and within recommended length ranges.", good };
+      return { status: "pass", reason: "Title and meta description are present and within healthy length ranges.", good };
     }
-    if (!titleOk) bad.push(`title length ${title.length} outside 30 to 60`);
-    if (!descOk) bad.push(`description length ${desc.length} outside 110 to 160`);
+    if (!titleOk) bad.push(`title length ${title.length} outside 15 to 80 (may truncate in results)`);
+    if (!descOk) bad.push(`description length ${desc.length} outside 70 to 200 (may truncate or read thin)`);
     return {
       status: "partial",
       reason: "Title and description exist but one or both fall outside the recommended length, risking SERP truncation or weak summaries.",
@@ -537,37 +564,49 @@ const EVALUATORS: Record<string, (ctx: CheckContext) => Verdict> = {
   },
 
   "citation-quality": ({ page, domain }) => {
+    // Any outbound link to another site counts as a citation, regardless of TLD or source - we do
+    // NOT require an academic/.gov source. But social + share links (footer icons, "share on X"
+    // buttons) are not citations, so they are excluded, and a page needs at least two real
+    // outbound references to pass. We still highlight links to recognised authorities as a bonus.
     const external = page.anchors.filter((a) => sameOrigin(a.href, domain.origin) === false && looksAbsolute(a.href));
-    const trusted = external.filter((a) => TRUSTED_CITE.test(a.href));
-    const note = "Heuristic check (LLM-assisted in production); weighted conservatively and never a citation promise.";
+    const citations = external.filter((a) => !SOCIAL_HOST.test(a.href));
+    const authoritative = citations.filter((a) => TRUSTED_CITE.test(a.href));
+    const note = "Heuristic check (LLM-assisted in production); never a citation promise.";
     const good: string[] = [];
-    const bad: string[] = [];
-    if (trusted.length) good.push(`${trusted.length} link(s) to trusted sources (.gov/.edu/research)`);
-    if (external.length) good.push(`${external.length} outbound link(s)`);
-    if (trusted.length >= 2) {
-      return { status: "pass", reason: `Page cites multiple trusted external sources, a strong citation-readiness signal. ${note}`, good };
+    if (citations.length) good.push(`${citations.length} outbound citation(s) to other sites`);
+    if (authoritative.length) good.push(`${authoritative.length} to recognised authoritative sources (docs, standards, research, .gov/.edu)`);
+
+    if (citations.length >= 2) {
+      const bonus = authoritative.length ? " Some point to recognised authorities." : "";
+      return { status: "pass", reason: `Page backs its claims with multiple outbound citations.${bonus} ${note}`, good };
     }
-    if (trusted.length === 1 || external.length >= 3) {
-      return { status: "partial", reason: `Some outbound references exist but few link to authoritative sources. ${note}`, good, bad: ["few/no links to authoritative sources"], fixHint: "Where the prose names a source, wire the real outbound link to it." };
+    if (citations.length === 1) {
+      return { status: "partial", reason: `The page links to a single external source. A couple more references would strengthen its citation-readiness. ${note}`, good, bad: ["only one outbound citation (social/share links not counted)"], fixHint: "Where the prose names a source or statistic, link out to it." };
     }
-    return { status: "fail", reason: `No outbound citations to trusted sources found. ${note}`, bad: ["no authoritative outbound citations"], fixHint: "Link existing factual claims to primary/authoritative sources. Never invent a source." };
+    return { status: "fail", reason: `The page makes claims without citing any external source (social and share links are not counted). ${note}`, bad: ["no outbound citations"], fixHint: "Where the prose names a source or statistic, link out to it." };
   },
 
   definitions: ({ page }) => {
     const note = "Heuristic check (LLM-assisted in production).";
     const hasDefinedTerm = page.jsonLd.some((b) => b.types.some((t) => /definedterm/i.test(t)));
-    // answer-first: first ~200 chars of body contains an "X is/are Y" pattern.
-    const lead = page.visibleText.slice(0, 400);
-    const definitional = /\b[A-Z][\w-]+(?:\s+[\w-]+){0,4}\s+(is|are|refers to|means)\s+/.test(lead);
+    // A definition-shaped heading, e.g. "What is X?" / "What are X?". Glossary entries use these.
+    const defHeading = page.headings.some((h) => /^\s*what\s+(is|are|do|does)\b/i.test(h.text.trim()));
+    // Answer-first: an "X is/are/means/refers to/stands for Y" pattern near the top of the body.
+    // Widened from 400 to 600 chars because nav/breadcrumb text often precedes the real lead.
+    const lead = page.visibleText.slice(0, 600);
+    const definitional = /\b[A-Z][\w-]+(?:\s+[\w-]+){0,5}\s+(is|are|refers to|means|stands for)\b/.test(lead);
     const good: string[] = [];
-    const bad: string[] = [];
     if (hasDefinedTerm) good.push("DefinedTerm schema present");
+    if (defHeading) good.push('definition-shaped heading present (e.g. "What is ...")');
     if (definitional) good.push("answer-first definitional lead detected");
-    if (hasDefinedTerm && definitional) {
-      return { status: "pass", reason: `Content opens with a clear definition and marks up defined terms. ${note}`, good };
+
+    // DefinedTerm schema is the explicit, machine-readable end state this check rewards: pass outright.
+    if (hasDefinedTerm) {
+      return { status: "pass", reason: `Defined terms are marked up with DefinedTerm schema, so answer engines can extract the definition directly. ${note}`, good };
     }
-    if (definitional) {
-      return { status: "partial", reason: `Content is answer-first but does not mark up defined terms with schema. ${note}`, good, bad: ["no DefinedTerm markup"], fixHint: "Mark up existing definitions (e.g. DefinedTerm). Net-new definitions are gated (Tier C)." };
+    // A clear definitional lead or heading, just no schema yet: partial (the agent can add the markup).
+    if (definitional || defHeading) {
+      return { status: "partial", reason: `Content is answer-first/definitional but does not mark up defined terms with schema. ${note}`, good, bad: ["no DefinedTerm markup"], evidence: lead.slice(0, 120).trim() || undefined, fixHint: "Mark up the existing definition with DefinedTerm schema. Net-new definitions are gated (Tier C)." };
     }
     return { status: "fail", reason: `Content does not lead with a plain definition or answer, which top studies link to AI quoting. ${note}`, bad: ["no answer-first definition detected"], fixHint: "Surface an existing definition to the top of its section. Net-new copy is gated (Tier C)." };
   },

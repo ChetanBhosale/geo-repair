@@ -78,6 +78,11 @@ measured and scored but only flagged, never auto-edited.
 | 21 | `hreflang` | Metadata | Low | A | partial (only when locales exist) |
 | 22 | `social-image-size` | Metadata | Low | A | true |
 | 23 | `markdown-twins` | Content | Low | B | true |
+| 24 | `mobile-viewport` | Rendering | Low | A | true |
+
+> `mobile-viewport` checks only the static `<meta name="viewport">` tag (present, responsive,
+> zoom not disabled) — a deterministic, agent-safe markup fix. It is distinct from
+> `mobile-responsive` (CSS layout), which stays **out of scope / flag-only** below.
 
 **Check intent**
 

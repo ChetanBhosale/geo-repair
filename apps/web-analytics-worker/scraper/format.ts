@@ -1,28 +1,59 @@
-// Human-readable terminal formatter for a ScoreReport. Pure string building, no deps.
+// Human-readable terminal formatter for a ScoreReport / SiteReport. Pure string building, no deps.
+//
+// Presentation goal: lead with ONE overall score and plain-language groupings, not internal
+// pillar jargon or raw weights. SEO/GEO/AEO are surfaced as "Search hygiene", "Reachable by AI",
+// and "Answer-ready". The deterministic scoring (score.ts) is unchanged underneath; this file only
+// decides what the reader sees first and how dense it is.
 
-import type { ScoreReport, SiteReport, Status } from "./types.ts";
+import type {
+  Pillar,
+  ScoreReport,
+  SiteReport,
+  Status,
+} from "./types.ts";
 
+// Customer-facing status words (the JSON keeps the raw pass/partial/fail values for machines).
 const STATUS_MARK: Record<Status, string> = {
-  pass: "PASS",
-  partial: "PART",
-  fail: "FAIL",
-  inconclusive: "INC ",
-  "not-applicable": "N/A ",
+  pass: "Healthy",
+  partial: "Warning",
+  fail: "Critical",
+  inconclusive: "Unknown",
+  "not-applicable": "N/A",
 };
+
+/** Plain-language names + one-line meaning for each internal pillar. */
+const PILLAR_VIEW: Record<Pillar, { label: string; blurb: string }> = {
+  geo: { label: "Reachable by AI", blurb: "can AI crawlers fetch + parse the site" },
+  aeo: { label: "Answer-ready", blurb: "can engines extract a direct answer" },
+  seo: { label: "Search hygiene", blurb: "classic search fundamentals" },
+};
+const PILLAR_ORDER: Pillar[] = ["geo", "aeo", "seo"];
 
 function bar(score: number, width = 20): string {
   const filled = Math.round((score / 100) * width);
-  return `[${"#".repeat(filled)}${"-".repeat(width - filled)}] ${score}/100`;
+  return `[${"#".repeat(filled)}${"-".repeat(width - filled)}] ${String(score).padStart(3)}/100`;
 }
+
+/** Short plain-language verdict for an overall 0-100 score. */
+function verdict(score: number): string {
+  if (score >= 85) return "Strong — AI-search ready, only a few gaps to close.";
+  if (score >= 70) return "Good — solid foundation, some meaningful gaps to fix.";
+  if (score >= 50) return "Needs work — several fundamentals are missing.";
+  if (score > 0) return "At risk — largely invisible to AI search today.";
+  return "Inconclusive — the site could not be read.";
+}
+
+function pillarLine(label: string, score: number, blurb: string): string {
+  return `  ${label.padEnd(16)} ${bar(score, 12)}   ${blurb}`;
+}
+
+// --- single-page report -----------------------------------------------------
 
 export function formatReport(report: ScoreReport): string {
   const lines: string[] = [];
   lines.push("=".repeat(72));
-  lines.push(`AI Search Readiness Report  (rubric ${report.rubricVersion})`);
-  lines.push(`URL:      ${report.url}`);
-  if (report.finalUrl !== report.url) lines.push(`Resolved: ${report.finalUrl}`);
-  lines.push(`Page type: ${report.pageType}`);
-  lines.push(`Fetched:  ${report.fetchedAt}  (${report.durationMs}ms, tier ${report.fetch.tier})`);
+  lines.push(`AI Search Readiness — ${report.url}`);
+  lines.push(`page type: ${report.pageType} · ${report.fetchedAt} · static read`);
   lines.push("=".repeat(72));
 
   if (report.fetch.blocked) {
@@ -33,192 +64,149 @@ export function formatReport(report: ScoreReport): string {
   }
 
   lines.push("");
-  lines.push(`OVERALL   ${bar(report.overall)}`);
-  lines.push(`  SEO     ${bar(report.pillars.seo.score)}   (${report.pillars.seo.checks} checks)`);
-  lines.push(`  GEO     ${bar(report.pillars.geo.score)}   (${report.pillars.geo.checks} checks, reachable by AI)`);
-  lines.push(`  AEO     ${bar(report.pillars.aeo.score)}   (${report.pillars.aeo.checks} checks, answer-ready)`);
-
+  lines.push(`  OVERALL  ${bar(report.overall)}   ${verdict(report.overall)}`);
   lines.push("");
-  lines.push("By category:");
-  for (const [cat, s] of Object.entries(report.categories)) {
-    if (s) lines.push(`  ${cat.padEnd(18)} ${bar(s.score, 12)}`);
+  for (const p of PILLAR_ORDER) {
+    const v = PILLAR_VIEW[p];
+    lines.push(pillarLine(v.label, report.pillars[p].score, v.blurb));
   }
 
-  lines.push("");
-  lines.push("-".repeat(72));
-  lines.push("Checks:");
-  for (const c of report.checks) {
-    lines.push(`  [${STATUS_MARK[c.status]}] ${c.id.padEnd(20)} (${c.category})`);
-    lines.push(`         ${c.reason}`);
-    if (c.bad.length) lines.push(`         issues: ${c.bad.join("; ")}`);
-    if (c.evidence) lines.push(`         evidence: ${c.evidence}`);
-    if (c.fixHint && (c.status === "fail" || c.status === "partial")) {
-      lines.push(`         fix: ${c.fixHint}`);
+  // Group checks the reader cares about: needs-work first, then a compact "working" line.
+  const working = report.checks.filter((c) => c.status === "pass").map((c) => c.id);
+  const needs = report.checks.filter((c) => c.status === "fail" || c.status === "partial");
+  const na = report.checks.filter((c) => c.status === "not-applicable" || c.status === "inconclusive");
+
+  if (needs.length) {
+    lines.push("");
+    lines.push("-".repeat(72));
+    lines.push(`NEEDS ATTENTION (${needs.length}):`);
+    for (const c of needs) {
+      lines.push(`  [${STATUS_MARK[c.status].padEnd(8)}] ${c.id} — ${c.reason}`);
+      if (c.bad.length) lines.push(`             ${c.bad.join("; ")}`);
+      if (c.fixHint) lines.push(`             fix: ${c.fixHint}`);
     }
   }
 
-  const { good, bad, missing, inconclusive } = report.summary;
   lines.push("");
   lines.push("-".repeat(72));
-  lines.push(`What is good (${good.length}):`);
-  for (const g of good) lines.push(`  + ${g}`);
-  lines.push("");
-  lines.push(`What is missing (${missing.length}):`);
-  for (const m of missing) lines.push(`  - ${m}`);
-  lines.push("");
-  lines.push(`What went wrong (${bad.length}):`);
-  for (const b of bad) lines.push(`  ! ${b}`);
-  if (inconclusive.length) {
-    lines.push("");
-    lines.push(`Inconclusive (${inconclusive.length}):`);
-    for (const i of inconclusive) lines.push(`  ? ${i}`);
+  lines.push(`HEALTHY (${working.length}): ${working.join(", ") || "none"}`);
+  if (na.length) {
+    lines.push(`Not applicable / couldn't check (${na.length}): ${na.map((c) => c.id).join(", ")}`);
   }
 
   if (report.advisories.length) {
     lines.push("");
-    lines.push("-".repeat(72));
-    lines.push("Advisory (not in the score, planned / needs more infrastructure):");
-    for (const a of report.advisories) {
-      lines.push(`  ~ [${a.status}] ${a.label}`);
-      lines.push(`         ${a.detail}`);
-      if (a.observed) lines.push(`         observed: ${a.observed}`);
-      if (a.needs) lines.push(`         needs: ${a.needs}`);
-    }
+    lines.push("Advisory (not scored — needs more than a static read):");
+    for (const a of report.advisories) lines.push(`  ~ [${a.status}] ${a.label}`);
   }
   lines.push("=".repeat(72));
   return lines.join("\n");
 }
 
-/** Terminal formatter for a multi-page SiteReport. */
+// --- multi-page site report -------------------------------------------------
+
 export function formatSiteReport(site: SiteReport): string {
   const lines: string[] = [];
-  lines.push("=".repeat(72));
-  lines.push(`AI Search Readiness: SITE report  (rubric ${site.rubricVersion})`);
-  lines.push(`Site:     ${site.url}`);
-  lines.push(`Fetched:  ${site.fetchedAt}  (${site.durationMs}ms)`);
-  lines.push("=".repeat(72));
-
-  lines.push("");
-  lines.push(`SITE OVERALL  ${bar(site.overall)}   (mean of ${site.crawl.pagesScraped} page(s))`);
-  lines.push(`  SEO     ${bar(site.pillars.seo.score)}`);
-  lines.push(`  GEO     ${bar(site.pillars.geo.score)}`);
-  lines.push(`  AEO     ${bar(site.pillars.aeo.score)}`);
-
-  // Site profile.
   const info = site.siteInfo;
-  lines.push("");
-  lines.push("-".repeat(72));
-  lines.push("About this site:");
-  if (info.name) lines.push(`  Name:        ${info.name}`);
-  if (info.description) lines.push(`  Description: ${info.description.slice(0, 140)}`);
-  if (info.language) lines.push(`  Language:    ${info.language}`);
-  if (info.techStack.length) lines.push(`  Tech:        ${info.techStack.join(", ")}`);
-  if (info.schemaTypes.length) lines.push(`  Schema:      ${info.schemaTypes.join(", ")}`);
-  if (info.socialProfiles.length) lines.push(`  Social:      ${info.socialProfiles.slice(0, 6).join(", ")}`);
-  if (info.emails.length) lines.push(`  Email:       ${info.emails.join(", ")}`);
-  if (info.phones.length) lines.push(`  Phone:       ${info.phones.join(", ")}`);
-  const ptParts = Object.entries(info.pageTypes).filter(([, n]) => n > 0).map(([t, n]) => `${t}: ${n}`);
-  if (ptParts.length) lines.push(`  Page mix:    ${ptParts.join(", ")}`);
-  lines.push(`  Files:       sitemap ${info.hasSitemap ? "yes" : "no"}, robots ${info.hasRobots ? "yes" : "no"}, llms.txt ${info.hasLlmsTxt ? "yes" : "no"}`);
-  lines.push(`  Content:     ${info.content.avgWordsPerPage} avg words/page, ${info.content.pagesWithStructuredData}/${info.content.pagesScored} pages with structured data` + (info.sitemapUrlCount ? `, ~${info.sitemapUrlCount} URLs in sitemap` : ""));
 
+  lines.push("=".repeat(72));
+  lines.push(`AI Search Readiness — ${site.url}`);
+  lines.push(`${site.crawl.pagesScraped} page(s) analyzed · ${site.fetchedAt} · static read`);
+  lines.push("=".repeat(72));
+
+  // 1) The headline: one score + plain-language verdict, then the three plain groupings.
   lines.push("");
-  lines.push("By category (site mean):");
-  for (const [cat, s] of Object.entries(site.categories)) {
-    lines.push(`  ${cat.padEnd(18)} ${bar(s.score, 12)}`);
+  lines.push(`  OVERALL  ${bar(site.overall)}   ${verdict(site.overall)}`);
+  lines.push("");
+  for (const p of PILLAR_ORDER) {
+    const v = PILLAR_VIEW[p];
+    lines.push(pillarLine(v.label, site.pillars[p].score, v.blurb));
   }
 
-  // Discovery transparency: how we picked pages.
+  // 2) One-line site profile (identity + what it is built with).
   lines.push("");
-  lines.push("-".repeat(72));
-  lines.push(`Crawl: source=${site.crawl.source}, discovered ${site.crawl.totalDiscovered} URL(s), scraped ${site.crawl.pagesScraped} (cap ${site.crawl.maxPages}).`);
-  const sectionPairs = Object.entries(site.crawl.sections).sort((a, b) => b[1] - a[1]);
-  if (sectionPairs.length) {
-    lines.push(`Sections found: ${sectionPairs.map(([s, n]) => `${s} (${n})`).join(", ")}`);
-  }
+  const files = `sitemap ${info.hasSitemap ? "yes" : "no"}, robots ${info.hasRobots ? "yes" : "no"}, llms.txt ${info.hasLlmsTxt ? "yes" : "no"}`;
+  const facts = [
+    info.name,
+    info.techStack.join("/") || null,
+    info.language,
+    info.sitemapUrlCount ? `${info.sitemapUrlCount} URLs` : null,
+    files,
+  ].filter(Boolean);
+  lines.push(`  About: ${facts.join(" · ")}`);
+  if (info.schemaTypes.length) lines.push(`  Schema: ${info.schemaTypes.join(", ")}`);
 
-  lines.push("");
-  lines.push("-".repeat(72));
-  lines.push("Per-page scores (overall | SEO / GEO / AEO):");
-  for (const p of site.pages) {
-    if (p.blocked) {
-      lines.push(`  [INC]  ${p.pageType.padEnd(13)} ${p.finalUrl}`);
-      continue;
-    }
-    const o = String(p.overall).padStart(3);
-    const s = String(p.pillars.seo.score).padStart(3);
-    const g = String(p.pillars.geo.score).padStart(3);
-    const a = String(p.pillars.aeo.score).padStart(3);
-    lines.push(`  ${o}  ${p.pageType.padEnd(13)} S${s} G${g} A${a}  ${p.finalUrl}`);
-  }
-  if (site.crawl.skippedSample.length) {
-    lines.push("");
-    lines.push(`Skipped (sample of ${site.crawl.skippedSample.length} not scraped):`);
-    for (const u of site.crawl.skippedSample.slice(0, 8)) lines.push(`  . ${u}`);
-  }
-
-  // Site-wide check rollup: where each check fails across pages.
-  lines.push("");
-  lines.push("-".repeat(72));
-  lines.push("Site-wide checks (pages pass/partial/fail):");
+  // 3) Working / needs-work / missing, grouped from the per-check rollup (one line per check).
+  const working: string[] = [];
+  const needsWork: string[] = [];
+  const missing: string[] = [];
   for (const c of site.checkRollup) {
-    const total = c.pass + c.partial + c.fail + c.inconclusive + c.notApplicable;
-    lines.push(`  ${c.id.padEnd(20)} ${c.pass}P / ${c.partial}~ / ${c.fail}F  (of ${total})`);
-    if (c.failingUrls.length) {
-      lines.push(`         fails on: ${c.failingUrls.slice(0, 5).join(", ")}${c.failingUrls.length > 5 ? " ..." : ""}`);
+    const scored = c.pass + c.partial + c.fail;
+    if (scored === 0) continue; // not-applicable / inconclusive everywhere: omit from the headline lists
+    if (c.fail === 0 && c.partial === 0) {
+      working.push(c.id);
+    } else if (c.pass === 0 && c.partial === 0) {
+      missing.push(`${c.id} — missing on all ${c.fail} page(s) where it applies`);
+    } else {
+      const parts = [c.fail ? `${c.fail} fail` : null, c.partial ? `${c.partial} partial` : null, c.pass ? `${c.pass} pass` : null].filter(Boolean);
+      needsWork.push(`${c.id} — ${parts.join(" / ")} (of ${scored})`);
     }
   }
 
-  // Per-pillar good / bad / missing rollup.
-  const pillarLabels: Record<string, string> = { seo: "SEO", geo: "GEO (reachable by AI)", aeo: "AEO (answer-ready)" };
   lines.push("");
   lines.push("-".repeat(72));
-  lines.push("By pillar:");
-  for (const p of ["seo", "geo", "aeo"] as const) {
-    const ps = site.pillarSummary[p];
+  lines.push(`HEALTHY (${working.length}): ${working.join(", ") || "none"}`);
+
+  if (needsWork.length) {
     lines.push("");
-    lines.push(`${pillarLabels[p]}  ${bar(site.pillars[p].score, 12)}`);
-    if (ps.good.length) {
-      lines.push(`  good (${ps.good.length}):`);
-      for (const g of ps.good) lines.push(`    + ${g}`);
-    }
-    if (ps.missing.length) {
-      lines.push(`  missing (${ps.missing.length}):`);
-      for (const m of ps.missing) lines.push(`    - ${m}`);
-    }
-    if (ps.bad.length) {
-      lines.push(`  needs work (${ps.bad.length}):`);
-      for (const b of ps.bad) lines.push(`    ! ${b}`);
-    }
+    lines.push(`WARNINGS (${needsWork.length} — mixed across pages):`);
+    for (const l of needsWork) lines.push(`  ${l}`);
+  }
+  if (missing.length) {
+    lines.push("");
+    lines.push(`CRITICAL (${missing.length} — failing everywhere it applies):`);
+    for (const l of missing) lines.push(`  ${l}`);
   }
 
-  // Per-page fix list (worst first).
-  if (site.fixesRequired.length) {
+  // 4) Top fixes, grouped by check across the whole site (not a per-page wall).
+  const fixAgg = new Map<string, { pages: number; fix: string; auto: boolean }>();
+  for (const pf of site.fixesRequired) {
+    for (const f of pf.fixes) {
+      const e = fixAgg.get(f.checkId) ?? { pages: 0, fix: f.fix, auto: f.fixableByAgent };
+      e.pages += 1;
+      fixAgg.set(f.checkId, e);
+    }
+  }
+  const topFixes = [...fixAgg.entries()].sort((a, b) => b[1].pages - a[1].pages).slice(0, 8);
+  if (topFixes.length) {
     lines.push("");
     lines.push("-".repeat(72));
-    lines.push(`Fixes required (${site.fixesRequired.length} page(s) need work, worst first):`);
-    for (const pf of site.fixesRequired.slice(0, 30)) {
-      lines.push("");
-      lines.push(`  ${pf.url}  [${pf.pageType}, score ${pf.overall}]`);
-      for (const f of pf.fixes) {
-        const tag = f.status === "fail" ? "FAIL" : "PART";
-        const auto = f.fixableByAgent ? "" : " (flag only)";
-        lines.push(`    [${tag}] ${f.checkId}${auto}: ${f.fix}`);
-      }
+    lines.push("TOP FIXES (site-wide, most pages first):");
+    for (const [id, e] of topFixes) {
+      lines.push(`  ${String(e.pages).padStart(3)} pages  ${id}${e.auto ? "" : " (flag only)"}: ${e.fix}`);
     }
-    if (site.fixesRequired.length > 30) {
-      lines.push("");
-      lines.push(`  ... and ${site.fixesRequired.length - 30} more pages in the JSON output.`);
+  }
+
+  // 5) The weakest pages only (not all of them) — full per-page detail stays in --json.
+  const ranked = [...site.pages].filter((p) => !p.blocked).sort((a, b) => a.overall - b.overall);
+  const blocked = site.pages.filter((p) => p.blocked);
+  const weakest = ranked.slice(0, 8);
+  if (weakest.length) {
+    lines.push("");
+    lines.push("-".repeat(72));
+    lines.push(`WEAKEST PAGES (${weakest.length} of ${ranked.length} shown; full list in --json):`);
+    for (const p of weakest) {
+      lines.push(`  ${String(p.overall).padStart(3)}  ${p.pageType.padEnd(13)} ${p.finalUrl}`);
     }
+  }
+  if (blocked.length) {
+    lines.push(`  ${blocked.length} page(s) could not be read (scored inconclusive, not failed).`);
   }
 
   if (site.advisories.length) {
     lines.push("");
-    lines.push("-".repeat(72));
-    lines.push("Advisory (not in the score):");
-    for (const a of site.advisories) {
-      lines.push(`  ~ [${a.status}] ${a.label}`);
-    }
+    lines.push("Advisory (not scored — needs more than a static read):");
+    for (const a of site.advisories) lines.push(`  ~ [${a.status}] ${a.label}`);
   }
   lines.push("=".repeat(72));
   return lines.join("\n");

@@ -81,7 +81,7 @@ Per **page** (homepage always; key pages in full audit): both the **raw HTML** (
 | **Social** | `og:*` tags, `twitter:*` tags, referenced OG image (+ its dimensions) | `open-graph`, `social-image-size` |
 | **Structured data** | every `<script type="application/ld+json">` block (parsed + type-checked) | `structured-data`, `answerability` (FAQPage), `freshness-eeat` (Article dates/author) |
 | **Semantics** | heading tree (`<h1>`…`<h6>`), landmarks (`header/nav/main/footer`), accessibility tree (roles, accessible names on buttons/links/inputs) | `semantic-html`, `interactive-labels` |
-| **Content** | visible text (word count, readability), outbound links + targets, internal links + anchor text, visible dates / author / about-contact signals | `internal-linking`, `freshness-eeat`, `citation-quality`, `definitions`, `markdown-twins`, `word-count` |
+| **Content** | visible text (word count, readability), outbound links + targets, internal links + anchor text, visible dates / author / about-contact signals | `internal-linking`, `freshness-eeat`, `citation-quality`, `definitions`, `markdown-twins` |
 | **Answerability** | question-shaped headings, FAQ blocks, "X is Y" definition patterns | `answerability`, `definitions` |
 | **Crawl surface** | AI-crawler allow/deny rules, sitemap validity, `llms.txt` contents | `robots-ai-crawlers`, `sitemap`, `llms-txt` |
 
@@ -118,7 +118,7 @@ pillar (e.g. structured data helps both SEO and GEO). Canonical IDs from `RUBRIC
 
 | Pillar | What it answers | Member checks (rubric IDs) |
 |--------|-----------------|----------------------------|
-| **SEO** | Classic search hygiene | `meta-tags`, `canonical-urls`, `open-graph`, `social-image-size`, `favicon`, `hreflang`, `image-alt-text`, `internal-linking`, `semantic-html`, `indexability`, `sitemap`, `word-count`, `doctype`, `charset` |
+| **SEO** | Classic search hygiene | `meta-tags`, `canonical-urls`, `open-graph`, `social-image-size`, `favicon`, `hreflang`, `image-alt-text`, `internal-linking`, `semantic-html`, `indexability`, `sitemap`, `mobile-viewport`, `doctype`, `charset` |
 | **GEO** (Generative Engine Optimization) | Can AI crawlers **reach + parse** the site | `ssr-visibility` *(critical weight)*, `robots-ai-crawlers`, `llms-txt`, `structured-data`, `semantic-html`, `freshness-eeat`, `markdown-twins`, `interactive-labels` |
 | **AEO** (Answer Engine Optimization) | Can an answer engine **extract a direct answer** | `answerability`, `definitions`, `citation-quality`, `structured-data` (FAQPage/HowTo), `freshness-eeat`, `semantic-html` (question-shaped headings) |
 
