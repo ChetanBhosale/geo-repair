@@ -1,0 +1,1 @@
+alwasy use the .envs for frontend and backend from the packages/secrets

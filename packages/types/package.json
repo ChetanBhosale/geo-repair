@@ -1,11 +1,12 @@
 {
-  "name": "@repo/secrets",
+  "name": "@repo/types",
   "type": "module",
-  "exports" : {
-    "./frontend": "./frontend_secrets.ts",
-    "./backend": "./backend_secrets.ts"
-  },
   "private": true,
+  "exports": {
+    ".": "./index.ts",
+    "./user": "./src/user.ts",
+    "./auth": "./src/auth.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -13,6 +14,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "zod": "^4.4.3"
   }
 }

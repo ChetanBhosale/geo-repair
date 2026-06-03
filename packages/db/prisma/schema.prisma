@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Supported OAuth providers. GitHub is live; the rest are scaffolded so we can
+// add their logins later without a schema change.
+enum AuthProvider {
+  GITHUB
+  GOOGLE
+  FRAMER
+  WORDPRESS
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String?
+  username  String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts Account[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          AuthProvider
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  scope             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model ScrapeGeo {
+  id                String   @id @default(cuid())
+  website           String   @unique
+  websiteScrapeData Json?
+  totalScrapeCount  Int      @default(0)
+
+  // Request metadata (captured from the audit request for analytics / abuse).
+  ip                String?
+  userAgent         String?
+  referer           String?
+  origin            String?
+  singlePage        Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([website])
+  @@map("scrapeGeo")
+}
