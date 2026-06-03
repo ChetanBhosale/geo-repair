@@ -1,0 +1,41 @@
+AI search readiness should be measured before and after a fix. Without measurement, it is too easy to confuse a better-looking page with a more machine-readable page.
+
+The right scorecard focuses on the parts you control: crawl access, rendered content, metadata, structured data, semantics, answerability, and trust details.
+
+## What should you measure before a fix?
+
+Capture a baseline for each important route:
+
+- Does raw HTML include the primary content?
+- Is the title unique and accurate?
+- Is the meta description specific?
+- Is the canonical URL self-referential?
+- Does the route emit valid JSON-LD?
+- Is the route listed in sitemap.xml?
+- Does robots.txt allow relevant crawlers?
+- Does llms.txt point to the page or a Markdown twin?
+- Is there one h1 with a logical heading order?
+- Are question-shaped sections answered directly?
+
+Record the evidence, not just the score. A useful report shows the failing HTML, missing fields, blocked crawler rule, or incorrect schema type.
+
+## What should you measure after a fix?
+
+Re-run the same checks. The goal is not to prove that AI systems will cite the page. The goal is to prove that the technical blockers were removed.
+
+A good after-fix report should show:
+
+- The new server-rendered content is visible
+- Metadata matches the page
+- JSON-LD validates
+- Sitemap and Markdown resources include the route
+- Crawl rules are intentional
+- The content answers the target question more directly
+
+## How do you avoid vanity metrics?
+
+Do not treat impressions, rankings, or citations as immediate proof of technical readiness. Those outcomes can lag and are influenced by factors outside your control. Readiness is narrower: can the page be fetched, parsed, understood, and trusted?
+
+That narrower measurement is valuable because it is actionable. If the HTML is blank, you can render content on the server. If schema is wrong, you can generate it from real page data. If robots.txt blocks crawlers, you can fix the rule.
+
+Measure the machine-readable surface first. Then watch external outcomes over time with the right expectations.
