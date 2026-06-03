@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
 
-// Waitlist signups land here. There's no datastore or email provider wired yet,
-// so this validates the address and acknowledges it (server logs capture the
-// signup in the meantime). Swap the console.log for a real store / provider
-// (Resend, Loops, a DB insert) when one is chosen — the client contract stays
-// the same: POST { email } → 200 { ok: true }.
+import { sendWaitlistWelcome } from "@/lib/email"
+
+// Waitlist signups land here. There's no datastore yet, so a durable list still
+// depends on the DB-storage task; for now we send a welcome email via Resend and
+// log the signup (server logs are the record of who joined in the meantime).
+// The email send is best-effort and never fails the request. Client contract:
+// POST { email } → 200 { ok: true }.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(request: Request) {
@@ -22,7 +24,11 @@ export async function POST(request: Request) {
     )
   }
 
-  console.log(`[waitlist] signup: ${email.trim().toLowerCase()}`)
+  const address = email.trim().toLowerCase()
+  console.log(`[waitlist] signup: ${address}`)
+
+  // Best-effort: a failed welcome email shouldn't reject an accepted signup.
+  await sendWaitlistWelcome(address)
 
   return NextResponse.json({ ok: true })
 }

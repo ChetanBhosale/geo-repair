@@ -10,9 +10,9 @@ import { CornerMarks } from "@/components/sections/frame"
 import { Section } from "@/components/sections/section"
 
 export const metadata = buildMetadata({
-  title: "Blog · AI Search Optimization, GEO & AEO · GEO Repair",
+  title: "Blog · AI Search Optimization Guides · GEO Repair",
   description:
-    "Plain-English guides to AI Search Optimization: how AI crawlers read your site, what GEO and AEO actually mean, and the technical checks that make your pages legible to ChatGPT, Perplexity, and AI Overviews.",
+    "Plain-English guides to AI Search Optimization: how AI crawlers read your site, which technical checks matter, and how to make pages legible to ChatGPT, Perplexity, and AI Overviews.",
   path: "/blog",
 })
 

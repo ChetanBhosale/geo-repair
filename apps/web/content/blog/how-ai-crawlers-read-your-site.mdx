@@ -4,7 +4,7 @@ When you open a page, your browser downloads the HTML, runs the JavaScript, fetc
 
 Most AI crawlers make a plain HTTP request and read the **raw HTML that comes back**, the same thing you'd see with `curl` or "View Source," not the fully-rendered DOM you see in DevTools. Many of them do not execute JavaScript at all, and the ones that do treat it as expensive and optional.
 
-That has a blunt consequence: if your headline, your article body, or your answer only appears *after* the page hydrates on the client, a crawler that doesn't run JavaScript sees none of it. To that bot, your page is close to blank.
+That has a blunt consequence: if your headline, your article body, or your answer only appears _after_ the page hydrates on the client, a crawler that doesn't run JavaScript sees none of it. To that bot, your page is close to blank.
 
 You can check this yourself in seconds:
 
@@ -24,7 +24,7 @@ Server-rendered HTML wins for AI search because it is:
 - **Cheap to fetch**: one request returns the whole answer, so crawlers don't skip it.
 - **Stable**: the content doesn't depend on a client runtime that might error or time out.
 
-Interactive widgets are fine. The rule is simpler than it sounds: *the selling content and the answers should exist in the HTML before any script runs.* Layer interactivity on top, but don't hide the substance beneath it.
+Interactive widgets are fine. The rule is simpler than it sounds: _the selling content and the answers should exist in the HTML before any script runs._ Layer interactivity on top, but don't hide the substance beneath it.
 
 ## Crawlers respect your rules, including the accidental ones
 
@@ -41,7 +41,7 @@ Once a crawler has your HTML, structure decides how confidently it can extract a
 - **JSON-LD structured data** states facts explicitly: this is an Article, here's the author, here's the published date.
 - **Question-shaped headings with self-contained answers** map directly to how people phrase queries.
 
-This is the same semantic hygiene that helps screen readers and traditional search. AI search just raises the stakes, because the crawler is trying to *understand and reuse* your content, not merely rank it.
+This is the same semantic hygiene that helps screen readers and traditional search. AI search just raises the stakes, because the crawler is trying to _understand and reuse_ your content, not merely rank it.
 
 ## The honest takeaway
 
