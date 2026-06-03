@@ -43,8 +43,8 @@ export { MARKDOWN_TWIN_PATHS, markdownTwinPath } from "./twin-paths"
 // served as text/markdown at <path>.md. Every twin is built from the SAME
 // content source the HTML page renders from (lib/landing-content,
 // lib/marketing-content, the rubric meta, and the blog MDX), so the two never
-// drift. No new claims are introduced here — this is a reformat, not authoring.
-// See RUBRIC.md → `markdown-twins` (Tier B).
+// drift. No new claims are introduced here, this is a reformat, not authoring.
+// See RUBRIC.md -> `markdown-twins` (Tier B).
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -79,7 +79,7 @@ function doc(opts: {
     "",
     "---",
     "",
-    `_Markdown copy of [${opts.title}](${url}) — a faithful, machine-readable version of the page. © ${SITE.name}._`,
+    `_Markdown copy of [${opts.title}](${url}), a faithful, machine-readable version of the page. © ${SITE.name}._`,
     "",
   ].join("\n")
 }
@@ -102,9 +102,9 @@ function landingTwin(content: LandingContent): string {
     "",
     HOW_IT_WORKS_INTRO.description ?? "",
     "",
-    HOW_IT_WORKS_STEPS.map(
-      (s) => `### ${s.n} · ${s.title}\n\n${s.body}`
-    ).join("\n\n"),
+    HOW_IT_WORKS_STEPS.map((s) => `### ${s.n} · ${s.title}\n\n${s.body}`).join(
+      "\n\n"
+    ),
     "",
     `## ${CATEGORIES_INTRO.title}`,
     "",
@@ -146,7 +146,7 @@ function landingTwin(content: LandingContent): string {
 function planMarkdown(tier: PricingTier): string {
   const price = `${tier.price}${tier.cadence ?? ""}`
   return [
-    `**${tier.name} — ${price}**`,
+    `**${tier.name}: ${price}**`,
     "",
     tier.blurb,
     "",
@@ -243,7 +243,7 @@ function securityTwin(): string {
 
 function contactTwin(): string {
   const channels = CONTACT_CHANNELS.map(
-    (c) => `- **${c.label}** — [${c.value}](${c.href}): ${c.body}`
+    (c) => `- **${c.label}**: [${c.value}](${c.href}): ${c.body}`
   ).join("\n")
 
   const body = [
@@ -335,13 +335,13 @@ async function blogPostTwin(slug: string): Promise<string | null> {
 
 // --- Legal pages -----------------------------------------------------------
 // The prose lives as styled JSX in the page components; these are faithful
-// Markdown transcriptions of that exact copy (point-in-time — update alongside
+// Markdown transcriptions of that exact copy (point-in-time, update alongside
 // the page when the legal text changes). Low-churn, so duplication is the
 // pragmatic choice over rendering both from one Markdown source.
 
 const PRIVACY_BODY = `# Privacy Policy
 
-_Last updated June 2, 2026_
+_Last updated June 3, 2026_
 
 This Privacy Policy explains what GEO Repair collects, how we use it, and, just as importantly, what we never do with it. The short version: your code lives only inside an ephemeral sandbox for a single run, is never retained afterward, and is never used to train models.
 
@@ -362,6 +362,10 @@ The checkup fetches your public pages, the same way an AI crawler would, and res
 
 If you create an account, we collect your email address and authentication details from your identity provider. If you subscribe, our payment processor handles your card details, and we never see or store full card numbers.
 
+### Waitlist and contact forms
+
+If you join the waitlist or submit the contact form, we collect the information you provide, such as your email address, name, and message. We use Resend to send waitlist confirmations, contact acknowledgements, and internal contact-form notifications.
+
 ### Repository data during a fix run
 
 When you approve a fix, your repository is cloned into an ephemeral sandbox solely for that run. The agent reads only what it needs to edit the flagged checks. When the run ends, the sandbox and clone are destroyed.
@@ -377,9 +381,13 @@ We use privacy-respecting product analytics to understand how the Service is use
 - To operate, secure, and improve the Service.
 - To communicate with you about your account, support requests, and service changes.
 
+## Service providers
+
+We use carefully selected service providers to operate the Service, including hosting, analytics, payments, authentication, repository access, and transactional email through Resend. These providers process information only as needed to provide their services to us. We do not sell personal information.
+
 ## Data retention
 
-Source code is never retained beyond the lifetime of a single sandboxed run. Account information is kept while your account is active and deleted on request. Checkup results and aggregate analytics are kept to provide the Service and may be retained in de-identified form.
+Source code is never retained beyond the lifetime of a single sandboxed run. Account information is kept while your account is active and deleted on request. Waitlist and contact-form information is kept as long as needed to respond to you and operate the Service. Checkup results and aggregate analytics are kept to provide the Service and may be retained in de-identified form.
 
 ## Your rights
 
@@ -398,7 +406,7 @@ Questions about your privacy? Email privacy@geo.repair, or read more on our [Sec
 
 const TERMS_BODY = `# Terms of Service
 
-_Last updated June 2, 2026_
+_Last updated June 3, 2026_
 
 These Terms of Service ("Terms") govern your access to and use of GEO Repair (the "Service"), including the free readiness checkup and the AI fix agent. By using the Service you agree to these Terms. If you do not agree, do not use the Service.
 
@@ -427,6 +435,13 @@ You agree not to use the Service to:
 ## Plans and billing
 
 The checkup is free. Paid plans, such as AI Search Autopilot, are billed in advance on a recurring basis and are month-to-month unless stated otherwise. You can cancel at any time; cancellation takes effect at the end of the current billing period.
+
+## Communications
+
+If you join the waitlist, submit the contact form, create an account, or use the Service, we may send you transactional emails related to your request, account, support conversation, or service changes. We use an email provider to deliver those messages. See our [Privacy Policy](${new URL(
+  "/privacy",
+  SITE.url
+).toString()}) for details.
 
 ## Intellectual property
 

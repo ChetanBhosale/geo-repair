@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 
-// Contact form submissions land here. Like /api/waitlist, there's no datastore
-// or email provider wired yet: this validates the payload and acknowledges it
-// (server logs capture it, and the client mirrors it into PostHog as a
-// `contact_submitted` event so messages are readable there for now). Swap the
-// console.log for a real store / provider (Resend, Loops, a DB insert) when one
-// is chosen — the client contract stays the same: POST { name?, email, message }
-// → 200 { ok: true }.
+import { sendContactAck, sendContactNotification } from "@/lib/email"
+
+// Contact form submissions land here. There's no datastore yet, so we notify the
+// team inbox via Resend and send the submitter an acknowledgement; the message is
+// also logged and mirrored into PostHog (`contact_submitted`) client-side. Email
+// sends are best-effort and never fail the request. Client contract:
+// POST { name?, email, message } → 200 { ok: true }.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(request: Request) {
@@ -34,12 +34,23 @@ export async function POST(request: Request) {
   }
 
   const cleanName = typeof name === "string" ? name.trim() : ""
+  const cleanEmail = email.trim().toLowerCase()
+  const cleanMessage = message.trim()
 
   console.log(
-    `[contact] from ${cleanName || "(no name)"} <${email
-      .trim()
-      .toLowerCase()}>: ${message.trim()}`
+    `[contact] from ${cleanName || "(no name)"} <${cleanEmail}>: ${cleanMessage}`
   )
+
+  // Best-effort: notify the team and acknowledge the sender. A failed email
+  // shouldn't reject a submission the form has already accepted.
+  await Promise.allSettled([
+    sendContactNotification({
+      name: cleanName,
+      email: cleanEmail,
+      message: cleanMessage,
+    }),
+    sendContactAck({ name: cleanName, email: cleanEmail }),
+  ])
 
   return NextResponse.json({ ok: true })
 }

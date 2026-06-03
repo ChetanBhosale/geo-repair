@@ -12,7 +12,7 @@ export const metadata = buildMetadata({
   path: "/terms",
 })
 
-const LAST_UPDATED = "June 2, 2026"
+const LAST_UPDATED = "June 3, 2026"
 
 export default function TermsPage() {
   return (
@@ -44,8 +44,8 @@ export default function TermsPage() {
             <h2>The Service</h2>
             <p>
               GEO Repair runs a readiness checkup that fetches your public web
-              pages (the same way an AI crawler would) and scores how ready
-              they are for AI search engines to read and cite. If you connect a
+              pages (the same way an AI crawler would) and scores how ready they
+              are for AI search engines to read and cite. If you connect a
               repository, the AI fix agent edits the checks it flagged in an
               ephemeral sandbox and opens a pull request for your review.
             </p>
@@ -82,8 +82,8 @@ export default function TermsPage() {
             <p>You agree not to use the Service to:</p>
             <ul>
               <li>
-                Scan or modify property you do not own or have permission to
-                act on.
+                Scan or modify property you do not own or have permission to act
+                on.
               </li>
               <li>
                 Circumvent access controls, rate limits, or the robots.txt of
@@ -101,6 +101,15 @@ export default function TermsPage() {
               billed in advance on a recurring basis and are month-to-month
               unless stated otherwise. You can cancel at any time; cancellation
               takes effect at the end of the current billing period.
+            </p>
+
+            <h2>Communications</h2>
+            <p>
+              If you join the waitlist, submit the contact form, create an
+              account, or use the Service, we may send you transactional emails
+              related to your request, account, support conversation, or service
+              changes. We use an email provider to deliver those messages. See
+              our <Link href="/privacy">Privacy Policy</Link> for details.
             </p>
 
             <h2>Intellectual property</h2>

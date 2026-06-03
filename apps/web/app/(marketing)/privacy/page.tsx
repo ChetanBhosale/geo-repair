@@ -12,7 +12,7 @@ export const metadata = buildMetadata({
   path: "/privacy",
 })
 
-const LAST_UPDATED = "June 2, 2026"
+const LAST_UPDATED = "June 3, 2026"
 
 export default function PrivacyPage() {
   return (
@@ -35,10 +35,10 @@ export default function PrivacyPage() {
           <Prose>
             <p>
               This Privacy Policy explains what GEO Repair collects, how we use
-              it, and, just as importantly, what we never do with it. The
-              short version: your code lives only inside an ephemeral sandbox
-              for a single run, is never retained afterward, and is never used
-              to train models.
+              it, and, just as importantly, what we never do with it. The short
+              version: your code lives only inside an ephemeral sandbox for a
+              single run, is never retained afterward, and is never used to
+              train models.
             </p>
 
             <h2>Our core commitments</h2>
@@ -82,6 +82,13 @@ export default function PrivacyPage() {
               subscribe, our payment processor handles your card details, and we
               never see or store full card numbers.
             </p>
+            <h3>Waitlist and contact forms</h3>
+            <p>
+              If you join the waitlist or submit the contact form, we collect
+              the information you provide, such as your email address, name, and
+              message. We use Resend to send waitlist confirmations, contact
+              acknowledgements, and internal contact-form notifications.
+            </p>
             <h3>Repository data during a fix run</h3>
             <p>
               When you approve a fix, your repository is cloned into an
@@ -110,13 +117,24 @@ export default function PrivacyPage() {
               </li>
             </ul>
 
+            <h2>Service providers</h2>
+            <p>
+              We use carefully selected service providers to operate the
+              Service, including hosting, analytics, payments, authentication,
+              repository access, and transactional email through Resend. These
+              providers process information only as needed to provide their
+              services to us. We do not sell personal information.
+            </p>
+
             <h2>Data retention</h2>
             <p>
               Source code is never retained beyond the lifetime of a single
               sandboxed run. Account information is kept while your account is
-              active and deleted on request. Checkup results and aggregate
-              analytics are kept to provide the Service and may be retained in
-              de-identified form.
+              active and deleted on request. Waitlist and contact-form
+              information is kept as long as needed to respond to you and
+              operate the Service. Checkup results and aggregate analytics are
+              kept to provide the Service and may be retained in de-identified
+              form.
             </p>
 
             <h2>Your rights</h2>
@@ -136,8 +154,8 @@ export default function PrivacyPage() {
             <h2>Contact</h2>
             <p>
               Questions about your privacy? Email{" "}
-              <a href="mailto:privacy@geo.repair">privacy@geo.repair</a>, or read
-              more on our <Link href="/security">Security</Link> page.
+              <a href="mailto:privacy@geo.repair">privacy@geo.repair</a>, or
+              read more on our <Link href="/security">Security</Link> page.
             </p>
           </Prose>
         </div>

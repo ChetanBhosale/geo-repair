@@ -34,6 +34,27 @@ This version has breaking changes — APIs, conventions, and file structure may 
   SSR-friendly and do not regress the rubric. The mono ("code") type is appropriate
   inside these surfaces so they read as the real tool.
 
+## Legal pages
+
+The Privacy Policy ([`app/(marketing)/privacy/page.tsx`](<app/(marketing)/privacy/page.tsx>))
+and Terms ([`app/(marketing)/terms/page.tsx`](<app/(marketing)/terms/page.tsx>)) describe
+real product behavior and data handling. They must stay accurate.
+
+- **Keep them in sync with reality.** Whenever a change alters what data the product
+  collects, how it is processed, who it is shared with, or any sub-processor (analytics
+  provider, email provider, payment processor, hosting, the repo access model, retention,
+  etc.), update the affected legal copy in the same change. Treat the legal pages as part
+  of the surface you touched, not a separate follow-up.
+- **Bump the date.** When you make a material change to either page, update its
+  `LAST_UPDATED` constant to the current date. Both pages render this as the
+  "Last updated" line, so a stale constant silently misrepresents the policy.
+- **New third-party processors must be disclosed.** Adding a service that receives user
+  data (for example Resend for transactional email, a new analytics tool, a CRM) means the
+  Privacy Policy's "what we collect" / "third-party sharing" wording needs to reflect it
+  before the integration ships.
+- **Both pages move together when shared facts change.** Contact addresses, company
+  identity, and data-handling claims appear in both; update both so they never disagree.
+
 ## Analytics & events
 
 PostHog tracking is required on insightful surfaces (see the root `AGENTS.md` Analytics
