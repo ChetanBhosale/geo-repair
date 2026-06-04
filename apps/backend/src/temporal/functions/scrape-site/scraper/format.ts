@@ -136,19 +136,19 @@ export function formatSiteReport(site: SiteReport): string {
   lines.push(`  About: ${facts.join(" · ")}`);
   if (info.schemaTypes.length) lines.push(`  Schema: ${info.schemaTypes.join(", ")}`);
 
-  // 3) Working / needs-work / missing, grouped from the per-check rollup (one line per check).
+  // 3) Working / needs-work / missing, grouped from the rubric-centric findings (one line per check).
   const working: string[] = [];
   const needsWork: string[] = [];
   const missing: string[] = [];
-  for (const c of site.checkRollup) {
-    const scored = c.pass + c.partial + c.fail;
+  for (const c of site.findings) {
+    const scored = c.counts.pass + c.counts.partial + c.counts.fail;
     if (scored === 0) continue; // not-applicable / inconclusive everywhere: omit from the headline lists
-    if (c.fail === 0 && c.partial === 0) {
+    if (c.counts.fail === 0 && c.counts.partial === 0) {
       working.push(c.id);
-    } else if (c.pass === 0 && c.partial === 0) {
-      missing.push(`${c.id} — missing on all ${c.fail} page(s) where it applies`);
+    } else if (c.counts.pass === 0 && c.counts.partial === 0) {
+      missing.push(`${c.id} — missing on all ${c.counts.fail} page(s) where it applies`);
     } else {
-      const parts = [c.fail ? `${c.fail} fail` : null, c.partial ? `${c.partial} partial` : null, c.pass ? `${c.pass} pass` : null].filter(Boolean);
+      const parts = [c.counts.fail ? `${c.counts.fail} fail` : null, c.counts.partial ? `${c.counts.partial} partial` : null, c.counts.pass ? `${c.counts.pass} pass` : null].filter(Boolean);
       needsWork.push(`${c.id} — ${parts.join(" / ")} (of ${scored})`);
     }
   }
@@ -168,28 +168,24 @@ export function formatSiteReport(site: SiteReport): string {
     for (const l of missing) lines.push(`  ${l}`);
   }
 
-  // 4) Top fixes, grouped by check across the whole site (not a per-page wall).
-  const fixAgg = new Map<string, { pages: number; fix: string; auto: boolean }>();
-  for (const pf of site.fixesRequired) {
-    for (const f of pf.fixes) {
-      const e = fixAgg.get(f.checkId) ?? { pages: 0, fix: f.fix, auto: f.fixableByAgent };
-      e.pages += 1;
-      fixAgg.set(f.checkId, e);
-    }
-  }
-  const topFixes = [...fixAgg.entries()].sort((a, b) => b[1].pages - a[1].pages).slice(0, 8);
+  // 4) Top fixes, straight off the rubric-centric findings (already one row per check, worst first).
+  const topFixes = site.findings
+    .filter((f) => f.affectedCount > 0)
+    .sort((a, b) => b.affectedCount - a.affectedCount)
+    .slice(0, 8);
   if (topFixes.length) {
     lines.push("");
     lines.push("-".repeat(72));
     lines.push("TOP FIXES (site-wide, most pages first):");
-    for (const [id, e] of topFixes) {
-      lines.push(`  ${String(e.pages).padStart(3)} pages  ${id}${e.auto ? "" : " (flag only)"}: ${e.fix}`);
+    for (const f of topFixes) {
+      const tag = f.fixableByAgent ? "" : " (flag only)";
+      lines.push(`  ${String(f.affectedCount).padStart(3)} pages  ${f.id}${tag} [${f.scope}]`);
     }
   }
 
-  // 5) The weakest pages only (not all of them) — full per-page detail stays in --json.
-  const ranked = [...site.pages].filter((p) => !p.blocked).sort((a, b) => a.overall - b.overall);
-  const blocked = site.pages.filter((p) => p.blocked);
+  // 5) The weakest pages only (not all of them) — full per-page list stays in the page index.
+  const ranked = [...site.pageIndex].filter((p) => !p.blocked).sort((a, b) => a.overall - b.overall);
+  const blocked = site.pageIndex.filter((p) => p.blocked);
   const weakest = ranked.slice(0, 8);
   if (weakest.length) {
     lines.push("");

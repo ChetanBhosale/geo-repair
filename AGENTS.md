@@ -108,7 +108,7 @@ the rubric (SSR content visible in no-JS HTML, metadata + JSON-LD present, robot
   is "**AI Search Optimization**", "optimize your site for ChatGPT & Perplexity", "make your
   site understandable to AI". GEO/AEO are internal engineering terms only (rubric, package
   names, this doc).
-- **Never promise citations or traffic.** We improve *technical readiness* immediately;
+- **Never promise citations or traffic.** We improve _technical readiness_ immediately;
   actual outcomes (being cited by ChatGPT/Perplexity/Google AI) take weeks and aren't
   guaranteed. All copy, the re-check, and the support policy must reflect this.
 - **No em dashes in product copy.** Never use the em dash character in any
@@ -178,3 +178,4 @@ the derived cents live on `fix_runs`; see the data model + unit-economics risk i
   IDs/categories identical between it, `@repo/checker`, and the agent prompt so the re-check
   can never disagree with what we sold.
 - Default to no code comments; only explain non-obvious "why".
+- Always choose either geo.repair (our own live website domain for this repo's website folder) or linkrunner.io (Exemplary aeo-optimized website)

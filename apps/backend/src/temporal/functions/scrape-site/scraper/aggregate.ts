@@ -1,31 +1,36 @@
-// Aggregate several per-page scrapes into one SiteReport.
+// Aggregate several per-page scrapes into one rubric-centric SiteReport.
 //
-// Site overall / pillars / categories = the mean across READABLE pages (a blocked page does not
-// drag the average to zero). Per-check rollup = how many pages pass/partial/fail each check, plus
-// the URLs where it fails. Also builds a descriptive SiteInfo profile (identity, tech, contacts,
-// page mix, content stats) from the parsed page models.
+// The report is keyed on the ~23 rubric CHECKS, not on pages: every page's CheckResult[] folds
+// into one RubricFinding per check (status counts + a capped sample of affected pages), so a
+// 1000-page site yields ~23 findings, not 23,000 embedded results. Site overall / pillars /
+// categories = the mean across READABLE pages (a blocked page does not drag the average to 0).
+// SiteInfo (identity, tech, contacts, page mix, content stats) is built from the parsed page
+// models. The heavy per-page reports are not retained on the SiteReport — only the compact
+// pageIndex and the per-finding page samples.
 
 import { classifyPage } from "./pagetype.ts";
+import { findingScope } from "./checks.ts";
 import { CATEGORIES, PAGE_TYPES, PILLARS } from "./types.ts";
 import type {
   Category,
   CategoryScore,
   CrawlInfo,
   DomainFiles,
-  PageFix,
-  PageFixes,
+  PageIndexEntry,
   PageModel,
   PageType,
   Pillar,
   PillarScore,
   PillarSummary,
+  RubricFinding,
+  RubricFindingPage,
   ScoreReport,
-  SiteCheckRollup,
   SiteInfo,
   SiteReport,
 } from "./types.ts";
 
-const FAILING_URL_CAP = 25;
+/** Cap on the affected-page sample retained per finding. Counts stay exact; the list is a sample. */
+const PAGE_SAMPLE_CAP = 50;
 
 /** A scored page plus its parsed model (model is null when the page was blocked/unreadable). */
 export interface ScoredPage {
@@ -44,6 +49,82 @@ function emptyCategories(): Record<Category, CategoryScore> {
   return out;
 }
 
+/** Derive the site-wide status of a check from its per-page status counts. */
+function siteStatusFrom(counts: RubricFinding["counts"]): RubricFinding["siteStatus"] {
+  const scored = counts.pass + counts.partial + counts.fail;
+  if (scored === 0) return "not-applicable";
+  if (counts.fail === 0 && counts.partial === 0) return "pass";
+  if (counts.fail === scored) return "fail";
+  if (counts.pass === 0 && counts.fail === 0) return "partial"; // everything partial
+  return "mixed";
+}
+
+// A finding under construction: same shape as RubricFinding minus the derived siteStatus.
+type FindingAcc = Omit<RubricFinding, "siteStatus">;
+
+/**
+ * Fold every readable page's CheckResult[] into one accumulator per check id. This is the core of
+ * the rubric-centric inversion and the unit the streaming/batched scan will reuse: it keeps only
+ * exact counts + a capped affected-page sample, never the heavy per-page reports.
+ */
+function buildFindings(readable: ScoredPage[]): RubricFinding[] {
+  const acc = new Map<string, FindingAcc>();
+
+  for (const { report } of readable) {
+    for (const c of report.checks) {
+      let f = acc.get(c.id);
+      if (!f) {
+        f = {
+          id: c.id,
+          category: c.category,
+          pillars: c.pillars,
+          tier: c.tier,
+          fixableByAgent: c.fixableByAgent,
+          weight: c.weight,
+          scope: findingScope(c.id),
+          counts: { pass: 0, partial: 0, fail: 0, inconclusive: 0, notApplicable: 0 },
+          affectedCount: 0,
+          representativeEvidence: null,
+          pages: [],
+        };
+        acc.set(c.id, f);
+      }
+
+      switch (c.status) {
+        case "pass":
+          f.counts.pass += 1;
+          break;
+        case "partial":
+          f.counts.partial += 1;
+          break;
+        case "fail":
+          f.counts.fail += 1;
+          break;
+        case "inconclusive":
+          f.counts.inconclusive += 1;
+          break;
+        case "not-applicable":
+          f.counts.notApplicable += 1;
+          break;
+      }
+
+      if (c.status === "fail" || c.status === "partial") {
+        f.affectedCount += 1;
+        if (!f.representativeEvidence && c.evidence) f.representativeEvidence = c.evidence;
+        if (f.pages.length < PAGE_SAMPLE_CAP) {
+          const entry: RubricFindingPage = { url: report.finalUrl, status: c.status, evidence: c.evidence };
+          f.pages.push(entry);
+        }
+      }
+    }
+  }
+
+  return [...acc.values()]
+    .map((f) => ({ ...f, siteStatus: siteStatusFrom(f.counts) }))
+    // Worst + heaviest first: highest weight, then most affected pages.
+    .sort((a, b) => b.weight - a.weight || b.affectedCount - a.affectedCount);
+}
+
 export function aggregateSite(
   url: string,
   domain: DomainFiles,
@@ -52,7 +133,6 @@ export function aggregateSite(
   crawl: CrawlInfo,
   scored: ScoredPage[],
 ): SiteReport {
-  const reports = scored.map((s) => s.report);
   const readable = scored.filter((s) => !s.report.fetch.blocked);
 
   // --- site pillars: mean of per-page pillar scores, only over pages where the pillar applied ---
@@ -80,49 +160,11 @@ export function aggregateSite(
 
   const overall = mean(readable.map((s) => s.report.overall));
 
-  // --- per-check rollup across pages ---
-  const rollupMap = new Map<string, SiteCheckRollup>();
-  for (const { report } of readable) {
-    for (const c of report.checks) {
-      let entry = rollupMap.get(c.id);
-      if (!entry) {
-        entry = {
-          id: c.id,
-          category: c.category,
-          pillars: c.pillars,
-          pass: 0,
-          partial: 0,
-          fail: 0,
-          inconclusive: 0,
-          notApplicable: 0,
-          failingUrls: [],
-        };
-        rollupMap.set(c.id, entry);
-      }
-      switch (c.status) {
-        case "pass":
-          entry.pass += 1;
-          break;
-        case "partial":
-          entry.partial += 1;
-          break;
-        case "fail":
-          entry.fail += 1;
-          if (entry.failingUrls.length < FAILING_URL_CAP) entry.failingUrls.push(report.finalUrl);
-          break;
-        case "inconclusive":
-          entry.inconclusive += 1;
-          break;
-        case "not-applicable":
-          entry.notApplicable += 1;
-          break;
-      }
-    }
-  }
-  const checkRollup = [...rollupMap.values()];
+  // --- rubric-centric findings (the primary structure) ---
+  const findings = buildFindings(readable);
 
-  // --- per-page entries (full detail retained) + page-type classification ---
-  const pages = scored.map((s) => ({
+  // --- compact per-page index (no per-check detail) ---
+  const pageIndex: PageIndexEntry[] = scored.map((s) => ({
     url: s.report.url,
     finalUrl: s.report.finalUrl,
     ok: s.report.fetch.ok,
@@ -131,14 +173,12 @@ export function aggregateSite(
     title: s.page?.title ?? null,
     overall: s.report.overall,
     pillars: s.report.pillars,
-    report: s.report,
   }));
 
   const advisories = (readable[0] ?? scored[0])?.report.advisories ?? [];
-  const summary = buildSiteSummary(checkRollup, readable.length);
-  const siteInfo = buildSiteInfo(domain, scored, pages.map((p) => p.pageType));
-  const pillarSummary = buildPillarSummary(checkRollup, readable.length);
-  const fixesRequired = buildFixesRequired(scored);
+  const summary = buildSiteSummary(findings, readable.length);
+  const siteInfo = buildSiteInfo(domain, scored, pageIndex.map((p) => p.pageType));
+  const pillarSummary = buildPillarSummary(findings, readable.length);
 
   return {
     url,
@@ -151,38 +191,37 @@ export function aggregateSite(
     overall,
     pillars,
     categories,
-    checkRollup,
-    pages,
+    findings,
+    pageIndex,
     advisories,
     summary,
     pillarSummary,
-    fixesRequired,
   };
 }
 
-/** Group the per-check rollup into good/bad/missing buckets, per pillar (SEO/GEO/AEO). */
+/** Group findings into good/bad/missing buckets, per pillar (SEO/GEO/AEO). */
 function buildPillarSummary(
-  rollup: SiteCheckRollup[],
+  findings: RubricFinding[],
   readablePages: number,
 ): Record<Pillar, PillarSummary> {
   const out = {} as Record<Pillar, PillarSummary>;
   for (const p of PILLARS) out[p] = { good: [], bad: [], missing: [] };
   const pageWord = (n: number) => `${n} page${n === 1 ? "" : "s"}`;
 
-  for (const c of rollup) {
-    const scored = c.pass + c.partial + c.fail;
+  for (const c of findings) {
+    const scored = c.counts.pass + c.counts.partial + c.counts.fail;
     if (scored === 0) continue; // not applicable site-wide, skip
     let bucket: keyof PillarSummary;
     let line: string;
-    if (c.fail === 0 && c.partial === 0) {
+    if (c.counts.fail === 0 && c.counts.partial === 0) {
       bucket = "good";
-      line = `${c.id}: passes on all ${pageWord(c.pass)}.`;
-    } else if (c.fail === scored) {
+      line = `${c.id}: passes on all ${pageWord(c.counts.pass)}.`;
+    } else if (c.counts.fail === scored) {
       bucket = "missing";
-      line = `${c.id}: missing or failing on all ${pageWord(c.fail)}.`;
+      line = `${c.id}: missing or failing on all ${pageWord(c.counts.fail)}.`;
     } else {
       bucket = "bad";
-      line = `${c.id}: fails on ${pageWord(c.fail)}, partial on ${c.partial}, passes on ${c.pass} (of ${readablePages}).`;
+      line = `${c.id}: fails on ${pageWord(c.counts.fail)}, partial on ${c.counts.partial}, passes on ${c.counts.pass} (of ${readablePages}).`;
     }
     // A check can belong to more than one pillar (e.g. structured-data -> geo + aeo).
     for (const pillar of c.pillars) out[pillar][bucket].push(line);
@@ -190,57 +229,26 @@ function buildPillarSummary(
   return out;
 }
 
-/** Build the actionable, per-page fix list (only pages with at least one fail/partial). */
-function buildFixesRequired(scored: ScoredPage[]): PageFixes[] {
-  const out: PageFixes[] = [];
-  for (const s of scored) {
-    if (s.report.fetch.blocked) continue;
-    const fixes: PageFix[] = s.report.checks
-      .filter((c) => c.status === "fail" || c.status === "partial")
-      .map((c) => ({
-        checkId: c.id,
-        pillars: c.pillars,
-        status: c.status as "fail" | "partial",
-        issue: c.bad.length ? c.bad.join("; ") : c.reason,
-        fix: c.fixHint ?? c.reason,
-        evidence: c.evidence,
-        fixableByAgent: c.fixableByAgent,
-      }))
-      // worst first: fails before partials
-      .sort((a, b) => (a.status === b.status ? 0 : a.status === "fail" ? -1 : 1));
-    if (fixes.length === 0) continue;
-    out.push({
-      url: s.report.finalUrl,
-      pageType: s.page ? classifyPage(s.page) : "generic",
-      overall: s.report.overall,
-      fixes,
-    });
-  }
-  // Pages needing the most help first.
-  out.sort((a, b) => b.fixes.length - a.fixes.length || a.overall - b.overall);
-  return out;
-}
-
-/** Site-wide good/bad/missing/inconclusive rollup from the per-check page counts. */
-function buildSiteSummary(rollup: SiteCheckRollup[], readablePages: number): SiteReport["summary"] {
+/** Site-wide good/bad/missing/inconclusive rollup from the per-check finding counts. */
+function buildSiteSummary(findings: RubricFinding[], readablePages: number): SiteReport["summary"] {
   const good: string[] = [];
   const bad: string[] = [];
   const missing: string[] = [];
   const inconclusive: string[] = [];
   const pageWord = (n: number) => `${n} page${n === 1 ? "" : "s"}`;
 
-  for (const c of rollup) {
-    const scored = c.pass + c.partial + c.fail;
+  for (const c of findings) {
+    const scored = c.counts.pass + c.counts.partial + c.counts.fail;
     if (scored === 0) {
       inconclusive.push(`${c.id}: not applicable or unreadable across the site.`);
-    } else if (c.fail === 0 && c.partial === 0) {
-      good.push(`${c.id}: passes on all ${pageWord(c.pass)}.`);
-    } else if (c.fail === scored) {
-      missing.push(`${c.id}: missing or failing on all ${pageWord(c.fail)}.`);
-    } else if (c.fail > 0) {
-      bad.push(`${c.id}: fails on ${pageWord(c.fail)}, partial on ${c.partial}, passes on ${c.pass} (of ${readablePages}).`);
+    } else if (c.counts.fail === 0 && c.counts.partial === 0) {
+      good.push(`${c.id}: passes on all ${pageWord(c.counts.pass)}.`);
+    } else if (c.counts.fail === scored) {
+      missing.push(`${c.id}: missing or failing on all ${pageWord(c.counts.fail)}.`);
+    } else if (c.counts.fail > 0) {
+      bad.push(`${c.id}: fails on ${pageWord(c.counts.fail)}, partial on ${c.counts.partial}, passes on ${c.counts.pass} (of ${readablePages}).`);
     } else {
-      bad.push(`${c.id}: partial on ${pageWord(c.partial)}, passes on ${c.pass} (of ${readablePages}).`);
+      bad.push(`${c.id}: partial on ${pageWord(c.counts.partial)}, passes on ${c.counts.pass} (of ${readablePages}).`);
     }
   }
   return { good, bad, missing, inconclusive };

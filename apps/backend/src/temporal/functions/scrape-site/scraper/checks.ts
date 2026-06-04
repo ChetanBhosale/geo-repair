@@ -9,6 +9,7 @@ import type {
   Category,
   CheckContext,
   CheckResult,
+  FindingScope,
   PageType,
   Pillar,
   Priority,
@@ -23,6 +24,13 @@ interface CheckMeta {
   tier: Tier;
   fixableByAgent: boolean;
   priority: Priority;
+  /**
+   * Where the agent fixes this check: `site-wide` = one shared file/template repairs every page
+   * (robots, sitemap, llms.txt, charset/doctype/viewport, favicon); `per-page` = route-specific
+   * content/markup. Drives the rubric finding's scope and the agent fan-out. A `per-page` check
+   * that fails on every page can still be upgraded to a site-wide fix by buildFixPlan.
+   */
+  scope: FindingScope;
   heuristic?: boolean; // true = LLM-assisted in prod, heuristic here
 }
 
@@ -91,31 +99,55 @@ function looksAbsolute(href: string): boolean {
 // --- check registry ---------------------------------------------------------
 
 export const CHECK_REGISTRY: CheckMeta[] = [
-  { id: "ssr-visibility", category: "Rendering", pillars: ["geo"], tier: "out-of-scope", fixableByAgent: false, priority: "critical" },
-  { id: "structured-data", category: "Structured data", pillars: ["geo", "aeo"], tier: "A", fixableByAgent: true, priority: "high" },
-  { id: "meta-tags", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "high" },
-  { id: "open-graph", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "medium" },
-  { id: "canonical-urls", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "medium" },
-  { id: "robots-ai-crawlers", category: "Crawl surface", pillars: ["geo"], tier: "A", fixableByAgent: true, priority: "high" },
-  { id: "sitemap", category: "Crawl surface", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "medium" },
-  { id: "llms-txt", category: "Crawl surface", pillars: ["geo"], tier: "A", fixableByAgent: true, priority: "medium" },
-  { id: "semantic-html", category: "Semantics", pillars: ["seo", "geo", "aeo"], tier: "A", fixableByAgent: true, priority: "medium" },
-  { id: "image-alt-text", category: "Semantics", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "internal-linking", category: "Content", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "answerability", category: "Answerability", pillars: ["aeo"], tier: "A", fixableByAgent: true, priority: "high", heuristic: true },
-  { id: "freshness-eeat", category: "Content", pillars: ["geo", "aeo"], tier: "A", fixableByAgent: true, priority: "low", heuristic: true },
-  { id: "interactive-labels", category: "Semantics", pillars: ["geo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "indexability", category: "Crawl surface", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "high" },
-  { id: "citation-quality", category: "Content", pillars: ["aeo"], tier: "A", fixableByAgent: true, priority: "medium", heuristic: true },
-  { id: "definitions", category: "Answerability", pillars: ["aeo"], tier: "A", fixableByAgent: true, priority: "medium", heuristic: true },
-  { id: "charset", category: "Rendering", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "doctype", category: "Rendering", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "mobile-viewport", category: "Rendering", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "favicon", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "hreflang", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "social-image-size", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low" },
-  { id: "markdown-twins", category: "Content", pillars: ["geo"], tier: "B", fixableByAgent: true, priority: "low" },
+  { id: "ssr-visibility", category: "Rendering", pillars: ["geo"], tier: "out-of-scope", fixableByAgent: false, priority: "critical", scope: "per-page" },
+  { id: "structured-data", category: "Structured data", pillars: ["geo", "aeo"], tier: "A", fixableByAgent: true, priority: "high", scope: "per-page" },
+  { id: "meta-tags", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "high", scope: "per-page" },
+  { id: "open-graph", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "medium", scope: "per-page" },
+  { id: "canonical-urls", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "medium", scope: "per-page" },
+  { id: "robots-ai-crawlers", category: "Crawl surface", pillars: ["geo"], tier: "A", fixableByAgent: true, priority: "high", scope: "site-wide" },
+  { id: "sitemap", category: "Crawl surface", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "medium", scope: "site-wide" },
+  { id: "llms-txt", category: "Crawl surface", pillars: ["geo"], tier: "A", fixableByAgent: true, priority: "medium", scope: "site-wide" },
+  { id: "semantic-html", category: "Semantics", pillars: ["seo", "geo", "aeo"], tier: "A", fixableByAgent: true, priority: "medium", scope: "per-page" },
+  { id: "image-alt-text", category: "Semantics", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "per-page" },
+  { id: "internal-linking", category: "Content", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "per-page" },
+  { id: "answerability", category: "Answerability", pillars: ["aeo"], tier: "A", fixableByAgent: true, priority: "high", heuristic: true, scope: "per-page" },
+  { id: "freshness-eeat", category: "Content", pillars: ["geo", "aeo"], tier: "A", fixableByAgent: true, priority: "low", heuristic: true, scope: "per-page" },
+  { id: "interactive-labels", category: "Semantics", pillars: ["geo"], tier: "A", fixableByAgent: true, priority: "low", scope: "per-page" },
+  { id: "indexability", category: "Crawl surface", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "high", scope: "per-page" },
+  { id: "citation-quality", category: "Content", pillars: ["aeo"], tier: "A", fixableByAgent: true, priority: "medium", heuristic: true, scope: "per-page" },
+  { id: "definitions", category: "Answerability", pillars: ["aeo"], tier: "A", fixableByAgent: true, priority: "medium", heuristic: true, scope: "per-page" },
+  { id: "charset", category: "Rendering", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "site-wide" },
+  { id: "doctype", category: "Rendering", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "site-wide" },
+  { id: "mobile-viewport", category: "Rendering", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "site-wide" },
+  { id: "favicon", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "site-wide" },
+  { id: "hreflang", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "per-page" },
+  { id: "social-image-size", category: "Metadata", pillars: ["seo"], tier: "A", fixableByAgent: true, priority: "low", scope: "per-page" },
+  { id: "markdown-twins", category: "Content", pillars: ["geo"], tier: "B", fixableByAgent: true, priority: "low", scope: "per-page" },
 ];
+
+/** check id -> where it's fixed (site-wide vs per-page). Falls back to per-page for unknown ids. */
+const SCOPE_BY_ID = new Map<string, FindingScope>(CHECK_REGISTRY.map((c) => [c.id, c.scope]));
+export function findingScope(id: string): FindingScope {
+  return SCOPE_BY_ID.get(id) ?? "per-page";
+}
+
+/**
+ * Per-page checks whose fix lives in a shared `<head>` / metadata template, so when they fail
+ * *uniformly across every page* a single template edit repairs them all — buildFixPlan upgrades
+ * those to a site-wide task. Content checks (alt text, answerability, definitions, internal
+ * links, …) are NOT here: even when they fail everywhere, each page needs its own edit.
+ */
+const CENTRALIZABLE = new Set<string>([
+  "meta-tags",
+  "open-graph",
+  "canonical-urls",
+  "structured-data",
+  "hreflang",
+  "social-image-size",
+]);
+export function isCentralizable(id: string): boolean {
+  return CENTRALIZABLE.has(id);
+}
 
 // --- evaluators --------------------------------------------------------------
 

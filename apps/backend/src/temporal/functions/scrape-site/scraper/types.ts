@@ -349,8 +349,12 @@ export interface CrawlInfo {
   skippedSample: string[];
 }
 
-/** One entry per scraped page in a site report. */
-export interface PageEntry {
+/**
+ * Compact per-page index entry for a site report. Cheap to render a page list and paginate;
+ * it carries NO per-check detail (that lives in the rubric-centric `findings`, keyed by page
+ * URL). This is what replaces the old heavy `PageEntry.report` explosion.
+ */
+export interface PageIndexEntry {
   url: string;
   finalUrl: string;
   ok: boolean;
@@ -361,8 +365,49 @@ export interface PageEntry {
   title: string | null;
   overall: number;
   pillars: Record<Pillar, PillarScore>;
-  /** The full per-page report (same stable shape as a single-page scrape). */
-  report: ScoreReport;
+}
+
+/** Where a check is fixed: one shared file/template (site-wide) vs route-specific content (per-page). */
+export type FindingScope = "site-wide" | "per-page";
+
+/** One affected page under a rubric finding (compact: status + the agent's evidence pointer). */
+export interface RubricFindingPage {
+  url: string;
+  status: Status;
+  evidence: string | null;
+}
+
+/**
+ * Rubric-centric finding: ONE record per check across the whole site, regardless of page count.
+ * The primary unit of a SiteReport — it replaces the per-page check explosion. A check failing
+ * on 1000 pages is a single finding with `affectedCount: 1000` and a capped `pages` sample, so
+ * the report stays bounded (~23 findings) at any scale and maps straight onto the agent's fix plan.
+ */
+export interface RubricFinding {
+  id: string;
+  category: Category;
+  pillars: Pillar[];
+  tier: Tier;
+  fixableByAgent: boolean;
+  weight: number;
+  /** site-wide (fix one shared file/template) vs per-page (route-specific content). */
+  scope: FindingScope;
+  /** Roll-up of this check across the site. `mixed` = some pass and some fail/partial. */
+  siteStatus: "pass" | "partial" | "fail" | "mixed" | "not-applicable";
+  /** Page counts by status for this check across all readable pages. */
+  counts: {
+    pass: number;
+    partial: number;
+    fail: number;
+    inconclusive: number;
+    notApplicable: number;
+  };
+  /** Total pages where this check failed or was partial (exact, even when `pages` is a sample). */
+  affectedCount: number;
+  /** First/representative offending file or route — the agent's starting clue for a site-wide fix. */
+  representativeEvidence: string | null;
+  /** Capped sample of affected (fail/partial) pages, each with the agent's evidence pointer. */
+  pages: RubricFindingPage[];
 }
 
 /**
@@ -418,31 +463,10 @@ export interface PillarSummary {
   missing: string[];
 }
 
-/** A single fix needed on a specific page. */
-export interface PageFix {
-  checkId: string;
-  pillars: Pillar[];
-  status: "fail" | "partial";
-  /** What is wrong, customer-facing. */
-  issue: string;
-  /** What to do about it. */
-  fix: string;
-  /** The offending snippet/route, when known. */
-  evidence: string | null;
-  fixableByAgent: boolean;
-}
-
-/** All fixes needed on one page, ordered worst-first. */
-export interface PageFixes {
-  url: string;
-  pageType: PageType;
-  overall: number;
-  fixes: PageFix[];
-}
-
 /**
- * Site-level report: aggregates several page scrapes into one site score.
- * `pages[].report` keeps each page's full detail; `aggregate*` are the site-wide rollups.
+ * Site-level report (rubric-centric): aggregates several page scrapes into one site score plus
+ * ~23 per-check `findings`. The heavy per-page detail is intentionally NOT retained — `pageIndex`
+ * is a compact list and per-check status lives inside each finding's `pages` sample.
  */
 export interface SiteReport {
   url: string;
@@ -459,9 +483,14 @@ export interface SiteReport {
   pillars: Record<Pillar, PillarScore>;
   /** Site categories = mean of per-page category scores across readable pages. */
   categories: Record<Category, CategoryScore>;
-  /** Per-check worst-case / aggregate view across pages (which pages fail each check). */
-  checkRollup: SiteCheckRollup[];
-  pages: PageEntry[];
+  /**
+   * Rubric-centric findings: one per check (~23) across the whole site. THE primary structure —
+   * bounded regardless of page count, and the direct input to the agent's fix plan. Replaces the
+   * old `checkRollup` + per-page `pages[].report` + `fixesRequired`.
+   */
+  findings: RubricFinding[];
+  /** Compact per-page index (no per-check detail) for the page-list UI and pagination. */
+  pageIndex: PageIndexEntry[];
   /** Advisories from the homepage scrape (apply site-wide). */
   advisories: AdvisoryItem[];
   /** Site-wide good/bad/missing/inconclusive rollup, one line per check across all pages. */
@@ -473,21 +502,5 @@ export interface SiteReport {
   };
   /** Good/bad/missing grouped by pillar (SEO / GEO / AEO). */
   pillarSummary: Record<Pillar, PillarSummary>;
-  /** Actionable fix list per page (only pages that have at least one fix), worst-first. */
-  fixesRequired: PageFixes[];
 }
 
-/** Aggregate of a single check ID across all scraped pages. */
-export interface SiteCheckRollup {
-  id: string;
-  category: Category;
-  pillars: Pillar[];
-  /** Page counts by status for this check. */
-  pass: number;
-  partial: number;
-  fail: number;
-  inconclusive: number;
-  notApplicable: number;
-  /** URLs where this check failed (capped), the agent's site-wide fix list. */
-  failingUrls: string[];
-}

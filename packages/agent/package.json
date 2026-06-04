@@ -4,6 +4,7 @@
   "private": true,
   "description": "GEO Repair fix-agent: system prompt, opencode driver, and run-event normalizer.",
   "exports": {
-    "./prompts/*": "./prompts/*"
+    "./prompts/*": "./prompts/*",
+    "./skills/*": "./skills/*"
   }
 }
