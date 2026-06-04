@@ -12,7 +12,7 @@ export const metadata = buildMetadata({
   path: "/terms",
 })
 
-const LAST_UPDATED = "June 3, 2026"
+const LAST_UPDATED = "June 4, 2026"
 
 export default function TermsPage() {
   return (
@@ -97,10 +97,9 @@ export default function TermsPage() {
 
             <h2>Plans and billing</h2>
             <p>
-              The checkup is free. Paid plans, such as AI Search Autopilot, are
-              billed in advance on a recurring basis and are month-to-month
-              unless stated otherwise. You can cancel at any time; cancellation
-              takes effect at the end of the current billing period.
+              The checkup is free. The AI Search Fix is a one-time upfront
+              payment processed by Dodo Payments after repository confirmation
+              and feasibility review. There is no recurring plan right now.
             </p>
 
             <h2>Communications</h2>

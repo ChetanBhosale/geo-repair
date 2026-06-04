@@ -9,6 +9,8 @@
     "worker": "bun run src/temporal/workers/index.ts",
     "worker:dev": "bun run --watch src/temporal/workers/index.ts",
     "checkup": "bun run src/temporal/functions/checkup/cli.ts",
+    "billing:webhook:listen": "dodo wh listen",
+    "billing:webhook:trigger": "dodo wh trigger",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
@@ -24,6 +26,7 @@
     "@types/jsonwebtoken": "^9.0.9",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dodopayments": "^2.35.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",

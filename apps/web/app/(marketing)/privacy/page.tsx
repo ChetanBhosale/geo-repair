@@ -12,7 +12,7 @@ export const metadata = buildMetadata({
   path: "/privacy",
 })
 
-const LAST_UPDATED = "June 3, 2026"
+const LAST_UPDATED = "June 4, 2026"
 
 export default function PrivacyPage() {
   return (
@@ -78,8 +78,8 @@ export default function PrivacyPage() {
             <h3>Account information</h3>
             <p>
               If you create an account, we collect your email address and
-              authentication details from your identity provider. If you
-              subscribe, our payment processor handles your card details, and we
+              authentication details from your identity provider. If you buy an
+              AI Search Fix, Dodo Payments handles your card details, and we
               never see or store full card numbers.
             </p>
             <h3>Waitlist and contact forms</h3>
@@ -120,10 +120,11 @@ export default function PrivacyPage() {
             <h2>Service providers</h2>
             <p>
               We use carefully selected service providers to operate the
-              Service, including hosting, analytics, payments, authentication,
-              repository access, and transactional email through Resend. These
-              providers process information only as needed to provide their
-              services to us. We do not sell personal information.
+              Service, including hosting, analytics, payments through Dodo
+              Payments, authentication, repository access, and transactional
+              email through Resend. These providers process information only as
+              needed to provide their services to us. We do not sell personal
+              information.
             </p>
 
             <h2>Data retention</h2>

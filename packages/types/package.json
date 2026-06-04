@@ -5,7 +5,8 @@
   "exports": {
     ".": "./index.ts",
     "./user": "./src/user.ts",
-    "./auth": "./src/auth.ts"
+    "./auth": "./src/auth.ts",
+    "./billing": "./src/billing.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

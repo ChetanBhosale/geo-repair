@@ -13,7 +13,13 @@ function backendBaseUrl(): string {
 function forwardedHeaders(request: Request, initHeaders?: HeadersInit): Headers {
   const headers = new Headers(initHeaders)
 
-  for (const name of ["x-forwarded-for", "user-agent", "referer", "origin"]) {
+  for (const name of [
+    "x-forwarded-for",
+    "user-agent",
+    "referer",
+    "origin",
+    "cookie",
+  ]) {
     const value = request.headers.get(name)
     if (value) headers.set(name, value)
   }

@@ -94,11 +94,8 @@ messaging), finalizes pricing, and defines the technical architecture and build 
 10. **Merge detected (webhook) → re-check.** On PR merge, prompt an updated checkup using our internal checker
     **and** third-party tools; show the **readiness delta** (not a traffic promise) — which also updates the
     co-branded report with before→after scores.
-11. **Upsell — AI Search Autopilot ($19/mo)** (internal: GEO Autopilot). The **loop-closer**: re-scan on `push` +
-    on a schedule, keep a **readiness change-log** (what changed on the site → what it did to the score, over
-    time), catch regressions (new pages without schema, content changes), and open up to N improvement PRs/month.
-    Answers the recurring ask — *"something that watches my content and tells me what changed and what it did"* —
-    as readiness-over-time, never a traffic promise.
+11. **Post-merge follow-up.** On PR merge, keep the customer on the readiness delta and support path. Recurring
+    monitoring is a future product line, not part of v1 checkout.
 
 ---
 
@@ -188,9 +185,8 @@ Record the raw COGS inputs per run — **model(s) used, input/output token count
 (+ thumbnail count) — and derive `token_cost_cents` + `sandbox_cost_cents` + `image_cost_cents`
 (≤ ~$0.10/generated thumbnail); alert if a run approaches its price (margin guard).
 
-**Subscription — AI Search Autopilot: $19/mo** (internal: GEO Autopilot; Stripe subscription + Customer Portal).
-Positioned as the **loop-closer**: continuous re-checks + a **readiness change-log over time** + regression-catching
-improvement PRs — the "keep watching and tell me what changed" job, honest about readiness (not traffic).
+**Recurring monitoring is deferred.** The old Autopilot recurring plan idea stays on hold for v1. Public pricing
+only shows the free checkup and one-time AI Search Fix.
 
 ---
 
@@ -198,7 +194,7 @@ improvement PRs — the "keep watching and tell me what changed" job, honest abo
 
 **Three planes** (the agent run cannot live on Vercel — it's long-running and executes untrusted repo code):
 
-- **Control plane** — `apps/web` on Vercel: marketing, free checkup, auth, dashboard, Stripe, GitHub
+- **Control plane** — `apps/web` on Vercel: marketing, free checkup, auth, dashboard, Dodo Payments, GitHub
   callbacks/webhooks, realtime read views. Server Actions + Route Handlers only; no long work.
 - **Job plane** — **Trigger.dev**: owns the run state machine, retries, concurrency, and realtime fan-out
   to the browser. (Inngest is the viable alternative.)
@@ -224,12 +220,12 @@ improvement PRs — the "keep watching and tell me what changed" job, honest abo
 
 **GitHub — GitHub App (not OAuth App), also used for login.** Per-repo install, scopes `contents:write` +
 `pull_requests:write` + `metadata:read`; short-lived installation tokens minted per run server-side (never in
-the browser, scrubbed from sandbox logs). Webhooks: `pull_request` (merge detection), `installation`,
-`installation_repositories`, `push` (Autopilot). **Repo↔site resolver** (highest confidence first): hosting/deploy
+  the browser, scrubbed from sandbox logs). Webhooks: `pull_request` (merge detection), `installation`,
+`installation_repositories`, `push` (future monitoring). **Repo↔site resolver** (highest confidence first): hosting/deploy
 fingerprints → repo-signal scan (`package.json` homepage, `vercel.json`/`netlify.toml`, `CNAME`, env refs) → optional
 build-time sentinel verification → always confirm with the user before charging.
 
-**Payments — Stripe.** One-time tiered price computed from page count (stored on `orders`); $19/mo subscription.
+**Payments — Dodo Payments.** One-time tiered price computed from page count and stored on `orders`.
 Charge upfront per the locked decision; gate the charge behind repo confirmation + feasibility; on run
 failure / no-op diff, **flag for direct support** (manual resolution, no auto-refund for now).
 
@@ -237,11 +233,11 @@ failure / no-op diff, **flag for direct support** (manual resolution, no auto-re
 `users` · `github_installations` · `sites` · `site_repo_links (confidence, evidence, confirmed_by_user)` ·
 `checkups (score, subscores, raw_findings, is_ssr, rubric_version, source)` ·
 `leads (first_name, last_name, email, checkup_id, source, created_at)` — captured by the gated report download on the free checkup ·
-`orders (sitemap_page_count, tier, amount_cents, stripe_payment_intent_id, resolution_state)` ·
+`orders (sitemap_page_count, tier, amount_cents, provider, provider_session_id, provider_payment_id, resolution_state)` ·
 `fix_runs (state, models_used, tokens_in, tokens_out, sandbox_seconds, token_cost_cents, sandbox_cost_cents, image_cost_cents, error)` ·
 `run_events (seq, type, phase, payload)` ·
 `pull_requests (pr_number, url, build_passed, types_passed, merged_at)` ·
-`subscriptions` · `monitor_runs` (Autopilot) ·
+`payment_webhook_events` ·
 `audit_logs (actor, action, scope, target, ip, created_at)` — user-visible privileged-action trail.
 
 **Run state machine** (`fix_runs.state`):
@@ -284,7 +280,7 @@ guarantee must be **visible at the moment of decision** — the Connect-GitHub s
    `audit_logs` table; the short-lived installation token is scrubbed from all logs and never leaves the server.
 
 **Egress containment (see risk #3):** the sandbox network is allowlisted to GitHub / npm / the model endpoint only;
-no DB, Stripe, or platform credentials ever enter the sandbox; per-run credentials only.
+no DB, payment, or platform credentials ever enter the sandbox; per-run credentials only.
 
 ---
 
@@ -296,7 +292,7 @@ no DB, Stripe, or platform credentials ever enter the sandbox; per-run credentia
    refund at our discretion — **no automatic refund for now**). Make this support promise explicit in checkout copy.
 2. **Breaking the user's build** → agent MUST pass `build` + `check-types` in-sandbox before opening the PR;
    **PR-only on a branch**, never push to the default branch.
-3. **Secret exfiltration from the sandbox** → egress allowlist (GitHub/npm/model endpoints only), no DB/Stripe
+3. **Secret exfiltration from the sandbox** → egress allowlist (GitHub/npm/model endpoints only), no DB/payment
    creds in the sandbox, short-lived token scrubbed from logs, hard teardown, ephemeral per-run creds.
 4. **Over-promising GEO outcomes** → UI/re-check report "technical readiness improved," never "you'll be cited."
 5. **Framework reliability (v1: Next.js / React / Astro)** → start every run with framework detection; pin a
@@ -320,8 +316,8 @@ no DB, Stripe, or platform credentials ever enter the sandbox; per-run credentia
   `@repo/agent` (opencode driver + normalized event contract + system prompt), `run_events`, realtime read view.
 - **P4 — Payments:** tiered sitemap quote, upfront charge gated by feasibility + repo confirmation,
   direct-support resolution on failure (no auto-refund for now), COGS tracking.
-- **P5 — Post-merge + upsell:** merge webhook → re-check (internal + third-party) → readiness delta →
-  **$19/mo AI Search Autopilot** (push/cron → improvement PRs).
+- **P5 — Post-merge:** merge webhook → re-check (internal + third-party) → readiness delta → support follow-up.
+  Recurring monitoring stays on hold until after v1.
 
 ### New workspace packages / key files
 - `packages/db` — Drizzle schema + Neon client (`@repo/db`)
@@ -331,8 +327,8 @@ no DB, Stripe, or platform credentials ever enter the sandbox; per-run credentia
 - `packages/github` — Octokit + GitHub App auth (`@repo/github`)
 - `apps/web/app/(marketing)` — landing + free checkup + waitlist + public `/security` (trust) page
 - `apps/web/app/(app)` — dashboard, run view (realtime), repo-confirm, checkout, trust panel, audit-log view
-- `apps/web/app/api/webhooks/{github,stripe}` — webhook handlers
-- `trigger/` — Trigger.dev task(s) for the fix run + Autopilot
+- `apps/backend/src/billing` — Dodo checkout, order state, webhook handlers, and local dev fixtures
+- `trigger/` — Trigger.dev task(s) for the fix run
 - Update `turbo.json` (task graph + env passthrough) and root `package.json` (register new packages)
 
 ---
@@ -352,10 +348,9 @@ no DB, Stripe, or platform credentials ever enter the sandbox; per-run credentia
   log from DB, confirm build + typecheck run in-sandbox and a PR opens on a branch (never main). Repeat on an Astro
   repo and a JS-only React (Vite) repo to confirm framework detection and the no-`tsc` path. Confirm a non-v1 stack
   (e.g. SvelteKit) is rejected at the feasibility gate (waitlist, no charge).
-- **P4:** Stripe test mode — confirm the correct tier is computed from sitemap count, upfront charge succeeds only after
+- **P4:** Dodo test mode — confirm the correct tier is computed from sitemap count, upfront charge succeeds only after
   repo confirmation + feasibility, and a forced run failure opens a direct support thread (no automatic refund).
-- **P5:** merge a fix PR → confirm re-check runs (internal + a third-party tool) and shows a readiness delta; subscribe to
-  Autopilot and confirm a `push`/cron triggers a monitor run.
+- **P5:** merge a fix PR → confirm re-check runs (internal + a third-party tool) and shows a readiness delta.
 
 ## Open items to validate during build
 - opencode headless event API shape + version pinning (driver in `@repo/agent`).
