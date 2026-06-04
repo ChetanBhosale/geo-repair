@@ -179,3 +179,29 @@ the derived cents live on `fix_runs`; see the data model + unit-economics risk i
   can never disagree with what we sold.
 - Default to no code comments; only explain non-obvious "why".
 - Always choose either geo.repair (our own live website domain for this repo's website folder) or linkrunner.io (Exemplary aeo-optimized website)
+
+
+
+PROJECT
+
+## Package organization — shared vs app-local
+
+Decide where code lives by whether it is **shared across apps** or **specific to one app**.
+
+- **Shared / reusable → make a workspace package in `packages/*`.** Anything that more than
+  one app could use (or that represents a cross-cutting capability) gets its own
+  `@repo/<name>` package: AI/model clients (e.g. OpenRouter), shared types, run flows,
+  rubric/checker logic, GitHub/Octokit helpers, db client, etc. Consume it from apps via the
+  package name in `dependencies` (`"@repo/<name>": "*"`) and import with `@repo/<name>` (or a
+  subpath export like `@repo/<name>/sub`). Do not reach into another app's folder or
+  copy-paste shared logic between apps.
+  - Examples: `@repo/types`, `@repo/db`, `@repo/secrets`, `@repo/ai` (OpenRouter),
+    `@repo/checker`, `@repo/github`, `@repo/agent`.
+- **App-specific → keep it inside that app.** Anything only one app needs (a route handler, a
+  one-off React component, an app-only dependency) lives in that `apps/*` package and is
+  installed there, not promoted to `packages/*`.
+
+Rule of thumb: if you are about to add a dependency or a module that a second app would
+plausibly import, create/extend a `@repo/*` package instead of installing it inside one app.
+When unsure, prefer a shared package for libraries/SDKs/types/flows, and app-local for UI and
+wiring that only makes sense in that app.
