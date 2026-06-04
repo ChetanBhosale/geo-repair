@@ -4,7 +4,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import Secrets from "@repo/secrets/backend";
 import authRoutes from "./src/auth/auth.routes";
-import auditRoutes from "./src/audit/audit.routes";
+import checkupRoutes from "./src/checkup/checkup.routes";
 import { notFoundHandler, errorHandler } from "./src/middleware/error";
 import { authRateLimiter, globalRateLimiter } from "./src/middleware/rate-limit";
 
@@ -40,7 +40,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRateLimiter, authRoutes);
-app.use("/api", auditRoutes);
+app.use("/api", checkupRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -50,22 +50,70 @@ model Account {
   @@map("accounts")
 }
 
-model ScrapeGeo {
+model CheckupReport {
   id                String   @id @default(cuid())
   website           String   @unique
-  websiteScrapeData Json?
-  totalScrapeCount  Int      @default(0)
+  websiteType       String?
+  reportData        Json?
+  totalCheckupCount Int      @default(0)
 
-  // Request metadata (captured from the audit request for analytics / abuse).
+  // Request metadata (captured from the checkup request for analytics / abuse).
   ip                String?
   userAgent         String?
   referer           String?
   origin            String?
   singlePage        Boolean  @default(false)
 
+  runs              CheckupRun[]
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   @@index([website])
-  @@map("scrapeGeo")
+  @@index([websiteType])
+  @@map("checkupReports")
+}
+
+model CheckupRun {
+  id              String            @id @default(cuid())
+  workflowId      String            @unique
+  website         String
+  status          String            @default("queued")
+  phase           String            @default("queued")
+  pagesTotal      Int               @default(0)
+  pagesCompleted  Int               @default(0)
+  pagesFailed     Int               @default(0)
+  checksEvaluated Int               @default(0)
+  issuesFound     Int               @default(0)
+  currentPageUrl  String?
+  resultKey       String?
+  error           String?
+
+  report          CheckupReport?    @relation(fields: [resultKey], references: [id], onDelete: SetNull)
+  events          CheckupRunEvent[]
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([website])
+  @@index([status])
+  @@index([phase])
+  @@map("checkupRuns")
+}
+
+model CheckupRunEvent {
+  id        String     @id @default(cuid())
+  runId     String
+  run       CheckupRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sequence  Int
+  phase     String
+  type      String
+  message   String
+  pageUrl   String?
+  metadata  Json?
+  createdAt DateTime   @default(now())
+
+  @@index([runId, createdAt])
+  @@index([runId, sequence])
+  @@map("checkupRunEvents")
 }

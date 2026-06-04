@@ -1,11 +1,11 @@
-// Aggregate several per-page scrapes into one rubric-centric SiteReport.
+// Aggregate several per-page checks into one rubric-centric SiteReport.
 //
 // The report is keyed on the ~23 rubric CHECKS, not on pages: every page's CheckResult[] folds
 // into one RubricFinding per check (status counts + a capped sample of affected pages), so a
 // 1000-page site yields ~23 findings, not 23,000 embedded results. Site overall / pillars /
 // categories = the mean across READABLE pages (a blocked page does not drag the average to 0).
 // SiteInfo (identity, tech, contacts, page mix, content stats) is built from the parsed page
-// models. The heavy per-page reports are not retained on the SiteReport — only the compact
+// models. The heavy per-page reports are not retained on the SiteReport, only the compact
 // pageIndex and the per-finding page samples.
 
 import { classifyPage } from "./pagetype.ts";
@@ -27,6 +27,7 @@ import type {
   ScoreReport,
   SiteInfo,
   SiteReport,
+  WebsiteType,
 } from "./types.ts";
 
 /** Cap on the affected-page sample retained per finding. Counts stay exact; the list is a sample. */
@@ -64,7 +65,7 @@ type FindingAcc = Omit<RubricFinding, "siteStatus">;
 
 /**
  * Fold every readable page's CheckResult[] into one accumulator per check id. This is the core of
- * the rubric-centric inversion and the unit the streaming/batched scan will reuse: it keeps only
+ * the rubric-centric inversion and the unit the streaming/batched checkup will reuse: it keeps only
  * exact counts + a capped affected-page sample, never the heavy per-page reports.
  */
 function buildFindings(readable: ScoredPage[]): RubricFinding[] {
@@ -267,6 +268,35 @@ function jsonLdStringField(page: PageModel, field: string): string | null {
   return null;
 }
 
+const WEBSITE_TYPE_PRIORITY: Array<{ type: WebsiteType; tech: string }> = [
+  { type: "nextjs", tech: "Next.js" },
+  { type: "framer", tech: "Framer" },
+  { type: "webflow", tech: "Webflow" },
+  { type: "wix", tech: "Wix" },
+  { type: "wordpress", tech: "WordPress" },
+  { type: "shopify", tech: "Shopify" },
+  { type: "astro", tech: "Astro" },
+  { type: "gatsby", tech: "Gatsby" },
+  { type: "nuxt", tech: "Nuxt" },
+  { type: "react", tech: "React" },
+  { type: "hugo", tech: "Hugo" },
+];
+
+const HOSTING_TECH = new Set(["Cloudflare", "Netlify", "Vercel"]);
+
+export function deriveWebsiteType(techStack: string[]): WebsiteType {
+  const tech = new Set(techStack);
+
+  for (const candidate of WEBSITE_TYPE_PRIORITY) {
+    if (tech.has(candidate.tech)) return candidate.type;
+  }
+
+  if (techStack.length === 0) return "unknown";
+  if (techStack.every((item) => HOSTING_TECH.has(item))) return "unknown";
+
+  return "other";
+}
+
 /** Detect framework/CMS/CDN hints from headers + HTML of the homepage. */
 function detectTech(page: PageModel): string[] {
   const tech = new Set<string>();
@@ -276,6 +306,7 @@ function detectTech(page: PageModel): string[] {
 
   if ((h["x-powered-by"] ?? "").toLowerCase().includes("next") || h["x-vercel-id"] || /\/_next\//.test(html)) tech.add("Next.js");
   if (h["x-astro-version"] || /astro/i.test(generator)) tech.add("Astro");
+  if (generator.includes("framer") || /data-framer-|__framer/i.test(html)) tech.add("Framer");
   if (/wp-content|wp-includes/i.test(html) || generator.includes("wordpress")) tech.add("WordPress");
   if (generator.includes("shopify") || /cdn\.shopify\.com/i.test(html)) tech.add("Shopify");
   if (generator.includes("webflow") || /\.webflow\./i.test(html)) tech.add("Webflow");
@@ -346,6 +377,7 @@ function buildSiteInfo(
   for (const t of pageTypeList) pageTypes[t] += 1;
 
   const pagesScored = models.length;
+  const techStack = home ? detectTech(home) : [];
 
   return {
     name: name?.trim() || null,
@@ -356,7 +388,8 @@ function buildSiteInfo(
     socialProfiles: [...social].slice(0, 30),
     emails: [...emails].slice(0, 20),
     phones: [...phones].slice(0, 20),
-    techStack: home ? detectTech(home) : [],
+    techStack,
+    websiteType: deriveWebsiteType(techStack),
     schemaTypes: [...schemaTypes].sort(),
     pageTypes,
     hasSitemap: domain.sitemap.ok,

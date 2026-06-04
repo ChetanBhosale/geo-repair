@@ -1,9 +1,9 @@
-// Public entry point for the GEO/AEO readiness scraper.
+// Public entry point for the GEO/AEO readiness crawler.
 //
 // Two entry points:
-//   startScraping(url) -> ScoreReport   single page (homepage), stable shape, cheapest.
-//   scrapeSite(url)    -> SiteReport    multi-page: discover key pages from the sitemap
-//                                       (or homepage links), scrape a representative sample
+//   checkPage(url) -> ScoreReport   single page (homepage), stable shape, cheapest.
+//   checkSite(url) -> SiteReport    multi-page: discover key pages from the sitemap
+//                                       (or homepage links), check a representative sample
 //                                       concurrently, and aggregate into one site score.
 //
 // Tier 0 (static) only. See /RUBRIC.md (canonical checks) and /scraper.md (fetch + scoring).
@@ -32,16 +32,54 @@ import {
   type SiteReport,
   type TwinProbe,
 } from "./types.ts";
+import type { CheckupPhase } from "../../../shared.ts";
 
 export const RUBRIC_VERSION = "v1";
 
-export interface ScrapeOptions extends FetchOptions {
+export type CheckupProgressSignal =
+  | {
+      type: "phase";
+      phase: CheckupPhase;
+      message: string;
+      metadata?: unknown;
+    }
+  | {
+      type: "pages_discovered";
+      phase: "discovering_pages";
+      pagesTotal: number;
+      message: string;
+      metadata?: unknown;
+    }
+  | {
+      type: "page_started";
+      phase: "scoring_pages";
+      pageUrl: string;
+      message: string;
+    }
+  | {
+      type: "page_completed";
+      phase: "scoring_pages";
+      pageUrl: string;
+      score: number;
+      checksEvaluated: number;
+      issuesFound: number;
+      message: string;
+    }
+  | {
+      type: "page_failed";
+      phase: "scoring_pages";
+      pageUrl: string;
+      message: string;
+    };
+
+export interface CheckupOptions extends FetchOptions {
   /** Skip the Markdown-twin probe (saves 3 extra requests per page). Default false. */
   skipTwin?: boolean;
+  progress?: (signal: CheckupProgressSignal) => Promise<void> | void;
 }
 
-export interface SiteScrapeOptions extends ScrapeOptions {
-  /** Hard cap on pages to scrape. Default Infinity (scan every discovered page). */
+export interface SiteCheckupOptions extends CheckupOptions {
+  /** Hard cap on pages to score. Default Infinity (score every discovered page). */
   maxPages?: number;
   /** Max pages sampled per large section (e.g. /blog). Default Infinity (no per-section cap). */
   maxPerSection?: number;
@@ -82,7 +120,7 @@ function normalizeUrl(input: string): URL {
     throw new Error(`Unsupported protocol: ${u.protocol}`);
   }
   if (u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname.endsWith(".local")) {
-    throw new Error("Refusing to scrape localhost / .local hosts.");
+    throw new Error("Refusing to check localhost / .local hosts.");
   }
   return u;
 }
@@ -129,7 +167,7 @@ async function scorePage(
   raw: RawFetch,
   domain: DomainFiles,
   start: number,
-  options: ScrapeOptions,
+  options: CheckupOptions,
 ): Promise<ScoredPage> {
   const block = detectBlock(raw);
   if (block || !raw.ok) {
@@ -176,22 +214,32 @@ async function scorePage(
 }
 
 /**
- * Single-page scrape (homepage / the exact URL given). Never throws on network/parse problems:
+ * Single-page checkup (homepage / the exact URL given). Never throws on network/parse problems:
  * those come back as an inconclusive report. Only throws for an invalid input URL.
  */
-export async function startScraping(
+export async function checkPage(
   websiteUrl: string,
-  options: ScrapeOptions = {},
+  options: CheckupOptions = {},
 ): Promise<ScoreReport> {
   const start = Date.now();
   const url = normalizeUrl(websiteUrl);
 
+  await options.progress?.({
+    type: "phase",
+    phase: "fetching_homepage",
+    message: "Fetching homepage.",
+  });
   const raw = await rawFetch(url.toString(), options);
   if (detectBlock(raw) || !raw.ok) {
     const reason = detectBlock(raw) ?? `HTTP ${raw.status}`;
     return inconclusiveReport(url.toString(), start, raw.status, raw.finalUrl, reason);
   }
 
+  await options.progress?.({
+    type: "phase",
+    phase: "reading_crawl_files",
+    message: "Reading robots, sitemap, and llms.txt.",
+  });
   const domain = await fetchDomainFiles(raw.finalUrl, options);
   return (await scorePage(url.toString(), raw, domain, start, options)).report;
 }
@@ -215,13 +263,13 @@ async function mapWithConcurrency<T, R>(
 }
 
 /**
- * Multi-page site audit. Fetches the homepage, discovers key pages (sitemap first, falling back
- * to homepage links), scrapes a representative sample concurrently, and aggregates into a
+ * Multi-page site checkup. Fetches the homepage, discovers key pages (sitemap first, falling back
+ * to homepage links), scores a representative sample concurrently, and aggregates into a
  * SiteReport. Domain files (robots/sitemap/llms.txt) are fetched once and shared across pages.
  */
-export async function scrapeSite(
+export async function checkSite(
   websiteUrl: string,
-  options: SiteScrapeOptions = {},
+  options: SiteCheckupOptions = {},
 ): Promise<SiteReport> {
   const start = Date.now();
   const url = normalizeUrl(websiteUrl);
@@ -230,8 +278,18 @@ export async function scrapeSite(
   const concurrency = options.concurrency ?? 8;
 
   // 1) Homepage + shared domain files.
+  await options.progress?.({
+    type: "phase",
+    phase: "fetching_homepage",
+    message: "Fetching homepage.",
+  });
   const homepageRaw = await rawFetch(url.toString(), options);
   const homepageBlocked = detectBlock(homepageRaw) || !homepageRaw.ok;
+  await options.progress?.({
+    type: "phase",
+    phase: "reading_crawl_files",
+    message: "Reading robots, sitemap, and llms.txt.",
+  });
   const domain = await fetchDomainFiles(
     homepageBlocked ? url.toString() : homepageRaw.finalUrl,
     options,
@@ -241,6 +299,23 @@ export async function scrapeSite(
   if (homepageBlocked) {
     const reason = detectBlock(homepageRaw) ?? `HTTP ${homepageRaw.status}`;
     const report = inconclusiveReport(url.toString(), start, homepageRaw.status, homepageRaw.finalUrl, reason);
+    await options.progress?.({
+      type: "pages_discovered",
+      phase: "discovering_pages",
+      pagesTotal: 1,
+      message: "Homepage selected for scoring.",
+    });
+    await options.progress?.({
+      type: "page_failed",
+      phase: "scoring_pages",
+      pageUrl: url.toString(),
+      message: `Could not read homepage (${reason}).`,
+    });
+    await options.progress?.({
+      type: "phase",
+      phase: "aggregating_report",
+      message: "Aggregating checkup report.",
+    });
     return aggregateSite(
       url.toString(),
       domain,
@@ -249,10 +324,10 @@ export async function scrapeSite(
       {
         source: "single",
         totalDiscovered: 1,
-        pagesScraped: 1,
+        pagesChecked: 1,
         maxPages,
         sections: {},
-        scrapedUrls: [url.toString()],
+        checkedUrls: [url.toString()],
         skippedSample: [],
       },
       [{ report, page: null }],
@@ -260,6 +335,11 @@ export async function scrapeSite(
   }
 
   // 2) Discover candidate pages. Expand a sitemap-index if needed.
+  await options.progress?.({
+    type: "phase",
+    phase: "discovering_pages",
+    message: "Discovering representative pages.",
+  });
   let sitemapUrls = domain.sitemap.urls;
   let sitemapSource: "sitemap" | "sitemap-index" | null = domain.sitemap.ok ? "sitemap" : null;
   if (domain.sitemap.isIndex || sitemapUrls.length === 0) {
@@ -277,18 +357,67 @@ export async function scrapeSite(
     sitemapSource,
     { ...options, maxPages, maxPerSection },
   );
+  await options.progress?.({
+    type: "pages_discovered",
+    phase: "discovering_pages",
+    pagesTotal: discovery.selected.length,
+    message: `${discovery.selected.length} page${discovery.selected.length === 1 ? "" : "s"} selected for scoring.`,
+    metadata: {
+      source: discovery.source,
+      totalDiscovered: discovery.totalDiscovered,
+      sections: discovery.sections,
+    },
+  });
 
-  // 3) Scrape the selected pages. Reuse the homepage fetch for the first URL.
+  // 3) Score the selected pages. Reuse the homepage fetch for the first URL.
+  await options.progress?.({
+    type: "phase",
+    phase: "scoring_pages",
+    message: "Scoring selected pages.",
+  });
   const homeFinal = homepageRaw.finalUrl;
   const scored = await mapWithConcurrency(discovery.selected, concurrency, async (pageUrl) => {
     const pageStart = Date.now();
-    if (pageUrl === homeFinal || pageUrl === url.toString()) {
-      return scorePage(pageUrl, homepageRaw, domain, pageStart, options);
+    await options.progress?.({
+      type: "page_started",
+      phase: "scoring_pages",
+      pageUrl,
+      message: `Scoring ${pageUrl}`,
+    });
+    const result =
+      pageUrl === homeFinal || pageUrl === url.toString()
+        ? await scorePage(pageUrl, homepageRaw, domain, pageStart, options)
+        : await scorePage(pageUrl, await rawFetch(pageUrl, options), domain, pageStart, options);
+    const failed = result.report.fetch.blocked || !result.report.fetch.ok;
+    if (failed) {
+      await options.progress?.({
+        type: "page_failed",
+        phase: "scoring_pages",
+        pageUrl,
+        message: `Could not read ${pageUrl}.`,
+      });
+    } else {
+      const issuesFound = result.report.checks.filter(
+        (check) => check.status === "fail" || check.status === "partial"
+      ).length;
+      await options.progress?.({
+        type: "page_completed",
+        phase: "scoring_pages",
+        pageUrl,
+        score: result.report.overall,
+        checksEvaluated: result.report.checks.length,
+        issuesFound,
+        message: `Finished ${pageUrl}.`,
+      });
     }
-    const raw = await rawFetch(pageUrl, options);
-    return scorePage(pageUrl, raw, domain, pageStart, options);
+    return result;
   });
 
+  await options.progress?.({
+    type: "phase",
+    phase: "aggregating_report",
+    message: "Aggregating checkup report.",
+  });
   return aggregateSite(
     url.toString(),
     domain,
@@ -297,10 +426,10 @@ export async function scrapeSite(
     {
       source: discovery.source,
       totalDiscovered: discovery.totalDiscovered,
-      pagesScraped: scored.length,
+      pagesChecked: scored.length,
       maxPages,
       sections: discovery.sections,
-      scrapedUrls: discovery.selected,
+      checkedUrls: discovery.selected,
       skippedSample: discovery.skippedSample,
     },
     scored,

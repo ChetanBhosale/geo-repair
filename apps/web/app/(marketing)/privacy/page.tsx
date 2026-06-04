@@ -72,7 +72,7 @@ export default function PrivacyPage() {
             <p>
               The checkup fetches your public pages, the same way an AI crawler
               would, and respects your robots.txt. It never touches your
-              repository. We store the URL you scanned and the resulting
+              repository. We store the URL you checked and the resulting
               readiness score so you can revisit your report.
             </p>
             <h3>Account information</h3>

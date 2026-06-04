@@ -1,8 +1,8 @@
-// buildFixPlan: turn the rubric-centric scan findings into the fix agent's bounded task list.
+// buildFixPlan: turn rubric-centric checkup findings into the fix agent's bounded task list.
 //
-// This is the bridge between the scan (RubricFinding[]) and the agent run. It is keyed on the
+// This is the bridge between the checkup findings (RubricFinding[]) and the agent run. It is keyed on the
 // ~23 rubric checks, NOT on pages, so the agent's input is bounded by check count, never page
-// count — turning "fix 1000 pages" into "a few site-wide fixes + a handful of per-page edits".
+// count, turning "fix 1000 pages" into "a few site-wide fixes + a handful of per-page edits".
 //
 // Two buckets:
 //   - siteWide: fix one shared file/template (robots, sitemap, llms.txt, <head>/layout) → repairs
@@ -14,7 +14,7 @@
 // that are not agent-fixable (out-of-scope / flag-only) are surfaced under `flagged` for the PR's
 // "Flagged for manual work" section, never silently dropped.
 
-import { isCentralizable } from "../scrape-site/scraper/checks.ts";
+import { isCentralizable } from "../checkup/crawler/checks.ts";
 import type {
   Category,
   FindingScope,
@@ -22,7 +22,7 @@ import type {
   RubricFinding,
   Status,
   Tier,
-} from "../scrape-site/scraper/types.ts";
+} from "../checkup/crawler/types.ts";
 
 export interface FixTaskPage {
   url: string;
@@ -73,10 +73,10 @@ export interface FixPlan {
 
 export interface BuildFixPlanOptions {
   /**
-   * Readable pages scanned. Unused directly today (each finding carries its own applicable count),
-   * reserved so callers can pass scan context without an API change.
+   * Readable pages checked. Unused directly today (each finding carries its own applicable count),
+   * reserved so callers can pass checkup context without an API change.
    */
-  pagesScanned?: number;
+  pagesChecked?: number;
 }
 
 /** A finding is worth acting on when it failed or partially failed somewhere. */
@@ -102,8 +102,8 @@ export function buildFixPlan(findings: RubricFinding[], _opts: BuildFixPlanOptio
       continue;
     }
 
-    // Upgrade a CENTRALIZABLE per-page check (head/metadata) that fails/partials on EVERY
-    // applicable page to a single site-wide template fix — it's the same shared gap, so don't fan
+    // Upgrade a CENTRALIZABLE per-page check (head/metadata) that fails/partials on every
+    // applicable page to a single site-wide template fix. It is the same shared gap, so do not fan
     // out N identical edits. Content checks (alt text, definitions, …) never upgrade: each page
     // needs its own edit even when they fail everywhere.
     const applicable = f.counts.pass + f.counts.partial + f.counts.fail;

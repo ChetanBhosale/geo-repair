@@ -111,7 +111,7 @@ export function formatSiteReport(site: SiteReport): string {
 
   lines.push("=".repeat(72));
   lines.push(`AI Search Readiness — ${site.url}`);
-  lines.push(`${site.crawl.pagesScraped} page(s) analyzed · ${site.fetchedAt} · static read`);
+  lines.push(`${site.crawl.pagesChecked} page(s) analyzed · ${site.fetchedAt} · static read`);
   lines.push("=".repeat(72));
 
   // 1) The headline: one score + plain-language verdict, then the three plain groupings.

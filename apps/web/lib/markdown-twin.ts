@@ -356,7 +356,7 @@ This Privacy Policy explains what GEO Repair collects, how we use it, and, just 
 
 ### The free checkup
 
-The checkup fetches your public pages, the same way an AI crawler would, and respects your robots.txt. It never touches your repository. We store the URL you scanned and the resulting readiness score so you can revisit your report.
+The checkup fetches your public pages, the same way an AI crawler would, and respects your robots.txt. It never touches your repository. We store the URL you checked and the resulting readiness score so you can revisit your report.
 
 ### Account information
 

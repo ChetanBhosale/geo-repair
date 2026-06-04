@@ -1,4 +1,4 @@
-// Shared types for the GEO/AEO readiness scraper.
+// Shared types for the AI-search readiness crawler.
 // Check IDs / categories / tiers are canonical in /RUBRIC.md (single source of truth).
 // Pillar membership mirrors /scraper.md section 3.
 
@@ -53,6 +53,21 @@ export type PageType =
   | "legal"
   | "utility"
   | "generic";
+
+export type WebsiteType =
+  | "nextjs"
+  | "react"
+  | "astro"
+  | "framer"
+  | "webflow"
+  | "wix"
+  | "wordpress"
+  | "shopify"
+  | "gatsby"
+  | "nuxt"
+  | "hugo"
+  | "other"
+  | "unknown";
 
 /** All page types in a stable order. */
 export const PAGE_TYPES: PageType[] = [
@@ -331,20 +346,20 @@ export interface ScoreReport {
 
 // --- Multi-page (site-level) report ----------------------------------------
 
-/** How the crawler discovered candidate pages and which it chose to scrape. */
+/** How the crawler discovered candidate pages and which it chose to check. */
 export interface CrawlInfo {
   /** Where candidate URLs came from. */
   source: "sitemap" | "sitemap-index" | "homepage-links" | "single";
   /** Total candidate URLs discovered before selection. */
   totalDiscovered: number;
-  /** How many pages we actually scraped. */
-  pagesScraped: number;
+  /** How many pages we actually checked. */
+  pagesChecked: number;
   /** The cap that was applied. */
   maxPages: number;
   /** Per-section candidate counts, e.g. { "/": 1, "/blog": 412, "/pricing": 1 }. */
   sections: Record<string, number>;
-  /** Every URL we scraped, in priority order (homepage first). */
-  scrapedUrls: string[];
+  /** Every URL we checked, in priority order (homepage first). */
+  checkedUrls: string[];
   /** A capped sample of candidate URLs we deliberately skipped (e.g. extra blog posts). */
   skippedSample: string[];
 }
@@ -412,7 +427,7 @@ export interface RubricFinding {
 
 /**
  * Site-level descriptive profile: who the site is and what it is built with, derived from the
- * pages we scraped (homepage-first). Every field is always present; unknowns are null/empty so
+ * pages we checked (homepage-first). Every field is always present; unknowns are null/empty so
  * the JSON shape is stable.
  */
 export interface SiteInfo {
@@ -434,7 +449,9 @@ export interface SiteInfo {
   phones: string[];
   /** Detected tech / framework hints (e.g. "Next.js", "WordPress", "Cloudflare"). */
   techStack: string[];
-  /** All distinct JSON-LD @types seen across scraped pages. */
+  /** Normalized audience segment derived from techStack. Hosting-only signals stay unknown. */
+  websiteType: WebsiteType;
+  /** All distinct JSON-LD @types seen across checked pages. */
   schemaTypes: string[];
   /** Count of pages by detected type. */
   pageTypes: Record<PageType, number>;
@@ -444,7 +461,7 @@ export interface SiteInfo {
   hasLlmsTxt: boolean;
   /** Total URLs the sitemap exposed (site size signal), 0 if unknown. */
   sitemapUrlCount: number;
-  /** Aggregate content stats across readable scraped pages. */
+  /** Aggregate content stats across readable checked pages. */
   content: {
     totalWords: number;
     avgWordsPerPage: number;
@@ -464,7 +481,7 @@ export interface PillarSummary {
 }
 
 /**
- * Site-level report (rubric-centric): aggregates several page scrapes into one site score plus
+ * Site-level report (rubric-centric): aggregates several page checks into one site score plus
  * ~23 per-check `findings`. The heavy per-page detail is intentionally NOT retained — `pageIndex`
  * is a compact list and per-check status lives inside each finding's `pages` sample.
  */
@@ -491,7 +508,7 @@ export interface SiteReport {
   findings: RubricFinding[];
   /** Compact per-page index (no per-check detail) for the page-list UI and pagination. */
   pageIndex: PageIndexEntry[];
-  /** Advisories from the homepage scrape (apply site-wide). */
+  /** Advisories from the homepage check (apply site-wide). */
   advisories: AdvisoryItem[];
   /** Site-wide good/bad/missing/inconclusive rollup, one line per check across all pages. */
   summary: {
@@ -503,4 +520,3 @@ export interface SiteReport {
   /** Good/bad/missing grouped by pillar (SEO / GEO / AEO). */
   pillarSummary: Record<Pillar, PillarSummary>;
 }
-

@@ -1,7 +1,7 @@
 import { type LandingContent, LANDING_FEATURES } from "@/lib/landing-content"
 import { AsciiOverlay } from "@/components/ascii/ascii-overlay"
 import { Reveal } from "@/components/ui/reveal"
-import { WaitlistForm } from "@/components/waitlist/waitlist-form"
+import { CheckupForm } from "@/components/checkup/checkup-form"
 import { CornerMarks } from "./frame"
 import { HowItWorks } from "./how-it-works"
 import { CategoriesGrid } from "./categories-grid"
@@ -54,7 +54,7 @@ export function LandingPage({ content }: { content: LandingContent }) {
               className="relative mt-2 w-full max-w-xl scroll-mt-24 border border-black/5 bg-white p-4 text-left sm:p-5"
             >
               <CornerMarks />
-              <WaitlistForm inputId={content.inputId} />
+              <CheckupForm inputId={content.inputId} />
             </div>
 
             <ul className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-white/70">

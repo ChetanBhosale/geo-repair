@@ -1,6 +1,6 @@
-// Page discovery + smart selection for a multi-page audit.
+// Page discovery + smart selection for a multi-page checkup.
 //
-// Goal: from one input URL, decide WHICH pages to actually scrape so we judge a site on a
+// Goal: from one input URL, decide which pages to actually check so we judge a site on a
 // representative sample, not a single page, and never crawl all 100+ blog posts.
 //
 // Strategy (cheapest, most reliable first):
@@ -13,7 +13,7 @@
 import { rawFetch, type FetchOptions } from "./fetcher.ts";
 
 export interface DiscoveryResult {
-  /** The pages we will actually scrape, in priority order (homepage first). */
+  /** The pages we will actually check, in priority order (homepage first). */
   selected: string[];
   /** Where the candidate URLs came from. */
   source: "sitemap" | "sitemap-index" | "homepage-links" | "single";
@@ -26,7 +26,7 @@ export interface DiscoveryResult {
 }
 
 export interface DiscoveryOptions extends FetchOptions {
-  /** Hard cap on pages to scrape. Default Infinity (scan every discovered page). */
+  /** Hard cap on pages to check. Default Infinity. */
   maxPages?: number;
   /** Max pages sampled from any single large section. Default Infinity (no per-section cap). */
   maxPerSection?: number;
@@ -66,7 +66,7 @@ function depthOf(url: string): number {
   }
 }
 
-// Known high-value top-level pages. When present, these are scraped before other depth-1 pages
+// Known high-value top-level pages. When present, these are checked before other depth-1 pages
 // so a commercial page like /pricing is never crowded out by alphabetical luck.
 const PRIORITY_SLUGS = [
   "pricing", "price", "plans",
@@ -240,15 +240,15 @@ export function selectRepresentative(
       const list = bySection.get(section)!;
       // find next not-yet-selected in this section
       let next: string | undefined;
-      let scan = taken;
-      while (scan < list.length) {
-        if (!selectedSet.has(list[scan]!)) {
-          next = list[scan];
+      let cursor = taken;
+      while (cursor < list.length) {
+        if (!selectedSet.has(list[cursor]!)) {
+          next = list[cursor];
           break;
         }
-        scan += 1;
+        cursor += 1;
       }
-      perSectionTaken.set(section, scan + 1);
+      perSectionTaken.set(section, cursor + 1);
       if (next && !selectedSet.has(next)) {
         selected.push(next);
         selectedSet.add(next);
@@ -268,7 +268,7 @@ export function selectRepresentative(
   return { selected, sections, skippedSample: skipped };
 }
 
-/** End to end: discover candidate URLs and select the representative set to scrape. */
+/** End to end: discover candidate URLs and select the representative set to check. */
 export async function discoverPages(
   homepageFinalUrl: string,
   homepageHtml: string,

@@ -8,7 +8,7 @@
     "start": "bun run index.ts",
     "worker": "bun run src/temporal/workers/index.ts",
     "worker:dev": "bun run --watch src/temporal/workers/index.ts",
-    "scrape-site": "bun run src/temporal/functions/scrape-site/cli.ts",
+    "checkup": "bun run src/temporal/functions/checkup/cli.ts",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {

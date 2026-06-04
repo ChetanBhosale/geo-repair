@@ -1,20 +1,31 @@
 export { getTemporalClient } from "./client";
 export { temporalConnectionConfig } from "./connection";
-export { TASK_QUEUES, MAX_SCRAPES_PER_SITE } from "./shared";
+export { TASK_QUEUES, MAX_CHECKUPS_PER_SITE } from "./shared";
 export type {
   TaskQueue,
-  ScrapeSiteInput,
-  ScrapeSiteResult,
+  CheckupInput,
+  CheckupResult,
+  CheckupProgress,
+  CheckupPhase,
+  CheckupRunStatus,
+  CheckupProgressEvent,
+  RecentCheckupPage,
   RequestMeta,
   FixSiteInput,
   FixSiteResult,
 } from "./shared";
 
-export { startAudit, getAuditStatus, getAuditResult, getScrapeCount } from "./audit";
-export type { AuditStatusResponse } from "./audit";
+export { startCheckup, getCheckupStatus, getCheckupReport, getCheckupCount } from "./checkup";
+export type { CheckupStatusResponse } from "./checkup";
+export {
+  createCheckupRun,
+  setCheckupProgress,
+  appendCheckupRunEvent,
+  getCheckupProgress,
+} from "./checkup-progress";
 
-export { scrapeSiteWorkflow } from "./functions/scrape-site/workflows";
+export { checkupWorkflow } from "./functions/checkup/workflows";
 export { fixSiteWorkflow } from "./functions/fix-site/workflows";
 
-export { runScrapeSiteWorker } from "./workers/scrape-site.worker";
+export { runCheckupWorker } from "./workers/checkup.worker";
 export { runFixSiteWorker } from "./workers/fix-site.worker";

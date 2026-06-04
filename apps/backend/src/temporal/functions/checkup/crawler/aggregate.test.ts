@@ -1,9 +1,9 @@
-// Unit tests for the rubric-centric aggregation: folding many per-page scrapes into ~one
+// Unit tests for the rubric-centric aggregation: folding many per-page checks into one
 // finding per check. Verifies counts, siteStatus, affectedCount, representativeEvidence, scope,
 // and the page-sample cap.
 
 import { test, expect } from "bun:test";
-import { aggregateSite, type ScoredPage } from "./aggregate.ts";
+import { aggregateSite, deriveWebsiteType, type ScoredPage } from "./aggregate.ts";
 import {
   CATEGORIES,
   PILLARS,
@@ -12,6 +12,7 @@ import {
   type CheckResult,
   type CrawlInfo,
   type DomainFiles,
+  type PageModel,
   type Pillar,
   type PillarScore,
   type ScoreReport,
@@ -47,7 +48,12 @@ function check(id: string, status: Status, opts: Partial<CheckResult> = {}): Che
   };
 }
 
-function scoredPage(url: string, checks: CheckResult[], blocked = false): ScoredPage {
+function scoredPage(
+  url: string,
+  checks: CheckResult[],
+  blocked = false,
+  page: PageModel | null = null,
+): ScoredPage {
   const report: ScoreReport = {
     url,
     finalUrl: url,
@@ -63,7 +69,45 @@ function scoredPage(url: string, checks: CheckResult[], blocked = false): Scored
     advisories: [],
     summary: { good: [], bad: [], missing: [], inconclusive: [] },
   };
-  return { report, page: null };
+  return { report, page };
+}
+
+function pageModel(url: string, rawHtml: string, headers: Record<string, string> = {}): PageModel {
+  return {
+    requestedUrl: url,
+    finalUrl: url,
+    status: 200,
+    ok: true,
+    contentType: "text/html",
+    headers,
+    rawHtml,
+    htmlByteLength: rawHtml.length,
+    hasDoctype: true,
+    charsetEarly: true,
+    charsetValue: "utf-8",
+    htmlLang: "en",
+    viewport: "width=device-width, initial-scale=1",
+    viewportResponsive: true,
+    title: "Example",
+    metas: [],
+    links: [],
+    canonical: url,
+    metaRobots: null,
+    xRobotsTag: null,
+    jsonLd: [],
+    headings: [{ level: 1, text: "Example" }],
+    anchors: [],
+    images: [],
+    interactives: [],
+    landmarks: { header: true, nav: true, main: true, footer: true },
+    labelFor: new Set<string>(),
+    visibleText: "Example page",
+    wordCount: 2,
+    scriptCount: 0,
+    spaRootDetected: false,
+    noscriptText: "",
+    metaByKey: new Map<string, string>(),
+  };
 }
 
 const domain: DomainFiles = {
@@ -77,10 +121,10 @@ const domain: DomainFiles = {
 const crawl: CrawlInfo = {
   source: "sitemap",
   totalDiscovered: 3,
-  pagesScraped: 3,
+  pagesChecked: 3,
   maxPages: 3,
   sections: {},
-  scrapedUrls: [],
+  checkedUrls: [],
   skippedSample: [],
 };
 
@@ -171,4 +215,41 @@ test("blocked pages are excluded from findings but still indexed", () => {
   expect(site.pageIndex.find((p) => p.blocked)!.url).toBe("https://example.com/blocked");
   // the blocked page contributed no checks, so meta-tags counts only the readable page.
   expect(site.findings.find((f) => f.id === "meta-tags")!.counts.fail).toBe(1);
+});
+
+test("website type derives framework before hosting signals", () => {
+  expect(deriveWebsiteType(["Next.js", "Vercel", "Cloudflare"])).toBe("nextjs");
+  expect(deriveWebsiteType(["React", "Netlify"])).toBe("react");
+});
+
+test("website type covers supported builders and CMS signals", () => {
+  expect(deriveWebsiteType(["Framer", "Cloudflare"])).toBe("framer");
+  expect(deriveWebsiteType(["Webflow"])).toBe("webflow");
+  expect(deriveWebsiteType(["Wix"])).toBe("wix");
+  expect(deriveWebsiteType(["WordPress"])).toBe("wordpress");
+  expect(deriveWebsiteType(["Shopify"])).toBe("shopify");
+});
+
+test("website type stays unknown for hosting-only or empty signals", () => {
+  expect(deriveWebsiteType(["Vercel"])).toBe("unknown");
+  expect(deriveWebsiteType(["Cloudflare", "Netlify"])).toBe("unknown");
+  expect(deriveWebsiteType([])).toBe("unknown");
+});
+
+test("Framer-hosted image assets do not mark a custom Next.js site as Framer", () => {
+  const url = "https://example.com";
+  const page = pageModel(
+    url,
+    '<html><head><link rel="preload" as="image" href="https://framerusercontent.com/images/example.webp"><link rel="stylesheet" href="/_next/static/css/app.css"></head><body><h1>Example</h1></body></html>',
+  );
+  const site = aggregate([
+    scoredPage(url, [check("ssr-visibility", "pass")], false, page),
+  ]);
+
+  expect(site.siteInfo.techStack).toEqual(["Next.js"]);
+  expect(site.siteInfo.websiteType).toBe("nextjs");
+});
+
+test("website type falls back to other for non-hosting unknown signals", () => {
+  expect(deriveWebsiteType(["Custom CMS"])).toBe("other");
 });

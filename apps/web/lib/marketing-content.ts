@@ -22,9 +22,9 @@ export type PricingTier = {
 
 export const PRICING_HEADER: SectionIntro = {
   eyebrow: "Pricing",
-  title: "Free to scan. Pay once to fix.",
+  title: "Free to check. Pay once to fix.",
   description:
-    "Run the checkup for nothing. Pay a single one-time fee — sized to your site — only when you want the agent to ship the fixes. Keep your readiness from sliding back with optional Autopilot.",
+    "Run the checkup for nothing. Pay a single one-time fee, sized to your site, only when you want the agent to ship the fixes. Keep your readiness from sliding back with optional Autopilot.",
 }
 
 // Step 1 — the free entry point.
@@ -32,9 +32,9 @@ export const PRICING_FREE: PricingTier = {
   name: "Free checkup",
   price: "$0",
   blurb:
-    "Scan any public site and get the full readiness picture — the same scoring our fix agent works from.",
+    "Check any public site and get the full readiness picture, the same scoring our fix agent works from.",
   features: [
-    "Scan any public website",
+    "Check any public website",
     "0–100 readiness score with per-category subscores",
     "All 23 checks across 7 categories",
     "Evidence and a fix hint for every issue",
@@ -134,7 +134,7 @@ export const PRICING_FAQ: FaqItem[] = [
   {
     question: "Is the checkup really free?",
     answer:
-      "Yes. The checkup scans your public pages and returns the full 0–100 score with every check, with no signup and no card. You only pay when you connect a repository and want the agent to open the fixing pull requests.",
+      "Yes. The checkup reads your public pages and returns the full 0–100 score with every check, with no signup and no card. You only pay when you connect a repository and want the agent to open the fixing pull requests.",
   },
   {
     question: "How much does the fix cost?",
@@ -195,7 +195,7 @@ export const SECURITY_LIFECYCLE_INTRO: SectionIntro = {
 }
 
 export const SECURITY_ACCESS: AccessItem[] = [
-  { label: "The one public site you scan (free checkup)", allowed: true },
+  { label: "The one public site you check (free checkup)", allowed: true },
   { label: "The single repository you explicitly select", allowed: true },
   { label: "An ephemeral sandbox that's destroyed after the run", allowed: true },
   { label: "Your other repositories or your whole account", allowed: false },

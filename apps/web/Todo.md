@@ -7,5 +7,5 @@ Todo:
 - [x] add email marketing campaign to send emails to the waitlist signups and contact form submissions. ai agent to suggest which provider to use for email sending, somethign cheap, easy.
 - [x] add to agents md to keep the legal pages always up to date.
 - [ ] raising a pr is almost always perceievd with github so lets ue github icon i ngrpahcis or animation ro places where we can show that we are raising a pr to the user's repo.
-- [ ] after the anlysis is done, we need to track and store the website type. whether its i next js, react, framer, webflow, wix etc etc so we can see which type of audience is comign in.
-- [ ] Now that we have the scraper/website analysis logic also in place, we need to tie it in the landing page.
+- [x] after the anlysis is done, we need to track and store the website type. whether its i next js, react, framer, webflow, wix etc etc so we can see which type of audience is comign in.
+- [x] Now that we have the scraper/website analysis logic also in place, we need to tie it in the landing page.
