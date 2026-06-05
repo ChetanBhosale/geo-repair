@@ -10,9 +10,9 @@ import { CornerMarks } from "@/components/sections/frame"
 import { Section } from "@/components/sections/section"
 
 export const metadata = buildMetadata({
-  title: "Blog · AI Search Optimization Guides · GEO Repair",
+  title: "Blog · GEO, AEO, audit, and AI search guides · GEO Repair",
   description:
-    "Plain-English guides to AI Search Optimization: how AI crawlers read your site, which technical checks matter, and how to make pages legible to ChatGPT, Perplexity, and AI Overviews.",
+    "Guides to GEO and AEO: how audits, scans, checkups, and reports help with answer engine optimization, generative engine optimization, and AI search readiness.",
   path: "/blog",
 })
 
@@ -85,8 +85,8 @@ export default function BlogPage() {
 
       <PageHeader
         eyebrow="Blog"
-        title="Notes on AI Search Optimization"
-        description="Honest, technical guides to making your site legible to AI search engines: no hype, no citation guarantees, just what's in your control."
+        title="GEO, AEO, audit, and AI search guides"
+        description="Technical guides to answer engine optimization and generative engine optimization, with plain advice on audits, scans, checkups, reports, and fixes."
       />
 
       <Section>

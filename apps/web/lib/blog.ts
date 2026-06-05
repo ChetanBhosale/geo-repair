@@ -17,7 +17,7 @@ export type Post = {
 const POSTS: Post[] = [
   {
     slug: "what-is-ai-search-optimization",
-    title: "What Is AI Search Optimization?",
+    title: "What is AI search optimization?",
     description:
       "A plain-English definition of AI Search Optimization: how it differs from classic SEO, and the checks that actually move the needle.",
     date: "2026-05-12",
@@ -27,7 +27,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "how-ai-crawlers-read-your-site",
-    title: "How AI Crawlers Read Your Site",
+    title: "How AI crawlers read your site",
     description:
       "ChatGPT, Perplexity, and Google AI Overviews fetch your pages differently than a browser. Here's what their crawlers see, and why server-rendered HTML wins.",
     date: "2026-05-26",
@@ -37,7 +37,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-search-optimization-checklist",
-    title: "AI Search Optimization Checklist for Technical Teams",
+    title: "AI search optimization checklist for technical teams",
     description:
       "A practical checklist for making a site easier for ChatGPT, Perplexity, and Google AI Overviews to fetch, parse, and trust.",
     date: "2026-06-03",
@@ -47,7 +47,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "increase-ai-citation-chances",
-    title: "How to Increase Your Chances of Being Cited in AI Answers",
+    title: "How to increase your chances of being cited in AI answers",
     description:
       "A realistic answer to a common Reddit question: what content structure, crawlability, and source signals can make a page easier for AI systems to cite.",
     date: "2026-06-03",
@@ -57,7 +57,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "traditional-seo-ai-overviews",
-    title: "Is Traditional SEO Enough for AI Overviews?",
+    title: "Is traditional SEO enough for AI Overviews?",
     description:
       "Traditional SEO still matters, but AI answers reward clearer extraction, entity trust, and sourceable content. Here is where the work changes.",
     date: "2026-06-03",
@@ -67,7 +67,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-mentions-vs-citations",
-    title: "AI Mentions vs AI Citations: What Should You Track?",
+    title: "AI mentions vs AI citations: what should you track?",
     description:
       "A brand mention and a cited URL are not the same signal. Track them separately so you know whether you have awareness, retrieval, or both.",
     date: "2026-06-03",
@@ -77,7 +77,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "automated-ai-blog-publishing",
-    title: "Should Solo Founders Automate Blog Publishing with AI?",
+    title: "Should solo founders automate blog publishing with AI?",
     description:
       "AI can speed up planning and drafts, but automatic publishing without review creates thin content, duplicate intent, and trust problems.",
     date: "2026-06-03",
@@ -87,7 +87,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "rankings-good-traffic-dropping-ai-search",
-    title: "Why Traffic Drops Even When Rankings Look Good",
+    title: "Why traffic drops even when rankings look good",
     description:
       "Stable rankings can hide falling clicks when AI answers satisfy the query on the results page. Diagnose impressions, CTR, and answer visibility together.",
     date: "2026-06-03",
@@ -97,7 +97,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "is-ai-search-optimization-just-seo",
-    title: "Is AI Search Optimization Just SEO?",
+    title: "Is AI search optimization just SEO?",
     description:
       "AI Search Optimization is not a replacement for SEO. It is an extra readiness layer focused on extraction, answerability, structured data, and trust.",
     date: "2026-06-03",
@@ -107,7 +107,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "google-search-console-ai-search-gaps",
-    title: "What Google Search Console Cannot Tell You About AI Search",
+    title: "What Google Search Console cannot tell you about AI search",
     description:
       "Search Console is still useful, but it does not fully explain ChatGPT, Perplexity, or cross-platform AI recommendations. Here is what to measure beside it.",
     date: "2026-06-03",
@@ -117,7 +117,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-overviews-organic-traffic",
-    title: "Do AI Overviews Kill Organic Traffic?",
+    title: "Do AI Overviews kill organic traffic?",
     description:
       "AI Overviews can reduce clicks on some informational queries, but the useful question is which pages lose demand and which pages become citation sources.",
     date: "2026-06-03",
@@ -127,7 +127,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "chatgpt-perplexity-business-recommendations",
-    title: "How to Get Recommended by ChatGPT and Perplexity",
+    title: "How to get recommended by ChatGPT and Perplexity",
     description:
       "AI recommendations depend on clear entity signals, third-party proof, and category sources. Your homepage is only one part of the recommendation system.",
     date: "2026-06-03",
@@ -137,9 +137,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-search-optimization-tool-checklist",
-    title: "What Should an AI Search Optimization Tool Actually Do?",
+    title: "AI search tool checklist: audit, scan, report, fix",
     description:
-      "The useful tool is not another content generator. It should diagnose why a page is invisible, recommend the fix, and verify whether the fix worked.",
+      "What an AI search tool should cover: GEO, AEO, answer engine optimization, scans, reports, fixes, and verification.",
     date: "2026-06-03",
     thumbnail: "/images/blog/florals.jpg",
     tags: ["AI Search", "Tools", "Reddit Questions"],
@@ -147,9 +147,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "tool-optimize-aeo-seo-geo-website",
-    title: "Is There a Tool That Optimizes AEO, SEO, and GEO for My Website?",
+    title: "Free GEO and AEO scan with audit report",
     description:
-      "Yes, but the useful tool changes the website, not just the score. Here is what an AEO, SEO, and GEO tool should diagnose, fix, and verify.",
+      "How to judge answer engine optimization and generative engine optimization tools: what a free scan should diagnose, how the checkup score should read, and what the report should fix.",
     date: "2026-06-05",
     thumbnail: "/images/blog/aeo-seo-geo-tool.jpg",
     tags: ["AEO", "GEO", "Tools"],
@@ -157,9 +157,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-tool-actually-fixes-aeo-geo-issues",
-    title: "Is There an AI Tool That Actually Fixes AEO and GEO Issues?",
+    title: "Free AEO audit: can AI fix GEO issues?",
     description:
-      "Most tools report AI visibility problems. A real fixing tool works at the website source level, opens a pull request, and re-checks the result.",
+      "A free AEO audit can find answer engine optimization and generative engine optimization problems. A repair-grade AI tool fixes them at the source.",
     date: "2026-06-05",
     thumbnail: "/images/blog/ai-tool-fixes-aeo-geo.jpg",
     tags: ["AEO", "GEO", "Fixes"],
@@ -167,9 +167,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "aeo-geo-audit-tool-vs-fix-tool",
-    title: "AEO and GEO Audit Tools vs Fix Tools: What Is the Difference?",
+    title: "Free AEO and GEO audit tools vs fix tools",
     description:
-      "An audit tool tells you what is wrong. A fix tool changes the website and verifies the blocker was removed. Here is when to use each one.",
+      "A free AEO audit, GEO scan, or checkup report tells you what's wrong. A fix tool changes the website and verifies the blocker was removed.",
     date: "2026-06-05",
     thumbnail: "/images/blog/audit-vs-fix-tools.jpg",
     tags: ["AEO", "GEO", "Tools"],
@@ -177,9 +177,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "is-seo-worth-it-2026",
-    title: "Is SEO Still Worth It in 2026?",
+    title: "Is SEO still worth it in 2026?",
     description:
-      "SEO is still worth doing, but the work has shifted from keyword shortcuts toward trust, community proof, useful content, and AI-readable structure.",
+      "SEO is still worth doing, but the work has shifted from keyword shortcuts toward trust, community proof, useful content, and structure AI systems can read.",
     date: "2026-06-03",
     thumbnail: "/images/blog/tulips.jpg",
     tags: ["SEO", "Strategy", "Reddit Questions"],
@@ -187,7 +187,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-content-seo-mistakes",
-    title: "The SEO Mistakes Teams Make After Switching to AI Content",
+    title: "The SEO mistakes teams make after switching to AI content",
     description:
       "Publishing faster is not a strategy. The common failures are generic drafts, cannibalization, weak review, missing experience, and no sourceable point of view.",
     date: "2026-06-03",
@@ -197,7 +197,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "eeat-ai-search-trust",
-    title: "How to Show Experience and Trust in AI Search Content",
+    title: "How to show experience and trust in AI search content",
     description:
       "Trust is easier to claim than prove. Show real experience through examples, author context, original data, dated updates, and off-site reputation signals.",
     date: "2026-06-03",
@@ -207,7 +207,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "content-ai-answers-cannot-replace",
-    title: "What Content Is Hardest for AI Answers to Replace?",
+    title: "What content is hardest for AI answers to replace?",
     description:
       "No content is fully AI-proof, but original data, tools, templates, case studies, and community proof are harder to replace than generic explainers.",
     date: "2026-06-03",
@@ -217,7 +217,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-translation-international-seo",
-    title: "AI Translation Is Not International SEO",
+    title: "AI translation is not international SEO",
     description:
       "AI translation can make localization faster, but international SEO still needs local intent research, hreflang accuracy, market examples, and human review.",
     date: "2026-06-03",
@@ -228,7 +228,7 @@ const POSTS: Post[] = [
   {
     slug: "titles-meta-descriptions-ai-answers",
     title:
-      "How to Write Titles and Meta Descriptions for Google and AI Answers",
+      "How to write titles and meta descriptions for Google and AI answers",
     description:
       "The best titles and descriptions are specific, human, and aligned with the first paragraph. Clarity beats keyword stuffing for both search and AI answers.",
     date: "2026-06-03",
@@ -238,7 +238,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "topical-authority-ai-search",
-    title: "How to Build Topical Authority for AI Search",
+    title: "How to build topical authority for AI search",
     description:
       "Topical authority is less about publishing every keyword variation and more about connected, useful, experience-backed pages that prove real expertise.",
     date: "2026-06-03",
@@ -248,9 +248,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "server-rendered-content-ai-search",
-    title: "Why Server-Rendered Content Matters for AI Search",
+    title: "Why server-rendered content matters for AI search",
     description:
-      "AI search engines can only quote what they can fetch. Learn why server-rendered HTML is the foundation of AI search readiness.",
+      "AI search engines can only quote what they can fetch. Server-rendered HTML gives them the page before JavaScript runs.",
     date: "2026-06-02",
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["Rendering", "AI Crawlers", "Technical"],
@@ -258,7 +258,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "structured-data-for-ai-search",
-    title: "Structured Data for AI Search: What to Add First",
+    title: "Structured data for AI search: what to add first",
     description:
       "A focused guide to the JSON-LD that helps AI search engines understand articles, organizations, breadcrumbs, products, and FAQs.",
     date: "2026-06-01",
@@ -268,7 +268,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "robots-txt-ai-crawlers",
-    title: "Robots.txt for AI Crawlers: What to Allow and What to Avoid",
+    title: "Robots.txt for AI crawlers: what to allow and what to avoid",
     description:
       "How to keep important pages open to AI crawlers without accidentally exposing private, staging, or low-value surfaces.",
     date: "2026-05-31",
@@ -278,9 +278,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "llms-txt-for-ai-search",
-    title: "What Is llms.txt and Should Your Website Have One?",
+    title: "What is llms.txt and should your website have one?",
     description:
-      "A practical explanation of llms.txt, Markdown twins, and how a curated machine-readable index can support AI search readiness.",
+      "A practical explanation of llms.txt, Markdown twins, and how a curated index can help AI systems find the right pages.",
     date: "2026-05-30",
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["llms.txt", "Markdown", "AI Search"],
@@ -288,7 +288,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "answer-first-content-ai-search",
-    title: "How to Write Answer-First Content for AI Search",
+    title: "How to write answer-first content for AI search",
     description:
       "Question-shaped headings, short direct answers, and evidence-rich sections help AI systems understand what a page is qualified to answer.",
     date: "2026-05-29",
@@ -298,7 +298,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "ai-search-optimization-for-saas",
-    title: "AI Search Optimization for SaaS Websites",
+    title: "AI search optimization for SaaS websites",
     description:
       "The SaaS pages most likely to be read by AI search engines, and the technical fixes that make pricing, security, and feature pages clearer.",
     date: "2026-05-28",
@@ -308,9 +308,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "next-js-ai-search-audit",
-    title: "How to Audit a Next.js Site for AI Search Readiness",
+    title: "Next.js AI search audit with scan report",
     description:
-      "A route-by-route audit process for checking rendered HTML, metadata, structured data, crawl files, and content clarity in a Next.js app.",
+      "A route-by-route audit and checkup process for rendered HTML, metadata, structured data, crawl files, and content clarity in Next.js.",
     date: "2026-05-27",
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["Next.js", "Audit", "Technical"],
@@ -318,7 +318,7 @@ const POSTS: Post[] = [
   },
   {
     slug: "product-pages-ai-search-readiness",
-    title: "Product Page AI Search Readiness Checklist",
+    title: "Product page AI search readiness checklist",
     description:
       "How to make product and feature pages easier for AI search engines to understand without stuffing keywords or promising citations.",
     date: "2026-05-25",
@@ -328,9 +328,9 @@ const POSTS: Post[] = [
   },
   {
     slug: "measure-ai-search-readiness",
-    title: "How to Measure AI Search Readiness Before and After a Fix",
+    title: "AI search readiness report: what to measure",
     description:
-      "A practical measurement framework for tracking crawl visibility, metadata quality, structured data, answerability, and technical readiness.",
+      "What an audit report should measure before and after a fix: crawl visibility, metadata quality, structured data, answerability, and readiness.",
     date: "2026-05-24",
     thumbnail: "/images/blog/tulips.jpg",
     tags: ["Measurement", "Audit", "AI Search"],

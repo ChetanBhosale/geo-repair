@@ -7,7 +7,7 @@ export const SITE = {
   tagline: "AI Search Optimization",
   url: "https://geo.repair",
   description:
-    "GEO Repair checks how ready your website is for AI search engines like ChatGPT, Perplexity, and Google AI Overviews, then ships a pull request that fixes it. Free checkup, no code required.",
+    "GEO Repair runs a free AI search audit and checkup report for ChatGPT, Perplexity, and Google AI Overviews, then ships a pull request that fixes it.",
   twitter: "@georepair",
 } as const
 

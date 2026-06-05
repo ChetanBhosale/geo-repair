@@ -28,13 +28,13 @@ export const HOME_CONTENT: LandingContent = {
   path: "/",
   metaTitle: "GEO Repair · AI Search Optimization for ChatGPT & Perplexity",
   metaDescription:
-    "Run a free checkup that scores how ready your site is for AI search engines like ChatGPT, Perplexity, and Google AI Overviews, then ships a pull request that fixes it. No code required.",
+    "Run a free AI search audit that scores how ready your site is for ChatGPT, Perplexity, and Google AI Overviews, then ships a pull request that fixes it.",
   eyebrow: "AI Search Optimization",
   headline: "Find your AI search issues, then",
   headlineAccent: "raise a PR that fixes them",
   headlineTail: ", in minutes.",
   subhead:
-    "See how ready your site is for ChatGPT, Perplexity, and Google AI Overviews — a full GEO & AEO checkup with the evidence behind every issue, no code required.",
+    "Run a free AEO and GEO scan for ChatGPT, Perplexity, and Google AI Overviews. You get an audit report with the evidence behind each issue.",
   ctaLabel: "Run free checkup",
   inputId: "checkup-url",
   trustChips: [
@@ -51,12 +51,12 @@ export const HOME_CONTENT: LandingContent = {
     {
       question: "How is this different from traditional SEO?",
       answer:
-        "Traditional SEO optimizes for ranking blue links; AI Search Optimization optimizes for being read and cited inside an AI answer. The two overlap on fundamentals like clean HTML and metadata, but AI engines also reward machine-readable structure, explicit definitions, and content they can lift directly into a response.",
+        "Traditional SEO optimizes for ranking blue links; AI Search Optimization optimizes for being read and cited inside an AI answer. The two overlap on fundamentals like clean HTML and metadata, but AI engines also reward structure they can parse, explicit definitions, and content they can lift directly into a response.",
     },
     {
       question: "Is the checkup really free?",
       answer:
-        "Yes. The checkup is free and needs no signup. It scores your site across all 23 checks and shows you exactly what an AI engine sees. You only pay if you want the agent to open fix pull requests for you on an ongoing basis.",
+        "Yes. The free AEO and GEO scan needs no signup. It returns an AI search checkup report across all 23 checks and shows what an AI engine sees. You only pay if you want the agent to open fix pull requests for you.",
     },
     SHARED_TRUST,
     {
@@ -89,7 +89,7 @@ export const HOW_IT_WORKS_INTRO: SectionIntro = {
   eyebrow: "How it works",
   title: "From invisible to cited in three steps",
   description:
-    "No code to write, no consultant to hire. A checkup, a clear diagnosis, and a pull request you control.",
+    "Start with a checkup, read the diagnosis, and review the pull request when the fix is ready.",
 }
 
 export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
@@ -101,7 +101,7 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
     n: "02",
     title: "See exactly what's broken",
-    body: "Get a 0–100 readiness score with per-category subscores and the precise evidence behind every check (the offending route, tag, or missing markup), plus what the agent can fix automatically.",
+    body: "Get a 0 to 100 readiness score with per-category subscores and the precise evidence behind every check (the offending route, tag, or missing markup), plus what the agent can fix automatically.",
   },
   {
     n: "03",
@@ -125,7 +125,7 @@ export const LANDING_FEATURES: LandingFeature[] = [
     description:
       "Every check returns a status, the evidence behind it (the offending route, tag, or missing markup), and whether the agent can fix it. No black box.",
     points: [
-      "0–100 overall score with per-category subscores",
+      "0 to 100 overall score with per-category subscores",
       "Pass, partial, or fail on all 23 checks",
       "Reproducible: the same input always scores the same",
     ],
@@ -145,18 +145,18 @@ export const LANDING_FEATURES: LandingFeature[] = [
 
 export const CHECKER_CONTENT: LandingContent = {
   path: "/geo-aeo-checker",
-  metaTitle: "Free GEO & AEO Checker · AI Citation & Visibility Test",
+  metaTitle: "Free GEO and AEO audit with scan report",
   metaDescription:
-    "Free online GEO and AEO checker. Test your site's AI citation and AI visibility readiness across 23 checks for ChatGPT, Perplexity, and Google AI Overviews, then get a fix PR.",
-  eyebrow: "Free GEO & AEO checker",
-  headline: "Free GEO & AEO checker for",
+    "Run a free GEO and AEO audit for answer engine optimization and generative engine optimization. Get a scan report, checkup score, and fix plan.",
+  eyebrow: "Free GEO and AEO audit",
+  headline: "Free GEO and AEO audit for",
   headlineAccent: "AI citation and visibility.",
   subhead:
-    "Paste a URL to run a free GEO and AEO check: an AI citation and AI visibility test scored across 23 checks for ChatGPT, Perplexity, and Google AI Overviews. See what's blocking you, then ship the fix in a pull request.",
+    "Paste a URL to run a free AEO scan and GEO scan. We score answer engine optimization and generative engine optimization across 23 checks for ChatGPT, Perplexity, and Google AI Overviews. You see what's blocking the site, then ship the fix in a pull request.",
   ctaLabel: "Check my site",
   inputId: "checker-url",
   trustChips: [
-    "GEO + AEO in one checkup",
+    "Free scan report",
     "AI citation readiness score",
     "Free, no signup",
   ],
@@ -164,7 +164,7 @@ export const CHECKER_CONTENT: LandingContent = {
     {
       question: "What is a GEO and AEO checker?",
       answer:
-        "A GEO and AEO checker tests how ready a website is for generative engine optimization (GEO) and answer engine optimization (AEO): how easily AI engines like ChatGPT and Perplexity can read, understand, and cite it. GEO Repair runs 23 such checks and returns a 0–100 readiness score with the exact issues to fix.",
+        "A GEO and AEO checker audits how ready a website is for generative engine optimization (GEO) and answer engine optimization (AEO). It checks how easily AI engines like ChatGPT and Perplexity can read, understand, and cite the site. GEO Repair runs 23 checks and returns a 0 to 100 report with the exact issues to fix.",
     },
     {
       question: "How does the AI citation checker work?",
@@ -177,9 +177,9 @@ export const CHECKER_CONTENT: LandingContent = {
         "GEO (generative engine optimization) is the broad practice of optimizing a site to be used by generative AI engines. AEO (answer engine optimization) is the subset focused on answerability: question-shaped headings, FAQ markup, and answer-first writing so an engine can lift a direct answer. Our checker scores both.",
     },
     {
-      question: "Is the GEO/AEO check free?",
+      question: "Is this a free AEO audit and GEO scan?",
       answer:
-        "Yes. The check is free and needs no signup. You get the full 23-check breakdown and an overall AI search readiness score. Paid plans add the agent that opens fix pull requests for you.",
+        "Yes. The AEO audit, AEO scan, GEO scan, and checkup report are free. No signup is needed. You get the full 23-check breakdown with an overall AI search readiness score. Paid plans add the agent that opens fix pull requests for you.",
     },
     SHARED_TRUST,
     {

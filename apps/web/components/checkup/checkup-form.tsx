@@ -414,7 +414,7 @@ export function CheckupForm({
             ) : (
               <>
                 <MagnifyingGlassIcon aria-hidden />
-                Run checkup
+                Run free scan
               </>
             )}
           </Button>
@@ -422,7 +422,7 @@ export function CheckupForm({
         <p className="text-center text-xs text-muted-foreground" aria-live="polite">
           {state === "running"
             ? "Fetching public pages and scoring AI search readiness."
-            : "Free AI search readiness checkup. No signup or card needed."}
+            : "Free AI search, AEO, and GEO scan. No signup or card needed."}
         </p>
       </form>
 

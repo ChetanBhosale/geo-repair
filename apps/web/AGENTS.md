@@ -11,6 +11,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
   Use commas, colons, periods, or parentheses instead and rewrite the sentence if
   needed. (En dashes in numeric ranges like "0–100" are fine.) This applies to all
   rendered strings; do not reintroduce them.
+- **Humanize new content before shipping.** When writing or editing landing-page copy,
+  blog metadata, blog MDX, Markdown twins, `llms.txt`, OG text, or other public
+  marketing content, use the `humanizer` skill (`~/.codex/skills/humanizer/SKILL.md`)
+  as a review pass before declaring the work done. Remove obvious AI-writing tells:
+  keyword lists that read stuffed, "not just / not only" constructions, vague promo
+  words like "valuable" or "showcase," mechanical bold-label lists, title-case
+  headings where sentence case reads better, and em/en dashes in final copy.
 
 ## Visual style
 

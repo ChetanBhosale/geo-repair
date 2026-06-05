@@ -20,9 +20,9 @@ The fix is to make your meaningful content present in the initial HTML response.
 
 Server-rendered HTML wins for AI search because it is:
 
-- **Always visible**: no JavaScript execution required to see the content.
-- **Cheap to fetch**: one request returns the whole answer, so crawlers don't skip it.
-- **Stable**: the content doesn't depend on a client runtime that might error or time out.
+- The content is visible without JavaScript.
+- One request returns the whole answer, so crawlers do not have to wait.
+- The content does not depend on a client runtime that might error or time out.
 
 Interactive widgets are fine. The rule is simpler than it sounds: _the selling content and the answers should exist in the HTML before any script runs._ Layer interactivity on top, but don't hide the substance beneath it.
 
