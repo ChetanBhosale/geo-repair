@@ -5,7 +5,10 @@
   "exports": {
     ".": "./index.ts",
     "./user": "./src/user.ts",
-    "./auth": "./src/auth.ts"
+    "./auth": "./src/auth.ts",
+    "./scraper": "./src/scraper.ts",
+    "./github": "./src/github.ts",
+    "./fix": "./src/fix.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

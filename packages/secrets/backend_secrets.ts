@@ -28,11 +28,21 @@ const BackendSecrets = {
   GITHUB_CALLBACK_URL:
     process.env.GITHUB_CALLBACK_URL ||
     "http://localhost:4000/api/auth/github/callback",
+  // Owner PAT — fallback git credential for local/owner testing of the fix flow.
+  GITHUB_PERSONAL_ACCESS_TOKEN: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
 
   // Temporal Cloud (API-key auth).
   TEMPORAL_API_KEY: process.env.TEMPORAL_API_KEY,
   TEMPORAL_ENDPOINT: process.env.TEMPORAL_ENDPOINT,
   TEMPORAL_NAMESPACE: process.env.TEMPORAL_NAMESPACE,
+
+  // OpenRouter (LLM gateway). LLM_MODEL is the default model id.
+  OPEN_ROUTER_KEY: process.env.OPEN_ROUTER_KEY,
+  LLM_MODEL: process.env.LLM_MODEL || "google/gemini-3.5-flash",
+
+  // E2B (ephemeral execution sandbox).
+  E2B_SANDBOX_API_KEY: process.env.E2B_SANDBOX_API_KEY,
+  E2B_SANDBOX_ID: process.env.E2B_SANDBOX_ID,
 };
 
 export default BackendSecrets;

@@ -19,6 +19,8 @@ function finding(id: string, partial: Partial<RubricFinding> = {}): RubricFindin
     affectedCount: partial.affectedCount ?? counts.fail + counts.partial,
     representativeEvidence: partial.representativeEvidence ?? null,
     pages: partial.pages ?? [],
+    fixed: partial.fixed ?? false,
+    fixNote: partial.fixNote ?? null,
   };
 }
 

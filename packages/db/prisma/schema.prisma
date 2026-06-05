@@ -29,6 +29,8 @@ model User {
   updatedAt DateTime @updatedAt
 
   accounts Account[]
+  repositories Repository[]
+  fixRuns FixRun[]
 
   @@map("users")
 }
@@ -45,9 +47,43 @@ model Account {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  repositories Repository[]
+
   @@unique([provider, providerAccountId])
   @@index([userId])
   @@map("accounts")
+}
+
+model Repository {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  githubRepoId  BigInt
+  name          String
+  fullName      String
+  owner         String
+  private       Boolean  @default(false)
+  htmlUrl       String
+  cloneUrl      String
+  defaultBranch String
+  description   String?
+  language      String?
+
+  // Whether this is the repo currently chosen for fixing.
+  selected      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fixRuns FixRun[]
+
+  @@unique([userId, githubRepoId])
+  @@index([userId])
+  @@index([accountId])
+  @@map("repositories")
 }
 
 model ScrapeGeo {
@@ -68,4 +104,129 @@ model ScrapeGeo {
 
   @@index([website])
   @@map("scrapeGeo")
+}
+
+// ─── Fix runs (premium: AI agent fixes failing checks → opens a PR) ──────────
+
+// Overall lifecycle of one fix run. Maps onto the Temporal workflow.
+enum FixRunState {
+  QUEUED
+  SCANNING
+  CLONING
+  FIXING
+  VERIFYING
+  PUSHING
+  PR_OPENED
+  COMPLETED
+  FAILED
+}
+
+enum SandboxStatus {
+  NONE
+  CREATING
+  RUNNING
+  KILLED
+}
+
+// Per-check status within a run.
+enum FixCheckStatus {
+  PENDING
+  FIXING
+  FIXED
+  SKIPPED
+  FLAGGED
+  FAILED
+}
+
+// One fix attempt for a (user, repo, website). The orchestration + COGS record.
+// State is kept in sync by the Temporal activities so the dashboard polls the
+// DB, not Temporal, for each run.
+model FixRun {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  website      String
+
+  // Temporal handles.
+  temporalWorkflowId String  @unique
+  temporalRunId      String?
+
+  // Sandbox lifecycle (reconnect by sandboxId on retry).
+  sandboxId     String?
+  sandboxStatus SandboxStatus @default(NONE)
+
+  state  FixRunState @default(QUEUED)
+  branch String?
+  prUrl  String?
+  prNumber Int?
+
+  // Check progress counters (denormalized for cheap polling).
+  totalChecks   Int @default(0)
+  fixedChecks   Int @default(0)
+  pendingChecks Int @default(0)
+
+  // COGS / logs.
+  model          String?
+  tokensIn       Int?
+  tokensOut      Int?
+  sandboxSeconds Int?
+
+  error String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checks FixCheck[]
+  events RunEvent[]
+
+  @@index([userId])
+  @@index([repositoryId])
+  @@index([state])
+  @@map("fix_runs")
+}
+
+// One row per check in a run. Drives "X of Y fixed" and crash resume: on retry
+// the workflow processes only the checks still PENDING.
+model FixCheck {
+  id        String   @id @default(cuid())
+  fixRunId  String
+  fixRun    FixRun   @relation(fields: [fixRunId], references: [id], onDelete: Cascade)
+
+  rubricId      String
+  category      String
+  scope         String
+  tier          String
+  weight        Int    @default(0)
+  affectedCount Int    @default(0)
+
+  status FixCheckStatus @default(PENDING)
+  fixed  Boolean        @default(false)
+  note   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fixRunId, rubricId])
+  @@index([fixRunId])
+  @@map("fix_checks")
+}
+
+// Append-only transcript / logs for a run. The dashboard replays these.
+model RunEvent {
+  id       String   @id @default(cuid())
+  fixRunId String
+  fixRun   FixRun   @relation(fields: [fixRunId], references: [id], onDelete: Cascade)
+
+  seq     Int
+  type    String
+  phase   String?
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([fixRunId, seq])
+  @@index([fixRunId])
+  @@map("run_events")
 }

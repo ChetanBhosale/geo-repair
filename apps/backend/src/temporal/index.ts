@@ -13,6 +13,8 @@ export type {
 export { startAudit, getAuditStatus, getAuditResult, getScrapeCount } from "./audit";
 export type { AuditStatusResponse } from "./audit";
 
+export { startFix } from "./fix";
+
 export { scrapeSiteWorkflow } from "./functions/scrape-site/workflows";
 export { fixSiteWorkflow } from "./functions/fix-site/workflows";
 

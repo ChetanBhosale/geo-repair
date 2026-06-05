@@ -42,20 +42,27 @@ export interface ScrapeSiteResult {
 export type FullAuditReport = SiteReport;
 
 // fix-site: open a PR that fixes the failing checks.
-// Everything is resolved server-side from a paid order — never trust a client-supplied plan.
-// The run does its own FRESH full scan (the free checkup's sample only drove the quote), so the
+// Everything is resolved server-side from the authed user's selected repo — never
+// trust a client-supplied plan. The run does its own FRESH full scan, so the
 // agent acts on every page, not just the sampled ones.
 export interface FixSiteInput {
+  // Our FixRun row id (the workflow updates it as it progresses).
+  fixRunId: string;
   // The site to fix (origin root). The fix run re-scans this authoritatively.
   website: string;
   // The GitHub repo that builds the site, e.g. "owner/repo".
   repoFullName: string;
-  // Default branch to open the PR against; read from run metadata (do not assume "main").
-  defaultBranch?: string;
-  // The paid order this run belongs to (for COGS/billing reconciliation).
-  orderId?: string;
+  // Clone URL of the repo.
+  cloneUrl: string;
+  // Default branch to open the PR against.
+  defaultBranch: string;
+  // The user who owns this run (to resolve their GitHub token).
+  userId: string;
 }
 
 export interface FixSiteResult {
   prUrl: string;
+  prNumber: number;
+  fixedChecks: number;
+  totalChecks: number;
 }

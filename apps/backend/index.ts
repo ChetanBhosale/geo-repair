@@ -5,6 +5,8 @@ import cookieParser from "cookie-parser";
 import Secrets from "@repo/secrets/backend";
 import authRoutes from "./src/auth/auth.routes";
 import auditRoutes from "./src/audit/audit.routes";
+import githubRoutes from "./src/github/github.routes";
+import fixRoutes from "./src/fix/fix.routes";
 import { notFoundHandler, errorHandler } from "./src/middleware/error";
 import { authRateLimiter, globalRateLimiter } from "./src/middleware/rate-limit";
 
@@ -40,7 +42,9 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRateLimiter, authRoutes);
+app.use("/api/github", githubRoutes);
 app.use("/api", auditRoutes);
+app.use("/api", fixRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

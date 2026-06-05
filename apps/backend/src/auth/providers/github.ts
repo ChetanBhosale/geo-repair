@@ -27,7 +27,8 @@ export const githubProvider: OAuthProvider = {
     const params = new URLSearchParams({
       client_id: Secrets.GITHUB_CLIENT_ID ?? "",
       redirect_uri: Secrets.GITHUB_CALLBACK_URL,
-      scope: "read:user user:email",
+      // read:user + user:email for login, repo to list/select the user's repos.
+      scope: "read:user user:email repo",
       state,
       allow_signup: "true",
     });

@@ -86,6 +86,8 @@ function buildFindings(readable: ScoredPage[]): RubricFinding[] {
           affectedCount: 0,
           representativeEvidence: null,
           pages: [],
+          fixed: false,
+          fixNote: null,
         };
         acc.set(c.id, f);
       }
