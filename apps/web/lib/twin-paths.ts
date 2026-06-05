@@ -10,6 +10,7 @@ import { getAllPosts } from "./blog"
 // set never drifts from what the generator can serve.
 export const MARKDOWN_TWIN_PATHS: readonly string[] = [
   "/",
+  "/free-geo-tools",
   "/geo-aeo-checker",
   "/pricing",
   "/security",

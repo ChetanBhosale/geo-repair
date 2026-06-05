@@ -16,6 +16,16 @@ export type Post = {
 // listing + sitemap cheap to build.
 const POSTS: Post[] = [
   {
+    slug: "free-geo-tools-2026",
+    title: "Free GEO tools in 2026: what to use before you pay",
+    description:
+      "A practical guide to free GEO tools for AI search audits, content scoring, crawler checks, llms.txt, visibility monitoring, and fix workflows.",
+    date: "2026-06-05",
+    thumbnail: "/images/blog/free-geo-tools-2026.jpg",
+    tags: ["GEO", "Tools", "AI Search"],
+    author: "GEO Repair",
+  },
+  {
     slug: "what-is-ai-search-optimization",
     title: "What is AI search optimization?",
     description:

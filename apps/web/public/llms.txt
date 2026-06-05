@@ -9,6 +9,7 @@ Every page on this site has a clean Markdown twin: append `.md` to its URL (the 
 ## Core pages
 
 - [Home](https://geo.repair/) ([.md](https://geo.repair/index.md)): Free AI search audit that runs an AEO and GEO scan, returns a checkup report, and creates fix PRs.
+- [Free GEO tools](https://geo.repair/free-geo-tools) ([.md](https://geo.repair/free-geo-tools.md)): Free GEO tools for AI search readiness: crawler access, raw HTML visibility, metadata, schema, llms.txt, sitemap, answerability, and fix handoff.
 - [GEO & AEO checker](https://geo.repair/geo-aeo-checker) ([.md](https://geo.repair/geo-aeo-checker.md)): Free GEO and AEO audit for answer engine optimization and generative engine optimization, with a scan report, checkup score, and fix plan.
 - [Security](https://geo.repair/security) ([.md](https://geo.repair/security.md)): Zero data retention, no model training, ephemeral sandbox, least-privilege single-repo scope.
 - [Pricing](https://geo.repair/pricing) ([.md](https://geo.repair/pricing.md)): Free checkup, a one-time fix sized to your sitemap (from $49), and optional $19/mo Autopilot.
@@ -22,6 +23,7 @@ Every page on this site has a clean Markdown twin: append `.md` to its URL (the 
 
 ## Blog posts
 
+- [Free GEO tools in 2026: what to use before you pay](https://geo.repair/blog/free-geo-tools-2026) ([.md](https://geo.repair/blog/free-geo-tools-2026.md)): A practical guide to free GEO tools for AI search audits, content scoring, crawler checks, llms.txt, visibility monitoring, and fix workflows.
 - [Free GEO and AEO scan with audit report](https://geo.repair/blog/tool-optimize-aeo-seo-geo-website) ([.md](https://geo.repair/blog/tool-optimize-aeo-seo-geo-website.md)): How to judge answer engine optimization and generative engine optimization tools: what a free scan should diagnose, how the checkup score should read, and what the report should fix.
 - [Free AEO audit: can AI fix GEO issues?](https://geo.repair/blog/ai-tool-actually-fixes-aeo-geo-issues) ([.md](https://geo.repair/blog/ai-tool-actually-fixes-aeo-geo-issues.md)): A free AEO audit can find answer engine optimization and generative engine optimization problems. A repair-grade AI tool fixes them at the source.
 - [Free AEO and GEO audit tools vs fix tools](https://geo.repair/blog/aeo-geo-audit-tool-vs-fix-tool) ([.md](https://geo.repair/blog/aeo-geo-audit-tool-vs-fix-tool.md)): A free AEO audit, GEO scan, or checkup report tells you what's wrong. A fix tool changes the website and verifies the blocker was removed.

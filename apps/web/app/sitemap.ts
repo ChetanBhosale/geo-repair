@@ -5,6 +5,7 @@ import { SITE } from "@/lib/seo"
 
 const STATIC_ROUTES = [
   "/",
+  "/free-geo-tools",
   "/geo-aeo-checker",
   "/security",
   "/pricing",

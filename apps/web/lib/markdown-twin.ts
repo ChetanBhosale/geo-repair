@@ -15,6 +15,12 @@ import {
 import { CATEGORY_META, CATEGORIES_INTRO } from "./rubric-meta"
 import { TRUST_PROMISES, TRUST_TAGLINE } from "./trust"
 import {
+  FREE_TOOLS,
+  FREE_TOOLS_COMPARISON,
+  FREE_TOOLS_FAQ,
+  FREE_TOOLS_HEADER,
+} from "./free-tools-content"
+import {
   PRICING_HEADER,
   PRICING_FREE,
   FIX_TIERS_INTRO,
@@ -139,6 +145,50 @@ function landingTwin(content: LandingContent): string {
     description: content.metaDescription,
     canonicalPath: content.path,
     body: sections.join("\n"),
+  })
+}
+
+function freeToolsTwin(): string {
+  const toolList = FREE_TOOLS.map(
+    (tool) =>
+      `## ${tool.name}\n\n_${tool.status}_\n\n${tool.description}\n\n${tool.checks
+        .map((check) => `- ${check}`)
+        .join("\n")}`
+  ).join("\n\n")
+
+  const comparison = FREE_TOOLS_COMPARISON.map(
+    (item) => `### ${item.useCase}\n\n${item.guidance}`
+  ).join("\n\n")
+
+  const body = [
+    `# ${FREE_TOOLS_HEADER.title}`,
+    "",
+    FREE_TOOLS_HEADER.description,
+    "",
+    "## Scan your site first",
+    "",
+    "Paste a URL and get the free report. The scan checks the same on-site signals that usually decide whether an AI crawler can fetch, parse, and reuse your page.",
+    "",
+    toolList,
+    "",
+    "## Pick the tool by the job",
+    "",
+    comparison,
+    "",
+    "## When the audit finds a blocker, ship a fix",
+    "",
+    "A low score is only useful if someone can turn it into a change. GEO Repair is built for that handoff: scan, evidence, sandboxed edit, reviewable pull request, re-check.",
+    "",
+    "## Free GEO tools FAQ",
+    "",
+    faqMarkdown(FREE_TOOLS_FAQ),
+  ].join("\n")
+
+  return doc({
+    title: FREE_TOOLS_HEADER.metaTitle,
+    description: FREE_TOOLS_HEADER.metaDescription,
+    canonicalPath: FREE_TOOLS_HEADER.path,
+    body,
   })
 }
 
@@ -474,6 +524,8 @@ export async function getTwin(rawPath: string): Promise<string | null> {
   switch (p) {
     case "/":
       return landingTwin(HOME_CONTENT)
+    case "/free-geo-tools":
+      return freeToolsTwin()
     case "/geo-aeo-checker":
       return landingTwin(CHECKER_CONTENT)
     case "/pricing":

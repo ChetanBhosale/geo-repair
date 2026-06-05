@@ -1,5 +1,6 @@
 export const NAV_LINKS = [
   { label: "How it works", href: "/#how-it-works" },
+  { label: "Free tools", href: "/free-geo-tools" },
   { label: "Pricing", href: "/pricing" },
   { label: "Security", href: "/security" },
   { label: "Blog", href: "/blog" },
@@ -12,6 +13,7 @@ export const FOOTER_SECTIONS = [
       { label: "How it works", href: "/#how-it-works" },
       { label: "Pricing", href: "/pricing" },
       { label: "Free checkup", href: "/#checkup" },
+      { label: "Free GEO tools", href: "/free-geo-tools" },
       { label: "GEO & AEO checker", href: "/geo-aeo-checker" },
     ],
   },
