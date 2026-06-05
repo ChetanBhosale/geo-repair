@@ -5,6 +5,7 @@ export type FixRunState =
   | "QUEUED"
   | "SCANNING"
   | "CLONING"
+  | "WAITING_FOR_INPUT"
   | "FIXING"
   | "VERIFYING"
   | "PUSHING"

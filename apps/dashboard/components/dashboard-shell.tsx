@@ -8,16 +8,21 @@ import { BrandLogo } from "@/components/brand-logo"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { useUser } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export function DashboardShell({
   children,
   title,
   actions,
+  fullBleed = false,
 }: {
   children: ReactNode
   eyebrow?: ReactNode
   title: string
   actions?: ReactNode
+  // Collapse the desktop rail and drop the centered max-width + padding so the
+  // page can use the full viewport (used by the fix-agent workspace).
+  fullBleed?: boolean
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -46,14 +51,22 @@ export function DashboardShell({
   }
 
   return (
-    <div className="grid min-h-svh bg-secondary/30 text-primary lg:grid-cols-[260px_minmax(0,1fr)]">
+    <div
+      className={cn(
+        "grid min-h-svh bg-secondary/30 text-primary",
+        fullBleed
+          ? "lg:grid-cols-[64px_minmax(0,1fr)]"
+          : "lg:grid-cols-[260px_minmax(0,1fr)]",
+      )}
+    >
       <DashboardSidebar
+        collapsed={fullBleed}
         isSignedIn={isSignedIn}
         mobileOpen={sidebarOpen}
         onMobileOpenChange={setSidebarOpen}
       />
 
-      <div className="min-w-0">
+      <div className={cn("min-w-0", fullBleed && "flex h-svh flex-col")}>
         <header className="sticky top-0 z-20 flex min-h-18 items-center justify-between gap-4 border-b border-secondary bg-primary/85 px-4 py-3 backdrop-blur-md lg:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold tracking-tight">
@@ -79,9 +92,13 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-7xl gap-5 p-4 lg:p-6">
-          {children}
-        </main>
+        {fullBleed ? (
+          <main className="min-h-0 flex-1">{children}</main>
+        ) : (
+          <main className="mx-auto grid w-full max-w-7xl gap-5 p-4 lg:p-6">
+            {children}
+          </main>
+        )}
       </div>
     </div>
   )

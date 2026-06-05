@@ -18,6 +18,7 @@ const ACTIVE_STATES: FixRunState[] = [
   "QUEUED",
   "SCANNING",
   "CLONING",
+  "WAITING_FOR_INPUT",
   "FIXING",
   "VERIFYING",
   "PUSHING",

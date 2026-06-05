@@ -62,6 +62,7 @@ export async function setError(fixRunId: string, error: string): Promise<void> {
     where: { id: fixRunId },
     data: { state: "FAILED", error },
   });
+  await logEvent(fixRunId, "state_changed", "FAILED");
   await logEvent(fixRunId, "error", null, { error });
 }
 
@@ -141,7 +142,10 @@ export async function addCogs(
   });
 }
 
-export async function recordSandboxCogs(fixRunId: string): Promise<{
+export async function recordSandboxCogs(
+  fixRunId: string,
+  sandboxId: string,
+): Promise<{
   sandboxSeconds: number;
   sandboxCostCents: number;
 } | null> {
@@ -149,6 +153,7 @@ export async function recordSandboxCogs(fixRunId: string): Promise<{
     where: { id: fixRunId },
     select: {
       createdAt: true,
+      sandboxSeconds: true,
       tokensIn: true,
       tokensOut: true,
       imageCount: true,
@@ -156,27 +161,51 @@ export async function recordSandboxCogs(fixRunId: string): Promise<{
   });
   if (!run) return null;
 
-  const created = await prisma.runEvent.findFirst({
-    where: { fixRunId, type: "sandbox_created" },
-    orderBy: { createdAt: "asc" },
-    select: { createdAt: true },
+  const sandboxStartEvents = await prisma.runEvent.findMany({
+    where: {
+      fixRunId,
+      type: { in: ["sandbox_created", "sandbox_reconnected"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { createdAt: true, payload: true },
   });
-  const startedAt = created?.createdAt ?? run.createdAt;
-  const sandboxSeconds = Math.max(
+  const startedAt =
+    sandboxStartEvents.find(
+      (event) => eventHasSandboxId(event, sandboxId),
+    )?.createdAt ?? run.createdAt;
+  const sessionSandboxSeconds = Math.max(
     0,
     Math.ceil((Date.now() - startedAt.getTime()) / 1000),
   );
-  const nextSandboxCostCents = sandboxCostCents(sandboxSeconds);
+  const nextSandboxSeconds =
+    (run.sandboxSeconds ?? 0) + sessionSandboxSeconds;
+  const nextSandboxCostCents = sandboxCostCents(nextSandboxSeconds);
 
   await prisma.fixRun.update({
     where: { id: fixRunId },
     data: {
-      sandboxSeconds,
+      sandboxSeconds: nextSandboxSeconds,
       tokenCostCents: tokenCostCents(run.tokensIn ?? 0, run.tokensOut ?? 0),
       sandboxCostCents: nextSandboxCostCents,
       imageCostCents: imageCostCents(run.imageCount),
     },
   });
 
-  return { sandboxSeconds, sandboxCostCents: nextSandboxCostCents };
+  return {
+    sandboxSeconds: sessionSandboxSeconds,
+    sandboxCostCents: nextSandboxCostCents,
+  };
+}
+
+function eventHasSandboxId(
+  event: { payload?: unknown },
+  sandboxId: string,
+): boolean {
+  return (
+    !!event.payload &&
+    typeof event.payload === "object" &&
+    !Array.isArray(event.payload) &&
+    (event.payload as { sandboxId?: unknown }).sandboxId === sandboxId
+  );
 }

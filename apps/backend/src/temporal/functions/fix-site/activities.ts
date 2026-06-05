@@ -1,5 +1,5 @@
 import { prisma } from "@repo/db";
-import { runAgent, type AgentTool } from "@repo/ai";
+import { runAgent, type AgentStepLog, type AgentTool } from "@repo/ai";
 import {
   createSandbox,
   connectSandbox,
@@ -10,6 +10,7 @@ import {
 } from "@repo/sandbox";
 import Secrets from "@repo/secrets/backend";
 import type { FixClarificationRequest } from "@repo/types/fix";
+import type { SiteReport } from "@repo/types/scraper";
 import type { FixSiteInput } from "../../shared";
 import { checkSite } from "../checkup/crawler";
 import { buildFixPlan } from "./fix-plan";
@@ -27,6 +28,11 @@ import {
 } from "./run-store";
 
 const REPO_DIR = "/home/user/repo";
+
+// Max harness passes per run: 1 initial + up to 2 budget-driven continuations.
+const MAX_HARNESS_PASSES = 3;
+
+type RunHarnessStop = "done" | "max_steps";
 
 // The harness result the workflow records. Never throws — outcome is data.
 export interface HarnessResult {
@@ -51,7 +57,29 @@ export interface PlannedFixTask {
 
 export interface PlanRunResult {
   tasks: PlannedFixTask[];
-  clarificationRequest: FixClarificationRequest | null;
+  reportContext: PlanningReportContext;
+}
+
+export interface PlanningReportContext {
+  website: string;
+  overall: number;
+  pagesChecked: number;
+  websiteType: string;
+  summary: SiteReport["summary"];
+  findings: {
+    id: string;
+    category: string;
+    tier: string;
+    scope: string;
+    siteStatus: string;
+    affectedCount: number;
+    representativeEvidence: string | null;
+    pages: {
+      url: string;
+      status: string;
+      evidence: string | null;
+    }[];
+  }[];
 }
 
 // ── 1. Scan + plan. Records the checks for the UI and emits the agent's
@@ -63,7 +91,19 @@ export async function planRun(input: FixSiteInput): Promise<PlanRunResult> {
     website: input.website,
   });
 
-  const report = await checkSite(input.website);
+  const report = await checkSite(input.website, {
+    // Stream the scan's real substeps to the UI (grouped under "Scanning…").
+    // Skip per-page chatter; keep the meaningful phase/discovery/failure steps.
+    progress: async (signal) => {
+      if (signal.type === "page_started" || signal.type === "page_completed") {
+        return;
+      }
+      await logEvent(input.fixRunId, "scan_progress", null, {
+        phase: signal.phase,
+        message: signal.message,
+      });
+    },
+  });
   const plan = buildFixPlan(report.findings, {
     pagesChecked: report.crawl.pagesChecked,
   });
@@ -123,14 +163,7 @@ export async function planRun(input: FixSiteInput): Promise<PlanRunResult> {
     skill: loadSkill(t.rubricId),
   }));
 
-  const clarificationRequest = buildClarificationRequest(tasks);
-  if (clarificationRequest && !input.intake?.answers.length) {
-    await logEvent(input.fixRunId, "agent_clarification_requested", null, {
-      ...clarificationRequest,
-    });
-  }
-
-  return { tasks, clarificationRequest };
+  return { tasks, reportContext: buildPlanningReportContext(report) };
 }
 
 // ── 2. Sandbox + clone. Gets the repo onto a fix branch in a live sandbox.
@@ -197,160 +230,365 @@ export async function prepareSandbox(input: FixSiteInput): Promise<{
   return { sandboxId, branch };
 }
 
-function buildClarificationRequest(
-  tasks: PlannedFixTask[],
-): FixClarificationRequest | null {
-  if (tasks.length === 0) return null;
+function buildPlanningReportContext(report: SiteReport): PlanningReportContext {
+  return {
+    website: report.url,
+    overall: report.overall,
+    pagesChecked: report.crawl.pagesChecked,
+    websiteType: report.siteInfo.websiteType,
+    summary: report.summary,
+    findings: report.findings
+      .filter(
+        (finding) =>
+          finding.siteStatus === "fail" ||
+          finding.siteStatus === "partial" ||
+          finding.siteStatus === "mixed",
+      )
+      .map((finding) => ({
+        id: finding.id,
+        category: finding.category,
+        tier: finding.tier,
+        scope: finding.scope,
+        siteStatus: finding.siteStatus,
+        affectedCount: finding.affectedCount,
+        representativeEvidence: finding.representativeEvidence,
+        pages: finding.pages.slice(0, 5).map((page) => ({
+          url: page.url,
+          status: page.status,
+          evidence: page.evidence,
+        })),
+      })),
+  };
+}
 
-  const topChecks = tasks
-    .slice(0, 4)
-    .map((task) => task.rubricId)
-    .join(", ");
-  const categories = Array.from(new Set(tasks.map((task) => task.category)));
-  const categorySummary =
-    categories.length > 3
-      ? `${categories.slice(0, 3).join(", ")} and ${categories.length - 3} more`
-      : categories.join(", ");
-  const summary = `I found ${tasks.length} fixable AI search readiness ${tasks.length === 1 ? "check" : "checks"} across ${categorySummary}. Top checks: ${topChecks}.`;
+function planningTools(
+  sandbox: Awaited<ReturnType<typeof connectSandbox>>,
+): AgentTool[] {
+  const baseTools = sandboxTools(sandbox, {
+    workdir: REPO_DIR,
+    maxOutputChars: 16_000,
+  }) as unknown as AgentTool[];
+  const readonlyTools = baseTools.filter((tool) =>
+    ["list_dir", "read_file"].includes(tool.name),
+  );
 
-  const questions: FixClarificationRequest["questions"] = [
+  return [
+    ...readonlyTools,
     {
-      id: `agent_scope_${tasks
-        .slice(0, 3)
-        .map((task) => task.rubricId.replace(/[^a-z0-9]+/gi, "_"))
-        .join("_")}`,
-      question: "What scope should I use for this fix PR?",
-      notePlaceholder:
-        "List pages, sections, brand phrases, or components I should avoid.",
-      options: [
-        {
-          id: "technical_only",
-          label: "Technical only",
-          description:
-            "Fix metadata, schema, crawler files, labels, and markup without changing visible copy.",
+      name: "search_repo",
+      description:
+        "Search text in the repo with ripgrep. Read-only. Use this to locate routes, metadata, schema, CMS config, content files, and build scripts.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Literal text or regex." },
+          path: {
+            type: "string",
+            description: "Relative path to search. Use '.' for repo root.",
+          },
         },
-        {
-          id: "use_existing_copy",
-          label: "Use existing copy",
-          description:
-            "I can clarify or reorganize copy that is already present on the site.",
-        },
-        {
-          id: "small_content_blocks",
-          label: "Small content blocks",
-          description:
-            "I can add short FAQ, definition, or answer blocks when your notes provide the facts.",
-        },
-      ],
+        required: ["query"],
+      },
+      execute: async (args) => {
+        const query = String(args.query ?? "");
+        const path = String(args.path ?? ".");
+        const res = await runCommand(
+          sandbox,
+          [
+            "rg",
+            "-n",
+            "--hidden",
+            "--glob",
+            "'!node_modules'",
+            "--glob",
+            "'!.git'",
+            shellQuote(query),
+            shellQuote(path),
+          ].join(" "),
+          { cwd: REPO_DIR, timeoutMs: 60_000 },
+        );
+        const output = res.stdout || res.stderr || "(no matches)";
+        return output.length > 16_000
+          ? `${output.slice(0, 16_000)}\n...[truncated]`
+          : output;
+      },
     },
   ];
+}
 
-  const needsFacts = tasks.some(
-    (task) =>
-      task.tier === "C" ||
-      task.category === "Answerability" ||
-      task.category === "Content",
+export async function runPlanningAgent(
+  input: FixSiteInput,
+  sandboxId: string,
+  tasks: PlannedFixTask[],
+  reportContext: PlanningReportContext,
+): Promise<FixClarificationRequest | null> {
+  if (tasks.length === 0) return null;
+
+  await logEvent(input.fixRunId, "planning_agent_started", null, {
+    checks: tasks.map((task) => task.rubricId),
+  });
+
+  const sandbox = await connectSandbox(sandboxId);
+  const system = [
+    "You are the GEO Repair planning agent.",
+    "You inspect a cloned website repository before the execution agent edits it.",
+    "Your only job is to decide which clarification questions are truly blocking.",
+    "You are read-only in this pass. Do not edit files. Do not suggest code changes.",
+    "Use at most 8 tool calls, then stop inspecting and return the JSON answer.",
+    "Ask around 3 to 5 questions when clarification is useful. The hard maximum is 10 questions.",
+    "Ask zero questions if the repo and report contain enough information for a safe small PR.",
+    "Questions must be multiple choice with 2 to 4 options and may include an optional notes placeholder.",
+    "For every question, pick the single safest, most sensible default and mark it as recommended by starting THAT option's label with 'Recommended: ' (e.g. 'Recommended: Static files in public/'). Exactly one option per question, and list it first.",
+    "Only ask what the execution agent cannot safely infer from the repo, report, or existing site content.",
+    "As you inspect, narrate briefly in plain language — a short, natural sentence before tool calls so the user can follow along. Vary your wording; do NOT start every line the same way (never repeat 'I am about to…').",
+    "Your FINAL message must be only the JSON object: no markdown and no prose around it.",
+  ].join("\n");
+  const user = [
+    `Repository: ${input.repoFullName}`,
+    `Live site: ${input.website}`,
+    `Default branch: ${input.defaultBranch}`,
+    "",
+    "Inspect the repo with the available read-only tools. Focus on content sources, app framework, metadata/schema ownership, design constraints, and facts needed for net-new content.",
+    "",
+    "Report context:",
+    JSON.stringify(reportContext, null, 2),
+    "",
+    "Fix tasks:",
+    JSON.stringify(
+      tasks.map((task) => ({
+        rubricId: task.rubricId,
+        category: task.category,
+        scope: task.scope,
+        tier: task.tier,
+        affectedCount: task.affectedCount,
+      })),
+      null,
+      2,
+    ),
+    "",
+    "Required JSON shape:",
+    JSON.stringify(
+      {
+        summary:
+          "Short first-person summary of what you inspected and why these questions are needed.",
+        questions: [
+          {
+            id: "stable_snake_case_id",
+            question: "Question text",
+            notePlaceholder: "Optional notes placeholder",
+            options: [
+              {
+                id: "stable_snake_case_option",
+                label: "Short option label",
+                description: "What this option means for the execution PR",
+              },
+            ],
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  ].join("\n");
+
+  const result = await runAgent({
+    system,
+    user,
+    tools: planningTools(sandbox),
+    maxSteps: 24,
+    forceFinalAfterSteps: 8,
+    finalInstruction:
+      "Stop inspecting now. Return only the clarification JSON object, with around 3 to 5 questions and a hard maximum of 10.",
+    maxTokens: 3000,
+    temperature: 0.1,
+    onEvent: async (log) => {
+      await logEvent(input.fixRunId, `planning_agent_${log.type}`, null, {
+        toolName: log.toolName,
+        // Keep the agent's own words readable in the UI; cap noisy tool output.
+        content: log.content?.slice(
+          0,
+          log.type === "assistant" ? 8000 : 2000,
+        ),
+        toolArgs: log.toolArgs,
+      });
+    },
+  });
+
+  await addCogs(
+    input.fixRunId,
+    result.tokensIn,
+    result.tokensOut,
+    Secrets.LLM_MODEL,
   );
 
-  if (needsFacts) {
-    questions.push({
-      id: "agent_facts_content",
-      question: "Which new facts, answers, or claims are approved?",
-      notePlaceholder:
-        "Add approved FAQ answers, product facts, pricing, proof points, or claims to avoid.",
-      options: [
-        {
-          id: "no_new_claims",
-          label: "No new claims",
-          description:
-            "Use only facts already visible in the repository or on the live site.",
-        },
-        {
-          id: "provided_facts_only",
-          label: "Provided facts only",
-          description:
-            "Use only facts you write here, and skip anything unclear.",
-        },
-        {
-          id: "flag_uncertain",
-          label: "Flag uncertain",
-          description:
-            "Do not add uncertain content. Leave a PR note for manual review.",
-        },
-      ],
+  const clarificationRequest = parseClarificationRequest(result.finalText);
+  if (!clarificationRequest) {
+    // Clarifications are optional. If the planner couldn't produce valid
+    // questions (e.g. it exhausted its tool budget), DON'T fail the whole run —
+    // log it and proceed straight to the fix harness with no intake. The harness
+    // is conservative by default when no clarification was submitted.
+    await logEvent(input.fixRunId, "planning_agent_invalid_response", null, {
+      response: result.finalText.slice(0, 1200),
+      stoppedReason: result.stoppedReason,
     });
+    return null;
   }
 
-  const needsDesignBounds = tasks.some(
-    (task) =>
-      task.category === "Semantics" ||
-      task.rubricId === "image-alt-text" ||
-      task.rubricId === "interactive-labels" ||
-      task.rubricId === "semantic-html",
-  );
-
-  if (needsDesignBounds) {
-    questions.push({
-      id: "agent_design_bounds",
-      question: "How much visual or component structure can change?",
-      notePlaceholder:
-        "Mention any layouts, components, or brand treatments that are off limits.",
-      options: [
-        {
-          id: "keep_layout",
-          label: "Keep layout",
-          description:
-            "Preserve the visual layout. Make semantic and accessibility fixes only.",
-        },
-        {
-          id: "minor_polish",
-          label: "Minor polish",
-          description:
-            "Small spacing, label, heading, and markup changes are acceptable.",
-        },
-        {
-          id: "simple_blocks",
-          label: "Simple blocks",
-          description:
-            "Compact content blocks are acceptable when needed for the check.",
-        },
-      ],
+  if (!clarificationRequest.questions.length) {
+    await logEvent(input.fixRunId, "planning_agent_no_questions", null, {
+      summary: clarificationRequest.summary,
+      stoppedReason: result.stoppedReason,
     });
+    return null;
   }
 
-  if (tasks.length > 1) {
-    questions.push({
-      id: "agent_priority",
-      question: "If there is a tradeoff, what should I prioritize?",
-      notePlaceholder: "Add any PR-review preference I should follow.",
-      options: [
-        {
-          id: "small_safe_pr",
-          label: "Small safe PR",
-          description: "Prefer fewer, lower-risk changes.",
-        },
-        {
-          id: "score_lift",
-          label: "Score lift",
-          description:
-            "Prioritize the largest AI search readiness improvements.",
-        },
-        {
-          id: "flag_more",
-          label: "Flag more",
-          description:
-            "Skip uncertain edits and explain them clearly in the PR.",
-        },
-      ],
-    });
-  }
+  await logEvent(input.fixRunId, "agent_clarification_requested", null, {
+    ...clarificationRequest,
+  });
+  await setState(input.fixRunId, "WAITING_FOR_INPUT");
+  return clarificationRequest;
+}
+
+export async function failRun(
+  input: FixSiteInput,
+  error: string,
+): Promise<void> {
+  await setError(input.fixRunId, error);
+}
+
+function parseClarificationRequest(
+  text: string,
+): FixClarificationRequest | null {
+  const parsed = parseJsonObject(text);
+  if (!parsed) return null;
+
+  const input = parsed as {
+    summary?: unknown;
+    questions?: unknown;
+  };
+  const questions = Array.isArray(input.questions)
+    ? input.questions
+        .map((question, index) => normalizeQuestion(question, index))
+        .filter(
+          (
+            question,
+          ): question is FixClarificationRequest["questions"][number] =>
+            !!question,
+        )
+        .slice(0, 10)
+    : [];
 
   return {
     version: 1,
     generatedAt: new Date().toISOString(),
-    summary,
+    summary:
+      typeof input.summary === "string" && input.summary.trim()
+        ? input.summary.trim().slice(0, 500)
+        : "The planning agent inspected the report and repository.",
     questions,
   };
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const direct = JSON.parse(text);
+    return direct && typeof direct === "object" && !Array.isArray(direct)
+      ? (direct as Record<string, unknown>)
+      : null;
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    try {
+      const sliced = JSON.parse(text.slice(start, end + 1));
+      return sliced && typeof sliced === "object" && !Array.isArray(sliced)
+        ? (sliced as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function normalizeQuestion(
+  value: unknown,
+  index: number,
+): FixClarificationRequest["questions"][number] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const input = value as {
+    id?: unknown;
+    question?: unknown;
+    notePlaceholder?: unknown;
+    options?: unknown;
+  };
+  if (typeof input.question !== "string" || !input.question.trim()) {
+    return null;
+  }
+
+  const options = Array.isArray(input.options)
+    ? input.options
+        .map((option, optionIndex) => normalizeOption(option, optionIndex))
+        .filter(
+          (
+            option,
+          ): option is FixClarificationRequest["questions"][number]["options"][number] =>
+            !!option,
+        )
+        .slice(0, 4)
+    : [];
+  if (options.length < 2) return null;
+
+  return {
+    id:
+      typeof input.id === "string" && input.id.trim()
+        ? slugId(input.id)
+        : `agent_question_${index + 1}`,
+    question: input.question.trim().slice(0, 240),
+    notePlaceholder:
+      typeof input.notePlaceholder === "string" &&
+      input.notePlaceholder.trim()
+        ? input.notePlaceholder.trim().slice(0, 180)
+        : "Add details the agent should follow.",
+    options,
+  };
+}
+
+function normalizeOption(
+  value: unknown,
+  index: number,
+): FixClarificationRequest["questions"][number]["options"][number] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const input = value as {
+    id?: unknown;
+    label?: unknown;
+    description?: unknown;
+  };
+  if (typeof input.label !== "string" || !input.label.trim()) return null;
+
+  return {
+    id:
+      typeof input.id === "string" && input.id.trim()
+        ? slugId(input.id)
+        : `option_${index + 1}`,
+    label: input.label.trim().slice(0, 80),
+    description:
+      typeof input.description === "string" && input.description.trim()
+        ? input.description.trim().slice(0, 240)
+        : input.label.trim().slice(0, 120),
+  };
+}
+
+function slugId(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80) || "item"
+  );
 }
 
 // ── 3. The harness: ONE autonomous agent with full sandbox access. Explores,
@@ -384,7 +622,7 @@ export async function runHarness(
       .join("\n\n");
 
     const system = loadHarnessPrompt();
-    const user = [
+    const initialUser = [
       `Repository: ${input.repoFullName}`,
       `Live site: ${input.website}`,
       `Default branch: ${input.defaultBranch}`,
@@ -404,35 +642,79 @@ export async function runHarness(
       `Begin by exploring the repo, then fix what you can, then commit with git add -A && git commit.`,
     ].join("\n");
 
-    const result = await runAgent({
-      system,
-      user,
-      tools,
-      maxSteps: 80,
-      maxTokens: 8000,
-      onEvent: async (log) => {
-        await logEvent(input.fixRunId, `agent_${log.type}`, null, {
-          toolName: log.toolName,
-          content: log.content?.slice(0, 800),
-          toolArgs: log.toolArgs,
-        });
-      },
+    const onAgentEvent = async (log: AgentStepLog) => {
+      await logEvent(input.fixRunId, `agent_${log.type}`, null, {
+        toolName: log.toolName,
+        // Keep the agent's own words readable in the UI; cap noisy tool output.
+        content: log.content?.slice(0, log.type === "assistant" ? 8000 : 2000),
+        toolArgs: log.toolArgs,
+      });
+    };
+
+    // Budget is a STOP condition, never a hard failure. If a pass exhausts its
+    // step budget (stoppedReason "max_steps") with work likely remaining, run a
+    // bounded number of continuation passes on the SAME sandbox — the repo's git
+    // state carries the progress, so the agent continues rather than restarting.
+    // We stop when the agent finishes on its own, a pass makes no new commit, or
+    // we hit the pass cap.
+    let summary = "";
+    let stoppedReason: RunHarnessStop = "done";
+    let prevCommitCount = -1;
+
+    for (let pass = 1; pass <= MAX_HARNESS_PASSES; pass++) {
+      const continuation = pass > 1;
+      const maxSteps = continuation ? 60 : 80;
+
+      if (continuation) {
+        await logEvent(input.fixRunId, "harness_continued", null, { pass });
+      }
+
+      const result = await runAgent({
+        system,
+        user: continuation
+          ? await continuationPrompt(sandbox, input, checkBlocks)
+          : initialUser,
+        tools,
+        maxSteps,
+        maxTokens: 8000,
+        // Nudge it to commit before the wall, but keep tools so it actually can.
+        forceFinalAfterSteps: maxSteps - 8,
+        keepToolsAfterFinal: true,
+        finalInstruction:
+          "You are almost out of budget for this pass. Make only the most essential remaining edits, then immediately run `git add -A && git commit`, then stop.",
+        onEvent: onAgentEvent,
+      });
+
+      await addCogs(
+        input.fixRunId,
+        result.tokensIn,
+        result.tokensOut,
+        Secrets.LLM_MODEL,
+      );
+      summary = result.finalText || summary;
+      stoppedReason = result.stoppedReason;
+
+      const passCommitCount = await getCommitCount(sandbox, input.defaultBranch);
+      // The agent decided it was done — no more passes.
+      if (stoppedReason === "done") break;
+      // A continuation that produced no new commit isn't progressing — stop.
+      if (continuation && passCommitCount === prevCommitCount) break;
+      prevCommitCount = passCommitCount;
+    }
+
+    // Safety net: never drop paid work — commit anything left in the tree.
+    const dirty = await runCommand(sandbox, `git status --porcelain`, {
+      cwd: REPO_DIR,
     });
+    if (dirty.stdout.trim()) {
+      await runCommand(
+        sandbox,
+        `git add -A && git commit -m "fix: GEO/AEO readiness improvements (auto-saved)"`,
+        { cwd: REPO_DIR },
+      );
+    }
 
-    await addCogs(
-      input.fixRunId,
-      result.tokensIn,
-      result.tokensOut,
-      Secrets.LLM_MODEL,
-    );
-
-    // Did the agent actually produce a commit on this branch?
-    const committedCheck = await runCommand(
-      sandbox,
-      `git rev-list --count ${input.defaultBranch}..HEAD 2>/dev/null || echo 0`,
-      { cwd: REPO_DIR },
-    );
-    const commitCount = parseInt(committedCheck.stdout.trim() || "0", 10);
+    const commitCount = await getCommitCount(sandbox, input.defaultBranch);
     const committed = commitCount > 0;
 
     if (committed) {
@@ -445,20 +727,15 @@ export async function runHarness(
     }
 
     // Best-effort: reflect the agent's summary onto the FixCheck rows.
-    await applySummaryToChecks(
-      input.fixRunId,
-      result.finalText,
-      tasks,
-      committed,
-    );
+    await applySummaryToChecks(input.fixRunId, summary, tasks, committed);
 
     await logEvent(input.fixRunId, "harness_finished", null, {
       committed,
       commitCount,
-      stoppedReason: result.stoppedReason,
+      stoppedReason,
     });
 
-    return { committed, summary: result.finalText };
+    return { committed, summary };
   } catch (err) {
     // The agent harness must never crash the run — record and continue.
     const msg = err instanceof Error ? err.message : String(err);
@@ -504,6 +781,51 @@ function sliceAround(text: string, needle: string): string {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+async function getCommitCount(
+  sandbox: Awaited<ReturnType<typeof connectSandbox>>,
+  defaultBranch: string,
+): Promise<number> {
+  const res = await runCommand(
+    sandbox,
+    `git rev-list --count ${shellQuote(`${defaultBranch}..HEAD`)} 2>/dev/null || echo 0`,
+    { cwd: REPO_DIR },
+  );
+  return parseInt(res.stdout.trim() || "0", 10);
+}
+
+// Prompt for a continuation pass: hand the agent its own committed + uncommitted
+// progress so it picks up where it left off instead of starting over.
+async function continuationPrompt(
+  sandbox: Awaited<ReturnType<typeof connectSandbox>>,
+  input: FixSiteInput,
+  checkBlocks: string,
+): Promise<string> {
+  const range = shellQuote(`${input.defaultBranch}..HEAD`);
+  const [stat, status] = await Promise.all([
+    runCommand(sandbox, `git diff --stat ${range}`, { cwd: REPO_DIR }),
+    runCommand(sandbox, `git status --porcelain`, { cwd: REPO_DIR }),
+  ]);
+
+  return [
+    `Repository: ${input.repoFullName}`,
+    `Live site: ${input.website}`,
+    `You are CONTINUING an in-progress fix on the same branch — you ran low on budget on the previous pass. Build on what's already there; do not start over.`,
+    ``,
+    `## Already committed so far`,
+    stat.stdout.trim() ? stat.stdout.slice(0, 4000) : "(nothing committed yet)",
+    ``,
+    `## Uncommitted changes in the working tree`,
+    status.stdout.trim() ? status.stdout.slice(0, 4000) : "(working tree clean)",
+    ``,
+    `## Finish the remaining failing checks`,
+    `Apply the ones below that aren't done yet, then commit. Skip anything already handled.`,
+    ``,
+    checkBlocks,
+    ``,
+    `Commit your progress with git add -A && git commit before you run out of budget.`,
+  ].join("\n");
 }
 
 async function collectDiffSummary(
@@ -837,7 +1159,7 @@ export async function teardownSandbox(
     // already gone
   }
   await setSandbox(input.fixRunId, sandboxId, "KILLED");
-  const cogs = await recordSandboxCogs(input.fixRunId);
+  const cogs = await recordSandboxCogs(input.fixRunId, sandboxId);
   await logEvent(input.fixRunId, "sandbox_killed", null, {
     sandboxId,
     sandboxSeconds: cogs?.sandboxSeconds ?? null,

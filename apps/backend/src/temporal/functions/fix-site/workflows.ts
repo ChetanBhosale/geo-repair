@@ -20,9 +20,13 @@ const { planRun, prepareSandbox } = proxyActivities<typeof activities>({
   retry: { maximumAttempts: 3 },
 });
 
-const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<
-  typeof activities
->({
+const {
+  runPlanningAgent,
+  runHarness,
+  finalizeRun,
+  teardownSandbox,
+  failRun,
+} = proxyActivities<typeof activities>({
   startToCloseTimeout: "45 minutes",
   retry: { maximumAttempts: 1 },
 });
@@ -38,25 +42,51 @@ export async function fixSiteWorkflow(input: FixSiteInput): Promise<FixSiteResul
     intake = submitted;
   });
 
-  const { tasks, clarificationRequest } = await planRun(input);
-
-  if (!intake?.answers.length && clarificationRequest?.questions.length) {
-    await condition(() => !!intake?.answers.length);
-  }
-
-  const runInput: FixSiteInput = intake ? { ...input, intake } : input;
-  const { sandboxId } = await prepareSandbox(runInput);
-
   try {
-    const { committed, summary } = await runHarness(runInput, sandboxId, tasks);
-    const result = await finalizeRun(runInput, sandboxId, committed, summary);
-    return {
-      prUrl: result.prUrl ?? "",
-      prNumber: result.prNumber ?? 0,
-      fixedChecks: result.fixedChecks,
-      totalChecks: result.totalChecks,
-    };
-  } finally {
-    await teardownSandbox(runInput, sandboxId);
+    const { tasks, reportContext } = await planRun(input);
+    let shouldWaitForIntake = false;
+
+    if (!intake?.answers.length && tasks.length) {
+      const planningSandbox = await prepareSandbox(input);
+      try {
+        const clarificationRequest = await runPlanningAgent(
+          input,
+          planningSandbox.sandboxId,
+          tasks,
+          reportContext,
+        );
+        shouldWaitForIntake = !!clarificationRequest?.questions.length;
+      } finally {
+        await teardownSandbox(input, planningSandbox.sandboxId);
+      }
+    }
+
+    if (!intake?.answers.length && shouldWaitForIntake) {
+      await condition(() => !!intake?.answers.length);
+    }
+
+    const runInput: FixSiteInput = intake ? { ...input, intake } : input;
+    const { sandboxId } = await prepareSandbox(runInput);
+
+    try {
+      const { committed, summary } = await runHarness(runInput, sandboxId, tasks);
+      const result = await finalizeRun(runInput, sandboxId, committed, summary);
+      return {
+        prUrl: result.prUrl ?? "",
+        prNumber: result.prNumber ?? 0,
+        fixedChecks: result.fixedChecks,
+        totalChecks: result.totalChecks,
+      };
+    } finally {
+      await teardownSandbox(runInput, sandboxId);
+    }
+  } catch (err) {
+    await failRun(input, workflowErrorMessage(err));
+    throw err;
   }
+}
+
+function workflowErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  return String(err);
 }

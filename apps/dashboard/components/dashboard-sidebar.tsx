@@ -20,7 +20,7 @@ import {
 import type { LucideIcon } from "lucide-react"
 import type { BillingOrder, OrderStatus } from "@repo/types/billing"
 import type { SavedRepository } from "@repo/types/github"
-import { BrandLogo } from "@/components/brand-logo"
+import { BrandLogo, LogoMark } from "@/components/brand-logo"
 import { GithubIcon } from "@/components/icons/github-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -72,10 +72,14 @@ export function DashboardSidebar({
   isSignedIn,
   mobileOpen,
   onMobileOpenChange,
+  collapsed = false,
 }: {
   isSignedIn: boolean
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
+  // When collapsed, the persistent desktop rail shrinks to an icons-only strip
+  // (the page wants more width); the full sidebar is still on the mobile sheet.
+  collapsed?: boolean
 }) {
   const pathname = usePathname()
   const savedRepos = useSavedRepos(isSignedIn)
@@ -111,9 +115,13 @@ export function DashboardSidebar({
 
   return (
     <>
-      <aside className="hidden bg-primary text-primary lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
-        <SidebarContent idPrefix="desktop" {...contentProps} />
-      </aside>
+      {collapsed ? (
+        <CollapsedRail pathname={pathname} />
+      ) : (
+        <aside className="hidden bg-primary text-primary lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
+          <SidebarContent idPrefix="desktop" {...contentProps} />
+        </aside>
+      )}
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -136,6 +144,65 @@ export function DashboardSidebar({
         </div>
       ) : null}
     </>
+  )
+}
+
+// Icons-only desktop rail used on focused workspaces (e.g. the fix agent).
+function CollapsedRail({ pathname }: { pathname: string }) {
+  return (
+    <aside className="hidden bg-primary text-primary lg:sticky lg:top-0 lg:flex lg:h-svh lg:w-16 lg:flex-col lg:items-center lg:gap-1 lg:border-r lg:border-secondary lg:py-4">
+      <Link
+        aria-label="GEO Repair home"
+        className="mb-2 grid size-9 place-items-center text-brand"
+        href="/"
+      >
+        <LogoMark className="size-5" />
+      </Link>
+
+      <nav aria-label="Dashboard navigation" className="grid gap-1">
+        {navItems.map((item) => {
+          const Icon = navIcons[item.label]
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href)
+
+          return (
+            <Link
+              aria-current={active ? "page" : undefined}
+              aria-label={item.label}
+              className={cn(
+                "grid size-9 place-items-center rounded-md text-secondary transition-colors hover:bg-secondary hover:text-primary",
+                active && "bg-secondary text-primary",
+              )}
+              href={item.href}
+              key={item.href}
+              title={item.label}
+            >
+              <Icon aria-hidden className="size-4" />
+            </Link>
+          )
+        })}
+      </nav>
+
+      <div className="mt-auto grid gap-1">
+        {sidebarUtilityItems.map((item) => {
+          const Icon = utilityIcons[item.label]
+
+          return (
+            <a
+              aria-label={item.label}
+              className="grid size-9 place-items-center rounded-md text-secondary transition-colors hover:bg-secondary hover:text-primary"
+              href={item.href}
+              key={item.href}
+              title={item.label}
+            >
+              <Icon aria-hidden className="size-4" />
+            </a>
+          )
+        })}
+      </div>
+    </aside>
   )
 }
 
