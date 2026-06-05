@@ -7,11 +7,11 @@ export const BACKEND_URL = (
 
 // Full backend endpoints. Add new paths here so URLs live in one place.
 export const ENDPOINTS = {
-  audit: `${BACKEND_URL}/api/audit`,
+  audit: `${BACKEND_URL}/api/checkups`,
   temporalStatus: (temporalId: string) =>
-    `${BACKEND_URL}/api/temporal-status/${encodeURIComponent(temporalId)}`,
+    `${BACKEND_URL}/api/checkups/${encodeURIComponent(temporalId)}/status`,
   auditResult: (key: string) =>
-    `${BACKEND_URL}/api/audit-result/${encodeURIComponent(key)}`,
+    `${BACKEND_URL}/api/checkup-reports/${encodeURIComponent(key)}`,
 
   // Auth (cookie session). Hitting githubLogin in the browser starts the OAuth flow.
   githubLogin: `${BACKEND_URL}/api/auth/github`,
@@ -43,6 +43,7 @@ export const ENDPOINTS = {
     `${BACKEND_URL}/api/reports/share/${encodeURIComponent(token)}/download`,
 
   // Billing
+  fixCheckout: `${BACKEND_URL}/api/billing/fix-checkout`,
   billingHistory: `${BACKEND_URL}/api/billing/history`,
   billingInvoice: (orderId: string) =>
     `${BACKEND_URL}/api/billing/invoices/${encodeURIComponent(orderId)}`,

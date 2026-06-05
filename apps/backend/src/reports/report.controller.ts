@@ -32,6 +32,7 @@ function requestOrigin(req: Request): string {
 function shareUrlForRequest(req: Request) {
   const origin = (
     req.get("origin") ||
+    Secrets.DASHBOARD_URL ||
     Secrets.FRONTEND_URL ||
     requestOrigin(req)
   ).replace(/\/+$/, "");

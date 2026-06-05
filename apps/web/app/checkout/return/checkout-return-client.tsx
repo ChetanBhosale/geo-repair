@@ -6,6 +6,10 @@ import type { OrderSummary } from "@repo/types"
 
 import { Button } from "@/components/ui/button"
 
+const DASHBOARD_URL = (
+  process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:3000"
+).replace(/\/+$/, "")
+
 type LoadState =
   | { state: "loading"; order: null; error: null }
   | { state: "ready"; order: OrderSummary; error: null }
@@ -53,6 +57,10 @@ function statusCopy(order: OrderSummary) {
         body: "This order has a payment dispute and needs support review.",
       }
   }
+}
+
+function dashboardFixUrl(orderId: string): string {
+  return `${DASHBOARD_URL}/fix-agent?order_id=${encodeURIComponent(orderId)}`
 }
 
 export function CheckoutReturnClient({ orderId }: { orderId: string }) {
@@ -189,9 +197,13 @@ export function CheckoutReturnClient({ orderId }: { orderId: string }) {
         <p className="text-xs/relaxed text-muted-foreground">
           Payment state is updated only by Dodo webhooks.
         </p>
-        <Button disabled={!order.startFixUnlocked}>
-          {order.startFixUnlocked ? "Start fix unlocked" : "Waiting for payment"}
-        </Button>
+        {order.startFixUnlocked ? (
+          <Button asChild>
+            <a href={dashboardFixUrl(order.id)}>Start fix</a>
+          </Button>
+        ) : (
+          <Button disabled>Waiting for payment</Button>
+        )}
       </div>
     </div>
   )

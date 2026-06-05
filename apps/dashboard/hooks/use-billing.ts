@@ -1,7 +1,12 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { getBillingHistory, getBillingInvoice } from "@/lib/api"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { CreateFixCheckoutRequest } from "@repo/types/billing"
+import {
+  createFixCheckout,
+  getBillingHistory,
+  getBillingInvoice,
+} from "@/lib/api"
 
 export function useBillingHistory(enabled = true) {
   return useQuery({
@@ -16,5 +21,16 @@ export function useBillingInvoice(orderId: string | null, enabled = true) {
     queryKey: ["billing-invoice", orderId],
     queryFn: () => getBillingInvoice(orderId as string),
     enabled: enabled && !!orderId,
+  })
+}
+
+export function useCreateFixCheckout() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateFixCheckoutRequest) =>
+      createFixCheckout(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing-history"] })
+    },
   })
 }

@@ -1,6 +1,8 @@
 import { prisma } from "@repo/db";
 import type { Prisma } from "@repo/db/generated/prisma/client";
 import type { FixRunIntake } from "@repo/types/fix";
+import { getPaidFixOrderForUser } from "../billing/billing.service";
+import { normalizeWebsite } from "../lib/url";
 import { getTemporalClient } from "./client";
 import { TASK_QUEUES } from "./shared";
 import { fixSiteWorkflow } from "./functions/fix-site/workflows";
@@ -12,6 +14,7 @@ export async function startFix(params: {
   userId: string;
   website: string;
   repositoryId: string;
+  orderId: string;
   intake?: FixRunIntake;
 }): Promise<{ fixRunId: string; temporalWorkflowId: string }> {
   const repo = await prisma.repository.findFirst({
@@ -19,6 +22,41 @@ export async function startFix(params: {
   });
   if (!repo) {
     throw new Error("Repository not found for this user");
+  }
+
+  const order = await getPaidFixOrderForUser({
+    orderId: params.orderId,
+    userId: params.userId,
+  });
+  if (!order) {
+    throw new Error("A paid order is required before starting a fix");
+  }
+  if (order.repoFullName !== repo.fullName) {
+    throw new Error("Paid order does not match the selected repository");
+  }
+  if (normalizeWebsite(order.website) !== params.website) {
+    throw new Error("Paid order does not match the requested website");
+  }
+
+  const existingRun = await prisma.fixRun.findFirst({
+    where: {
+      userId: params.userId,
+      repositoryId: repo.id,
+      website: params.website,
+      state: { not: "FAILED" },
+      createdAt: { gte: order.paidAt ?? order.updatedAt },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      temporalWorkflowId: true,
+    },
+  });
+  if (existingRun) {
+    return {
+      fixRunId: existingRun.id,
+      temporalWorkflowId: existingRun.temporalWorkflowId,
+    };
   }
 
   const workflowId = `fix-${repo.fullName.replace(/[^a-zA-Z0-9-]/g, "_")}-${Date.now()}`;

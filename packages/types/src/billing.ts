@@ -20,6 +20,15 @@ export const OrderStatusSchema = z.enum([
 ]);
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
+export const CreateFixCheckoutRequestSchema = z.object({
+  orderId: z.string().optional(),
+  repositoryId: z.string().optional(),
+  checkupReportKey: z.string().optional(),
+});
+export type CreateFixCheckoutRequest = z.infer<
+  typeof CreateFixCheckoutRequestSchema
+>;
+
 export const OrderSummarySchema = z.object({
   id: z.string(),
   status: OrderStatusSchema,
@@ -32,6 +41,11 @@ export const OrderSummarySchema = z.object({
   startFixUnlocked: z.boolean(),
 });
 export type OrderSummary = z.infer<typeof OrderSummarySchema>;
+
+export interface CreateFixCheckoutResponse {
+  order: OrderSummary;
+  checkoutUrl: string | null;
+}
 
 export interface BillingOrder {
   id: string;

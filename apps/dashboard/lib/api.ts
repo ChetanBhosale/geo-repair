@@ -17,6 +17,8 @@ import type {
 import type {
   BillingHistoryResponse,
   BillingInvoiceDetail,
+  CreateFixCheckoutRequest,
+  CreateFixCheckoutResponse,
 } from "@repo/types/billing"
 import type {
   GenerateReportsResponse,
@@ -28,13 +30,13 @@ import type {
 } from "@repo/types/reports"
 import { ENDPOINTS } from "@/lib/endpoint"
 
-// POST /api/audit response
+// POST /api/checkups response, normalized for dashboard scan state.
 export interface CreateAuditResponse {
   temporalId: string
   website: string
 }
 
-// GET /api/temporal-status/:id response (discriminated by `status`)
+// GET /api/checkups/:id/status response (discriminated by `status`)
 export type TemporalStatus =
   | { status: "RUNNING" | "PENDING" }
   | { status: "COMPLETED"; result: AuditSummary }
@@ -49,15 +51,20 @@ export interface AuditSummary {
   key: string
   website: string
   overall: number
-  pagesScraped: number
+  pagesChecked: number
 }
 
-// GET /api/audit-result/:key response (the full saved report)
+// GET /api/checkup-reports/:key response (the full saved report)
 export interface AuditResultResponse {
   key: string
   website: string
-  totalScrapeCount: number
+  totalCheckupCount: number
   report: SiteReport | null
+}
+
+interface CreateCheckupResponse {
+  workflowId: string
+  website: string
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -77,14 +84,18 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
-export function createAudit(
+export async function createAudit(
   url: string,
   singlePage = false
 ): Promise<CreateAuditResponse> {
-  return request<CreateAuditResponse>(ENDPOINTS.audit, {
+  const data = await request<CreateCheckupResponse>(ENDPOINTS.audit, {
     method: "POST",
     body: JSON.stringify({ url, singlePage }),
   })
+  return {
+    temporalId: data.workflowId,
+    website: data.website,
+  }
 }
 
 export function getTemporalStatus(temporalId: string): Promise<TemporalStatus> {
@@ -132,11 +143,12 @@ export async function selectRepo(
 export function startFix(
   website: string,
   repositoryId: string,
+  orderId: string,
   intake?: FixRunIntake
 ): Promise<StartFixResponse> {
   return request<StartFixResponse>(ENDPOINTS.fix, {
     method: "POST",
-    body: JSON.stringify({ website, repositoryId, intake }),
+    body: JSON.stringify({ website, repositoryId, orderId, intake }),
   })
 }
 
@@ -197,6 +209,15 @@ export function revokeReportShareLink(id: string): Promise<void> {
 
 export function getBillingHistory(): Promise<BillingHistoryResponse> {
   return request<BillingHistoryResponse>(ENDPOINTS.billingHistory)
+}
+
+export function createFixCheckout(
+  payload: CreateFixCheckoutRequest
+): Promise<CreateFixCheckoutResponse> {
+  return request<CreateFixCheckoutResponse>(ENDPOINTS.fixCheckout, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function getBillingInvoice(

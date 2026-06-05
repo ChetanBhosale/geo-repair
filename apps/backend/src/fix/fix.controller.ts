@@ -70,9 +70,10 @@ export async function createFix(req: Request, res: Response) {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const { website, repositoryId, intake } = req.body as {
+  const { website, repositoryId, orderId, intake } = req.body as {
     website?: string;
     repositoryId?: string;
+    orderId?: string;
     intake?: unknown;
   };
   const normalized = website ? normalizeWebsite(website) : null;
@@ -82,12 +83,16 @@ export async function createFix(req: Request, res: Response) {
   if (!repositoryId) {
     return res.status(400).json({ error: "repositoryId is required" });
   }
+  if (!orderId) {
+    return res.status(400).json({ error: "orderId is required" });
+  }
 
   try {
     const result = await startFix({
       userId,
       website: normalized,
       repositoryId,
+      orderId,
       intake: normalizeIntake(intake),
     });
     return res.status(202).json(result);

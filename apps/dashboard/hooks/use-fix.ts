@@ -13,12 +13,14 @@ export function useStartFix() {
     mutationFn: ({
       website,
       repositoryId,
+      orderId,
       intake,
     }: {
       website: string
       repositoryId: string
+      orderId: string
       intake?: FixRunIntake
-    }) => startFix(website, repositoryId, intake),
+    }) => startFix(website, repositoryId, orderId, intake),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fix-runs"] }),
   })
 }

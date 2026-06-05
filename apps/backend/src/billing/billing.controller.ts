@@ -1,9 +1,15 @@
 import type { Request, Response } from "express";
 
 import {
+  CreateFixCheckoutRequestSchema,
+  type CreateFixCheckoutRequest,
+} from "@repo/types/billing";
+
+import {
   BillingError,
   createDevFixtureOrder,
   createFixCheckoutForOrder,
+  createFixCheckoutForSelection,
   getInvoiceForUser,
   getOrderById,
   invoiceDownloadFilename,
@@ -33,16 +39,34 @@ function intBodyValue(value: unknown): number | undefined {
 
 export async function createFixCheckout(req: Request, res: Response) {
   try {
-    const orderId = stringBodyValue(
-      (req.body as { orderId?: unknown }).orderId,
-    );
-    if (!orderId) {
-      return res.status(400).json({ error: "orderId is required." });
+    const parsed = CreateFixCheckoutRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid checkout request." });
     }
 
-    const result = await createFixCheckoutForOrder({
-      orderId,
+    const body: CreateFixCheckoutRequest = parsed.data;
+    const orderId = stringBodyValue(body.orderId);
+    if (orderId) {
+      const result = await createFixCheckoutForOrder({
+        orderId,
+        userId: req.userId!,
+      });
+
+      return res.status(201).json(result);
+    }
+
+    const repositoryId = stringBodyValue(body.repositoryId);
+    const checkupReportKey = stringBodyValue(body.checkupReportKey);
+    if (!repositoryId || !checkupReportKey) {
+      return res.status(400).json({
+        error: "repositoryId and checkupReportKey are required.",
+      });
+    }
+
+    const result = await createFixCheckoutForSelection({
       userId: req.userId!,
+      repositoryId,
+      checkupReportKey,
     });
 
     return res.status(201).json(result);

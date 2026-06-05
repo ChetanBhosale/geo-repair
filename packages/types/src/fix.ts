@@ -95,6 +95,7 @@ export interface FixRunDetail extends FixRunSummary {
 export interface StartFixRequest {
   website: string;
   repositoryId: string;
+  orderId: string;
   intake?: FixRunIntake;
 }
 

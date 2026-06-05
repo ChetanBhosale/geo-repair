@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import type { FixRunDetail, FixRunSummary } from "@repo/types/fix"
 import {
@@ -27,6 +28,7 @@ import {
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -143,6 +145,22 @@ export function RunTranscript({
                     free-form chat. The backend endpoint is still pending, so
                     this composer is staged as UI only.
                   </MessageResponse>
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                      <Link href="/reports">Generate reports</Link>
+                    </Button>
+                    {selectedRun.prUrl ? (
+                      <Button asChild variant="outline">
+                        <a
+                          href={selectedRun.prUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Open PR
+                        </a>
+                      </Button>
+                    ) : null}
+                  </div>
                   <PromptInput
                     onSubmit={(message) => onRefinementChange(message.text)}
                   >

@@ -26,9 +26,13 @@ app.set("trust proxy", 1);
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
-const ALLOWED_ORIGINS = [Secrets.FRONTEND_URL, "http://localhost:3000"].filter(
-  Boolean,
-) as string[];
+const ALLOWED_ORIGINS = [
+  Secrets.FRONTEND_URL,
+  Secrets.WEB_URL,
+  Secrets.DASHBOARD_URL,
+  "http://localhost:3000",
+  "http://localhost:3001",
+].filter(Boolean) as string[];
 
 app.use(
   cors({

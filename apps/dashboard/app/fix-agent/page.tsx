@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { ExternalLink, GitBranch, Loader2 } from "lucide-react"
 import type { FixIntakeQuestionId } from "@repo/types/fix"
 import { FixIntakeForm } from "@/components/fix-agent/fix-intake-form"
@@ -12,6 +13,7 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { StatePanel } from "@/components/state-panel"
 import { Button } from "@/components/ui/button"
 import { loginWithGithub, useUser } from "@/hooks/use-auth"
+import { useBillingHistory } from "@/hooks/use-billing"
 import { useFixRun, useFixRuns, useStartFix } from "@/hooks/use-fix"
 import { useSavedRepos } from "@/hooks/use-repos"
 import {
@@ -23,11 +25,38 @@ import {
 import type { TechTab } from "@/lib/fix-run-view"
 
 export default function FixAgentPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <DashboardShell eyebrow="Fix agent" title="Run workspace">
+          <StatePanel
+            eyebrow="Loading"
+            title="Loading fix workspace"
+            description="We are checking your session and project access."
+            action={
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            }
+          />
+        </DashboardShell>
+      }
+    >
+      <FixAgentWorkspace />
+    </React.Suspense>
+  )
+}
+
+function FixAgentWorkspace() {
+  const searchParams = useSearchParams()
   const { isLoading, isSignedIn } = useUser()
   const savedRepos = useSavedRepos(isSignedIn)
+  const billing = useBillingHistory(isSignedIn)
   const runs = useFixRuns(isSignedIn)
   const startFix = useStartFix()
+  const queryOrderId = searchParams.get("order_id")
   const [website, setWebsite] = React.useState("")
+  const [selectedOrderOverride, setSelectedOrderOverride] = React.useState<
+    string | null
+  >(null)
   const [activeTab, setActiveTab] = React.useState<TechTab>("console")
   const [selectedRunId, setSelectedRunId] = React.useState<string | null>(null)
   const [intakeAnswers, setIntakeAnswers] =
@@ -42,6 +71,20 @@ export default function FixAgentPage() {
     repositories.find((repository) => repository.selected) ??
     repositories[0] ??
     null
+  const paidOrders = React.useMemo(() => {
+    const repoFullName = selectedRepo?.fullName
+    return (billing.data?.orders ?? []).filter(
+      (order) =>
+        order.status === "PAID" &&
+        (!repoFullName || order.repoFullName === repoFullName)
+    )
+  }, [billing.data?.orders, selectedRepo?.fullName])
+  const requestedOrderId = selectedOrderOverride ?? queryOrderId
+  const selectedOrder =
+    paidOrders.find((order) => order.id === requestedOrderId) ??
+    paidOrders[0] ??
+    null
+  const formWebsite = selectedOrder?.website ?? website
   const runList = runs.data ?? []
   const selectedRun =
     runList.find((run) => run.id === selectedRunId) ?? runList[0] ?? null
@@ -63,12 +106,13 @@ export default function FixAgentPage() {
 
   function onStartFix(event: React.FormEvent) {
     event.preventDefault()
-    if (!selectedRepo || !website.trim()) {
+    if (!selectedRepo || !selectedOrder || !formWebsite.trim()) {
       return
     }
     startFix.mutate({
       repositoryId: selectedRepo.id,
-      website: website.trim(),
+      orderId: selectedOrder.id,
+      website: formWebsite.trim(),
       intake: buildIntake(intakeAnswers, intakeNotes),
     })
   }
@@ -138,10 +182,14 @@ export default function FixAgentPage() {
             isPending={startFix.isPending}
             onAnswerChange={onAnswerChange}
             onNoteChange={onNoteChange}
+            onOrderChange={setSelectedOrderOverride}
             onSubmit={onStartFix}
             onWebsiteChange={setWebsite}
+            paidOrders={paidOrders}
+            selectedOrderId={selectedOrder?.id ?? null}
             selectedRepoFullName={selectedRepo.fullName}
-            website={website}
+            website={formWebsite}
+            websiteDisabled={!!selectedOrder}
           />
 
           <RunHistory

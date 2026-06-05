@@ -2,9 +2,12 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArrowRight, GitBranch, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowRight, CreditCard, GitBranch, Loader2 } from "lucide-react"
 import { loginWithGithub, useUser } from "@/hooks/use-auth"
 import { useAudit } from "@/hooks/use-audit"
+import { useCreateFixCheckout } from "@/hooks/use-billing"
+import { useSavedRepos } from "@/hooks/use-repos"
 import { AuditReport } from "@/components/audit-report"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { StatePanel } from "@/components/state-panel"
@@ -19,9 +22,17 @@ import {
 } from "@/components/ui/card"
 
 export default function WebsiteScanPage() {
+  const router = useRouter()
   const [url, setUrl] = React.useState("")
   const audit = useAudit()
   const { isSignedIn, isLoading: isUserLoading } = useUser()
+  const savedRepos = useSavedRepos(isSignedIn)
+  const checkout = useCreateFixCheckout()
+  const repositories = savedRepos.data ?? []
+  const selectedRepo =
+    repositories.find((repository) => repository.selected) ??
+    repositories[0] ??
+    null
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -30,6 +41,29 @@ export default function WebsiteScanPage() {
       return
     }
     audit.start.mutate({ url: trimmed, singlePage: false })
+  }
+
+  function onStartCheckout() {
+    if (!audit.result?.key || !selectedRepo) {
+      return
+    }
+
+    checkout.mutate(
+      {
+        repositoryId: selectedRepo.id,
+        checkupReportKey: audit.result.key,
+      },
+      {
+        onSuccess: ({ checkoutUrl, order }) => {
+          if (checkoutUrl) {
+            window.location.assign(checkoutUrl)
+            return
+          }
+
+          router.push(`/fix-agent?order_id=${encodeURIComponent(order.id)}`)
+        },
+      }
+    )
   }
 
   const busy = audit.isStarting || audit.isPolling || audit.isLoadingResult
@@ -106,13 +140,53 @@ export default function WebsiteScanPage() {
       {audit.result?.report ? (
         <>
           <AuditReport report={audit.result.report} />
-          <div className="flex justify-end">
-            <Button asChild>
-              <Link href="/fix-agent">
-                Continue to fix agent
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Ready for the paid fix</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {selectedRepo
+                  ? `Checkout will use ${selectedRepo.fullName} and this scan report.`
+                  : "Choose a repository before checkout so the fix can open a PR."}
+              </p>
+              {checkout.error ? (
+                <p className="mt-2 text-sm text-destructive">
+                  {checkout.error.message}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {!isSignedIn ? (
+                <Button onClick={loginWithGithub}>
+                  <GitBranch className="size-4" />
+                  Connect GitHub
+                </Button>
+              ) : selectedRepo ? (
+                <Button
+                  disabled={checkout.isPending}
+                  onClick={onStartCheckout}
+                >
+                  {checkout.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <CreditCard className="size-4" />
+                  )}
+                  Continue to payment
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href="/settings">
+                    <GitBranch className="size-4" />
+                    Choose repository
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="outline">
+                <Link href="/fix-agent">
+                  Fix workspace
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </div>
           </div>
         </>
       ) : null}

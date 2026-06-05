@@ -19,6 +19,12 @@ if (isProd && (!JWT_SECRET || JWT_SECRET.length < 16)) {
 const BackendSecrets = {
   NODE_ENV: process.env.NODE_ENV || "development",
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
+  WEB_URL:
+    process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:3001",
+  DASHBOARD_URL:
+    process.env.DASHBOARD_URL ||
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000",
   DATABASE_URL: process.env.DATABASE_URL,
 
   JWT_SECRET: JWT_SECRET || "dev-insecure-secret-change-me",

@@ -1,10 +1,12 @@
 "use client"
 
 import type * as React from "react"
-import { Loader2, Play } from "lucide-react"
+import { CreditCard, Loader2, Play } from "lucide-react"
+import type { BillingOrder } from "@repo/types/billing"
 import type { FixIntakeQuestionId } from "@repo/types/fix"
 import type { IntakeAnswers, IntakeNotes } from "@/lib/fix-intake"
 import { intakeQuestions } from "@/lib/fix-intake"
+import { formatMoney } from "@/lib/dashboard-format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,8 +27,12 @@ export function FixIntakeForm({
   onNoteChange,
   onSubmit,
   onWebsiteChange,
+  paidOrders,
+  selectedOrderId,
+  onOrderChange,
   selectedRepoFullName,
   website,
+  websiteDisabled,
 }: {
   error: Error | null
   intakeAnswers: IntakeAnswers
@@ -34,21 +40,66 @@ export function FixIntakeForm({
   isPending: boolean
   onAnswerChange: (questionId: FixIntakeQuestionId, answerId: string) => void
   onNoteChange: (questionId: FixIntakeQuestionId, note: string) => void
+  onOrderChange: (orderId: string | null) => void
   onSubmit: (event: React.FormEvent) => void
   onWebsiteChange: (website: string) => void
+  paidOrders: BillingOrder[]
+  selectedOrderId: string | null
   selectedRepoFullName: string
   website: string
+  websiteDisabled: boolean
 }) {
+  const selectedOrder = paidOrders.find((order) => order.id === selectedOrderId)
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Start a fix run</CardTitle>
         <CardDescription>
-          Confirm the website for {selectedRepoFullName}. The backend creates a
-          fix run and starts the Temporal workflow.
+          Select the paid order for {selectedRepoFullName}. The backend
+          verifies it before starting the Temporal workflow.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
+        <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4">
+          <div className="flex items-center gap-2">
+            <CreditCard className="size-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Paid order</h2>
+          </div>
+          {paidOrders.length > 0 ? (
+            <>
+              <select
+                className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                disabled={isPending}
+                onChange={(event) =>
+                  onOrderChange(event.target.value.trim() || null)
+                }
+                value={selectedOrderId ?? ""}
+              >
+                <option disabled value="">
+                  Choose a paid order
+                </option>
+                {paidOrders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.website} · {formatMoney(order.amountCents, order.currency)}
+                  </option>
+                ))}
+              </select>
+              {selectedOrder ? (
+                <p className="text-xs text-muted-foreground">
+                  Order {selectedOrder.id} is paid and scoped to{" "}
+                  {selectedOrder.repoFullName ?? selectedRepoFullName}.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Run a website scan, select this repository, and complete checkout
+              before starting the fix agent.
+            </p>
+          )}
+        </div>
+
         <div className="grid gap-4 rounded-lg border border-border bg-muted/20 p-4">
           <div>
             <h2 className="text-sm font-semibold">
@@ -108,14 +159,17 @@ export function FixIntakeForm({
 
         <form className="flex flex-col gap-2 sm:flex-row" onSubmit={onSubmit}>
           <Input
-            disabled={isPending}
+            disabled={isPending || websiteDisabled}
             inputMode="url"
             onChange={(event) => onWebsiteChange(event.target.value)}
             placeholder="https://example.com"
             type="text"
             value={website}
           />
-          <Button disabled={!website.trim() || isPending} type="submit">
+          <Button
+            disabled={!website.trim() || !selectedOrderId || isPending}
+            type="submit"
+          >
             {isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (

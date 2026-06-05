@@ -7,6 +7,7 @@ import type {
   BillingInvoiceDetail,
   BillingOrder,
   OrderSummary,
+  SiteReport,
 } from "@repo/types";
 
 import { normalizeWebsite } from "../lib/url";
@@ -94,7 +95,7 @@ function requireProductId(tier: FixTierConfig): string {
 }
 
 function checkoutReturnUrl(orderId: string): string {
-  return `${Secrets.FRONTEND_URL.replace(/\/+$/, "")}/checkout/return?order_id=${encodeURIComponent(orderId)}`;
+  return `${Secrets.WEB_URL.replace(/\/+$/, "")}/checkout/return?order_id=${encodeURIComponent(orderId)}`;
 }
 
 function orderSummary(order: {
@@ -258,6 +259,35 @@ function metadataForOrder(order: {
   };
 }
 
+function siteReportFromJson(value: Prisma.JsonValue | null): SiteReport | null {
+  if (!value) return null;
+
+  const parsed =
+    typeof value === "string"
+      ? (() => {
+          try {
+            return JSON.parse(value) as unknown;
+          } catch {
+            return null;
+          }
+        })()
+      : value;
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+
+  const report = parsed as Partial<SiteReport>;
+  return report.crawl && typeof report.crawl.pagesChecked === "number"
+    ? (report as SiteReport)
+    : null;
+}
+
+function pageCountForReport(reportData: Prisma.JsonValue | null): number {
+  const report = siteReportFromJson(reportData);
+  return Math.max(1, Math.round(report?.crawl.pagesChecked ?? 25));
+}
+
 export async function getOrderById(
   orderId: string,
 ): Promise<OrderSummary | null> {
@@ -374,6 +404,79 @@ export async function createFixCheckoutForOrder(input: {
   }
 
   return createCheckoutForGatedOrder(order);
+}
+
+export async function createFixCheckoutForSelection(input: {
+  userId: string;
+  repositoryId: string;
+  checkupReportKey: string;
+}) {
+  const [repo, report] = await Promise.all([
+    prisma.repository.findFirst({
+      where: { id: input.repositoryId, userId: input.userId },
+    }),
+    prisma.checkupReport.findUnique({
+      where: { id: input.checkupReportKey },
+    }),
+  ]);
+
+  if (!repo) {
+    throw new BillingError(404, "Repository not found for this user.");
+  }
+  if (!report) {
+    throw new BillingError(404, "Checkup report not found.");
+  }
+
+  const existing = await prisma.order.findFirst({
+    where: {
+      userId: input.userId,
+      checkupReportId: report.id,
+      repoFullName: repo.fullName,
+      website: report.website,
+      status: { in: ["PENDING", "CHECKOUT_CREATED", "PROCESSING", "PAID"] },
+    },
+    include: { user: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (existing) {
+    return createCheckoutForGatedOrder(existing);
+  }
+
+  const sitemapPageCount = pageCountForReport(report.reportData);
+  const tier = getFixTierForPageCount(sitemapPageCount);
+  const productId = requireProductId(tier);
+
+  const order = await prisma.order.create({
+    data: {
+      userId: input.userId,
+      checkupReportId: report.id,
+      tier: tier.tier,
+      amountCents: tier.amountCents,
+      sitemapPageCount,
+      website: report.website,
+      repoFullName: repo.fullName,
+      repoConfirmed: true,
+      feasibilityPassed: true,
+      providerProductId: productId,
+    },
+    include: { user: true },
+  });
+
+  return createCheckoutForGatedOrder(order);
+}
+
+export async function getPaidFixOrderForUser(input: {
+  orderId: string;
+  userId: string;
+}) {
+  return prisma.order.findFirst({
+    where: {
+      id: input.orderId,
+      userId: input.userId,
+      status: "PAID",
+    },
+  });
 }
 
 async function createCheckoutForGatedOrder(order: GatedOrder) {

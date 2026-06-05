@@ -65,7 +65,7 @@ export async function handleOAuthCallback(req: Request, res: Response) {
     const token = signToken({ sub: user.id, email: user.email });
     res.cookie(AUTH_COOKIE, token, sessionCookieOptions(7 * 24 * 60 * 60 * 1000));
 
-    return res.redirect(`${Secrets.FRONTEND_URL}/dashboard`);
+    return res.redirect(`${Secrets.DASHBOARD_URL}/dashboard`);
   } catch (err) {
     console.error("[auth] OAuth callback error:", err);
     return redirectWithError(res, "oauth_failed");
@@ -105,5 +105,5 @@ export function logout(_req: Request, res: Response) {
 }
 
 function redirectWithError(res: Response, code: string) {
-  return res.redirect(`${Secrets.FRONTEND_URL}/?auth_error=${code}`);
+  return res.redirect(`${Secrets.DASHBOARD_URL}/?auth_error=${code}`);
 }
