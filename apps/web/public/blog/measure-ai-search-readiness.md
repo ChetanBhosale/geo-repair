@@ -1,0 +1,57 @@
+---
+title: "AI search readiness report: measure crawl and schema | GEO Repair"
+description: "What an audit report should measure before and after a fix: crawl visibility, metadata quality, structured data, answerability, and readiness."
+source: https://geo.repair/blog/measure-ai-search-readiness
+---
+
+# AI search readiness report: what to measure
+
+> What an audit report should measure before and after a fix: crawl visibility, metadata quality, structured data, answerability, and readiness.
+
+**May 24, 2026** · Measurement, Audit, AI Search · By GEO Repair
+
+An AI search readiness report should measure the site before and after a fix. Without an audit, scan, or checkup report, it is too easy to confuse a better-looking page with a page machines can read.
+
+The right scorecard focuses on the parts you control: crawl access, rendered content, metadata, structured data, semantics, answerability, and trust details.
+
+## What should a readiness report measure before a fix?
+
+Capture a baseline for each important route:
+
+- Does raw HTML include the primary content?
+- Is the title unique and accurate?
+- Is the meta description specific?
+- Is the canonical URL self-referential?
+- Does the route emit valid JSON-LD?
+- Is the route listed in sitemap.xml?
+- Does robots.txt allow relevant crawlers?
+- Does llms.txt point to the page or a Markdown twin?
+- Is there one h1 with a logical heading order?
+- Are question-shaped sections answered directly?
+
+Record the evidence behind the score. A useful audit report shows the failing HTML, missing fields, blocked crawler rule, or incorrect schema type.
+
+## What should you measure after a fix?
+
+Re-run the same checks. The goal is not to prove that AI systems will cite the page. The goal is to prove that the technical blockers were removed.
+
+A good after-fix checkup report should show:
+
+- The new server-rendered content is visible
+- Metadata matches the page
+- JSON-LD validates
+- Sitemap and Markdown resources include the route
+- Crawl rules are intentional
+- The content answers the target question more directly
+
+## How do you avoid vanity metrics?
+
+Do not treat impressions, rankings, or citations as immediate proof of technical readiness. Those outcomes can lag and are influenced by factors outside your control. Readiness is narrower: can the page be fetched, parsed, understood, and trusted?
+
+That narrower measurement helps because it is actionable. If the HTML is blank, you can render content on the server. If schema is wrong, you can generate it from real page data. If robots.txt blocks crawlers, you can fix the rule.
+
+Measure the page surface first. Then watch external outcomes over time with the right expectations.
+
+---
+
+_Markdown copy of [AI search readiness report: measure crawl and schema | GEO Repair](https://geo.repair/blog/measure-ai-search-readiness), a faithful text version of the page for machines and readers. © GEO Repair._

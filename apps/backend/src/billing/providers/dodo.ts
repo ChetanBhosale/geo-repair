@@ -85,11 +85,13 @@ export async function createDodoCheckoutSession(input: DodoCheckoutInput) {
 
 export function unwrapDodoWebhook(
   rawBody: string,
-  headers: DodoWebhookHeaders
+  headers: DodoWebhookHeaders,
 ): DodoWebhookPayload {
   if (!Secrets.DODO_PAYMENTS_WEBHOOK_KEY) {
     throw new Error("DODO_PAYMENTS_WEBHOOK_KEY is required for Dodo webhooks.");
   }
 
-  return dodoClient().webhooks.unwrap(rawBody, { headers }) as DodoWebhookPayload;
+  return dodoClient().webhooks.unwrap(rawBody, {
+    headers,
+  }) as DodoWebhookPayload;
 }

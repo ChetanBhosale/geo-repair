@@ -137,7 +137,7 @@ export default async function BlogPostPage({
             <div className="relative mx-auto aspect-[2/1] max-w-4xl overflow-hidden">
               <Image
                 src={post.thumbnail}
-                alt=""
+                alt={post.title}
                 fill
                 priority
                 sizes="(min-width: 896px) 896px, 100vw"

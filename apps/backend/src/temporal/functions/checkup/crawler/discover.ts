@@ -69,16 +69,27 @@ function depthOf(url: string): number {
 // Known high-value top-level pages. When present, these are checked before other depth-1 pages
 // so a commercial page like /pricing is never crowded out by alphabetical luck.
 const PRIORITY_SLUGS = [
-  "pricing", "price", "plans",
-  "features", "product", "products", "solutions", "platform",
-  "about", "about-us",
-  "contact", "contact-us",
-  "services", "use-cases", "how-it-works",
+  "pricing",
+  "price",
+  "plans",
+  "features",
+  "product",
+  "products",
+  "solutions",
+  "platform",
+  "about",
+  "about-us",
+  "contact",
+  "contact-us",
+  "services",
+  "use-cases",
+  "how-it-works",
 ];
 
 function priorityRank(url: string): number {
   try {
-    const seg = new URL(url).pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+    const seg =
+      new URL(url).pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
     const idx = PRIORITY_SLUGS.indexOf(seg);
     return idx === -1 ? PRIORITY_SLUGS.length : idx;
   } catch {
@@ -126,12 +137,17 @@ export async function urlsFromSitemap(
     return urls.length ? { urls, source: "sitemap-index" } : null;
   }
 
-  const urls = [...new Set(extractLocs(res.body, SITEMAP_URL_CAP))].filter(sameOrigin);
+  const urls = [...new Set(extractLocs(res.body, SITEMAP_URL_CAP))].filter(
+    sameOrigin,
+  );
   return urls.length ? { urls, source: "sitemap" } : null;
 }
 
 /** Shallow fallback: same-origin links found in the homepage HTML. */
-export function urlsFromHomepageLinks(homepageHtml: string, origin: string): string[] {
+export function urlsFromHomepageLinks(
+  homepageHtml: string,
+  origin: string,
+): string[] {
   const out = new Set<string>();
   const re = /<a\b[^>]*\bhref=["']([^"'#]+)["']/gi;
   let m: RegExpExecArray | null;
@@ -142,7 +158,10 @@ export function urlsFromHomepageLinks(homepageHtml: string, origin: string): str
     try {
       const u = new URL(href, origin);
       u.hash = "";
-      if (u.origin === origin && (u.protocol === "https:" || u.protocol === "http:")) {
+      if (
+        u.origin === origin &&
+        (u.protocol === "https:" || u.protocol === "http:")
+      ) {
         out.add(u.toString());
       }
     } catch {
@@ -157,7 +176,11 @@ function normalize(url: string): string | null {
   try {
     const u = new URL(url);
     u.hash = "";
-    if (/\.(xml|json|txt|pdf|jpe?g|png|gif|svg|webp|ico|css|js|mp4|zip|rss)$/i.test(u.pathname)) {
+    if (
+      /\.(xml|json|txt|pdf|jpe?g|png|gif|svg|webp|ico|css|js|mp4|zip|rss)$/i.test(
+        u.pathname,
+      )
+    ) {
       return null;
     }
     if (u.pathname !== "/" && u.pathname.endsWith("/")) {
@@ -182,7 +205,11 @@ export function selectRepresentative(
   homepage: string,
   candidates: string[],
   opts: { maxPages: number; maxPerSection: number },
-): { selected: string[]; sections: Record<string, number>; skippedSample: string[] } {
+): {
+  selected: string[];
+  sections: Record<string, number>;
+  skippedSample: string[];
+} {
   const homeUrl = normalize(homepage) ?? homepage;
 
   const seen = new Set<string>();
@@ -216,7 +243,9 @@ export function selectRepresentative(
   const selectedSet = new Set<string>([homeUrl]);
 
   // Phase 2: every depth-1 top-level page, priority slugs first then alphabetical.
-  topLevel.sort((a, b) => priorityRank(a) - priorityRank(b) || a.localeCompare(b));
+  topLevel.sort(
+    (a, b) => priorityRank(a) - priorityRank(b) || a.localeCompare(b),
+  );
   for (const u of topLevel) {
     if (selected.length >= opts.maxPages) break;
     if (!selectedSet.has(u)) {
@@ -228,7 +257,11 @@ export function selectRepresentative(
   // Phase 3: round-robin deeper pages from sections, capped per section, largest sections first.
   const deepSections = [...bySection.keys()]
     .filter((s) => s !== "/")
-    .sort((a, b) => (bySection.get(b)!.length - bySection.get(a)!.length) || a.localeCompare(b));
+    .sort(
+      (a, b) =>
+        bySection.get(b)!.length - bySection.get(a)!.length ||
+        a.localeCompare(b),
+    );
   const perSectionTaken = new Map<string, number>();
   let progress = true;
   while (selected.length < opts.maxPages && progress) {

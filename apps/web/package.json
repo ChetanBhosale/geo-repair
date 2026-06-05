@@ -1,14 +1,14 @@
 {
   "name": "web",
   "version": "0.0.1",
-  "type": "module",
   "private": true,
+  "type": "module",
   "scripts": {
+    "build": "bun run scripts/generate-twins.ts && next build",
     "dev": "next dev --port 3001",
-    "build": "next build",
-    "start": "next start --port 3001",
-    "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "lint": "eslint",
+    "start": "next start --port 3001",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

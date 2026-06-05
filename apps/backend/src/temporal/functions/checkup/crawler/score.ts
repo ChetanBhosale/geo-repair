@@ -35,7 +35,12 @@ function statusFraction(status: Status): number | null {
   }
 }
 
-function weightedPct(checks: CheckResult[]): { score: number; earned: number; applicable: number; count: number } {
+function weightedPct(checks: CheckResult[]): {
+  score: number;
+  earned: number;
+  applicable: number;
+  count: number;
+} {
   let earned = 0;
   let applicable = 0;
   let count = 0;
@@ -50,7 +55,9 @@ function weightedPct(checks: CheckResult[]): { score: number; earned: number; ap
   return { score, earned: Math.round(earned), applicable, count };
 }
 
-export function scorePillars(checks: CheckResult[]): Record<Pillar, PillarScore> {
+export function scorePillars(
+  checks: CheckResult[],
+): Record<Pillar, PillarScore> {
   const out = {} as Record<Pillar, PillarScore>;
   for (const p of PILLARS) {
     const members = checks.filter((c) => c.pillars.includes(p));
@@ -61,7 +68,9 @@ export function scorePillars(checks: CheckResult[]): Record<Pillar, PillarScore>
 }
 
 /** Always emits every canonical category key; a category with no applicable checks scores 0. */
-export function scoreCategories(checks: CheckResult[]): Record<Category, CategoryScore> {
+export function scoreCategories(
+  checks: CheckResult[],
+): Record<Category, CategoryScore> {
   const out = {} as Record<Category, CategoryScore>;
   for (const cat of CATEGORIES) {
     const members = checks.filter((c) => c.category === cat);
@@ -96,7 +105,9 @@ export function buildSummary(checks: CheckResult[]): ScoreReport["summary"] {
       good.push(`${c.id}: ${c.reason}`);
     } else if (c.status === "fail") {
       // "missing" = nothing there; "bad" = present but wrong. Use evidence/bad to disambiguate.
-      const looksMissing = c.bad.some((b) => /missing|no |not found|none|empty/i.test(b));
+      const looksMissing = c.bad.some((b) =>
+        /missing|no |not found|none|empty/i.test(b),
+      );
       (looksMissing ? missing : bad).push(`${c.id}: ${c.reason}`);
     } else if (c.status === "partial") {
       bad.push(`${c.id}: ${c.reason}`);

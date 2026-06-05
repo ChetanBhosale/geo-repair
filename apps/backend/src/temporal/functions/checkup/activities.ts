@@ -8,7 +8,7 @@ import { checkSite, type CheckupProgressSignal } from "./crawler";
 
 async function recordProgress(
   workflowId: string,
-  signal: CheckupProgressSignal
+  signal: CheckupProgressSignal,
 ): Promise<void> {
   switch (signal.type) {
     case "phase":
@@ -62,7 +62,7 @@ async function recordProgress(
           pagesCompleted: 1,
           checksEvaluated: signal.checksEvaluated,
           issuesFound: signal.issuesFound,
-        }
+        },
       );
       await appendCheckupRunEvent(workflowId, {
         phase: signal.phase,
@@ -84,7 +84,7 @@ async function recordProgress(
           phase: signal.phase,
           currentPageUrl: null,
         },
-        { pagesFailed: 1 }
+        { pagesFailed: 1 },
       );
       await appendCheckupRunEvent(workflowId, {
         phase: signal.phase,

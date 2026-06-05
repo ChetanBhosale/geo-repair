@@ -1,0 +1,54 @@
+---
+title: "What is AI search optimization? Fix crawl blockers | GEO Repair"
+description: "A plain-English definition of AI Search Optimization: how it differs from classic SEO, and the checks that actually move the needle."
+source: https://geo.repair/blog/what-is-ai-search-optimization
+---
+
+# What is AI search optimization?
+
+> A plain-English definition of AI Search Optimization: how it differs from classic SEO, and the checks that actually move the needle.
+
+**May 12, 2026** · AI Search, Fundamentals · By GEO Repair
+
+AI Search Optimization is the practice of making a website easy for AI search engines like ChatGPT, Perplexity, Google AI Overviews, and Claude to read, understand, and quote accurately. The goal is narrow and honest: make your content technically legible to the systems that increasingly answer questions on your behalf.
+
+It is not a trick to force a citation, and no one can guarantee one. What you _can_ control is whether a model can fetch your page, parse your content, and find a clean, unambiguous answer when it looks. That is what AI Search Optimization measures and fixes.
+
+## How it differs from classic SEO
+
+Classic SEO optimizes for a ranked list of blue links: keywords, backlinks, and click-through. AI search engines do something different: they read pages, extract claims, and synthesize an answer, often without sending a click at all. That shifts what matters:
+
+- **Machine-readability over keyword density.** The question is whether a crawler can extract a clean answer, not whether you repeated a phrase enough times.
+- **Server-rendered content over client-only rendering.** Many AI crawlers don't execute JavaScript. If your content only appears after hydration, they may see an empty page.
+- **Structured, unambiguous answers over prose padding.** Definitions, FAQs, and clearly-scoped headings give a model something concrete to quote.
+- **Citability over ranking.** There's no position 1. There's only whether your page is clear and trustworthy enough to be used in an answer.
+
+The two disciplines overlap. Clean HTML and good metadata help both. AI search adds another bar: a machine needs to read the page, not merely index it.
+
+## What actually moves the needle
+
+In practice, the highest-leverage work falls into a handful of categories. These are the same seven that GEO Repair's checkup scores:
+
+1. Rendering: your primary content is present in the server-rendered HTML, not locked behind client-side JavaScript.
+2. Structured data: valid JSON-LD describes what the page is, such as an article, an organization, or an FAQ.
+3. Metadata: titles, descriptions, canonical URLs, and Open Graph tags match the page.
+4. Crawl surface: `robots.txt`, the XML sitemap, and crawler rules do not accidentally block AI user agents.
+5. Semantics: the page has one `<h1>`, a sensible heading order, and real landmarks instead of a soup of `<div>`s.
+6. Content: answers are clear and self-contained.
+7. Answerability: definitions and question-shaped headings match how people actually ask.
+
+None of these are exotic. Most are the kind of technical hygiene a good engineering team already values; they just rarely get prioritized until something depends on them.
+
+## An honest note on outcomes
+
+We'll say this plainly because the space is full of people who won't: **improving readiness does not guarantee traffic, rankings, or AI citations.** Whether a model cites you depends on factors no vendor controls. What a checkup _can_ tell you is whether your site is technically ready to be read and quoted, and a fix can close the gaps that would otherwise rule you out before the question is even asked.
+
+The work is simple to describe: measure readiness, fix what's fixable, and stop leaving easy points on the table.
+
+## Where to start
+
+Run a readiness checkup against your most important page. You'll get a score across all seven categories, the evidence behind each check, and a clear list of what's fixable. From there, the work is concrete, and most of it is the kind of thing that makes your site better for human readers too.
+
+---
+
+_Markdown copy of [What is AI search optimization? Fix crawl blockers | GEO Repair](https://geo.repair/blog/what-is-ai-search-optimization), a faithful text version of the page for machines and readers. © GEO Repair._

@@ -1,0 +1,52 @@
+---
+title: "AI mentions vs citations: track the right signal | GEO Repair"
+description: "A brand mention and a cited URL are not the same signal. Track them separately so you know whether you have awareness, retrieval, or both."
+source: https://geo.repair/blog/ai-mentions-vs-citations
+---
+
+# AI mentions vs AI citations: what should you track?
+
+> A brand mention and a cited URL are not the same signal. Track them separately so you know whether you have awareness, retrieval, or both.
+
+**June 3, 2026** · Measurement, AI Citations, Reddit Questions · By GEO Repair
+
+AI mentions and AI citations are different metrics. Collapsing them into one visibility score hides the strategic problem you actually need to solve.
+
+A mention means an AI answer names your brand. A citation means the answer links to a URL. Both can matter, but they point to different parts of the buyer journey and different fixes.
+
+## What is an AI mention?
+
+An AI mention happens when the answer names a company, product, author, or source without linking to it. Mentions can build awareness. They can also show that the model associates your brand with a category.
+
+But a mention without a source is fragile. It may come from broad brand memory, third-party content, older training data, or uncited retrieval. You get visibility, but the answer does not attach a retrievable URL.
+
+## What is an AI citation?
+
+An AI citation is a linked source. This is usually more actionable because it tells you which page the system used. If your own URL is cited, you can improve that page, monitor crawler access, and track whether the same page keeps appearing over time.
+
+Citations are not automatically better than mentions for every business. A brand recommendation without a click can still influence demand. But citations give you stronger evidence about what content is being retrieved.
+
+## How should you report them?
+
+Use separate buckets:
+
+1. Brand mentions: the answer names you but does not link to your page.
+2. Owned citations: the answer links to your site.
+3. Third-party citations: the answer links to another source that mentions you.
+4. Competitor citations: the answer links to sources that recommend competitors instead.
+
+That split turns a vague visibility number into a fix list.
+
+## What does each problem mean?
+
+If you get mentions but no owned citations, your brand may be recognized but your pages may not be sourceable enough. Improve answer structure, schema, crawlability, and content depth.
+
+If competitors get cited and you do not, inspect the cited sources. The issue may be off-site placement rather than on-page content.
+
+If nobody is cited for the prompt, the query may not be a retrieval-heavy opportunity.
+
+Measure mentions for awareness. Measure citations for retrievability. You need both views to understand what is actually happening.
+
+---
+
+_Markdown copy of [AI mentions vs citations: track the right signal | GEO Repair](https://geo.repair/blog/ai-mentions-vs-citations), a faithful text version of the page for machines and readers. © GEO Repair._

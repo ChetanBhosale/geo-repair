@@ -1,5 +1,9 @@
 import { prisma } from "@repo/db";
-import type { FixRunState, SandboxStatus, FixCheckStatus } from "@repo/types/fix";
+import type {
+  FixRunState,
+  SandboxStatus,
+  FixCheckStatus,
+} from "@repo/types/fix";
 
 // DB helpers for a fix run: state transitions, per-check updates, and the
 // append-only event log. Kept separate so the activities stay readable.
@@ -11,7 +15,7 @@ export async function logEvent(
   fixRunId: string,
   type: string,
   phase: string | null,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown>,
 ): Promise<void> {
   // Next seq per run. We read max once then increment in-memory; safe because a
   // single activity writes events serially.
@@ -25,7 +29,9 @@ export async function logEvent(
   }
   const seq = ++seqCache[fixRunId]!;
 
-  console.log(`[fix-run ${fixRunId}] #${seq} ${type}${phase ? ` (${phase})` : ""}`);
+  console.log(
+    `[fix-run ${fixRunId}] #${seq} ${type}${phase ? ` (${phase})` : ""}`,
+  );
   // Round-trip through JSON so the value is a plain JSON-safe payload Prisma's
   // Json input accepts (drops undefined, functions, etc.).
   const safePayload =
@@ -41,7 +47,10 @@ export async function logEvent(
   });
 }
 
-export async function setState(fixRunId: string, state: FixRunState): Promise<void> {
+export async function setState(
+  fixRunId: string,
+  state: FixRunState,
+): Promise<void> {
   await prisma.fixRun.update({ where: { id: fixRunId }, data: { state } });
   await logEvent(fixRunId, "state_changed", state);
 }
@@ -49,7 +58,7 @@ export async function setState(fixRunId: string, state: FixRunState): Promise<vo
 export async function setSandbox(
   fixRunId: string,
   sandboxId: string | null,
-  sandboxStatus: SandboxStatus
+  sandboxStatus: SandboxStatus,
 ): Promise<void> {
   await prisma.fixRun.update({
     where: { id: fixRunId },
@@ -69,7 +78,7 @@ export async function setCheckStatus(
   fixRunId: string,
   rubricId: string,
   status: FixCheckStatus,
-  opts: { fixed?: boolean; note?: string } = {}
+  opts: { fixed?: boolean; note?: string } = {},
 ): Promise<void> {
   await prisma.fixCheck.update({
     where: { fixRunId_rubricId: { fixRunId, rubricId } },
@@ -86,7 +95,9 @@ export async function refreshCounters(fixRunId: string): Promise<void> {
   });
   const total = checks.length;
   const fixed = checks.filter((c) => c.fixed).length;
-  const pending = checks.filter((c) => c.status === "PENDING" || c.status === "FIXING").length;
+  const pending = checks.filter(
+    (c) => c.status === "PENDING" || c.status === "FIXING",
+  ).length;
   await prisma.fixRun.update({
     where: { id: fixRunId },
     data: { totalChecks: total, fixedChecks: fixed, pendingChecks: pending },
@@ -97,7 +108,7 @@ export async function setPr(
   fixRunId: string,
   branch: string,
   prUrl: string,
-  prNumber: number
+  prNumber: number,
 ): Promise<void> {
   await prisma.fixRun.update({
     where: { id: fixRunId },
@@ -110,7 +121,7 @@ export async function addCogs(
   fixRunId: string,
   tokensIn: number,
   tokensOut: number,
-  model: string
+  model: string,
 ): Promise<void> {
   const run = await prisma.fixRun.findUnique({
     where: { id: fixRunId },

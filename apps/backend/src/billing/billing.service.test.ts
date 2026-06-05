@@ -51,14 +51,14 @@ const prisma = {
       if (args.where.providerPaymentId) {
         return (
           [...orders.values()].find(
-            (order) => order.providerPaymentId === args.where.providerPaymentId
+            (order) => order.providerPaymentId === args.where.providerPaymentId,
           ) ?? null
         );
       }
       if (args.where.providerSessionId) {
         return (
           [...orders.values()].find(
-            (order) => order.providerSessionId === args.where.providerSessionId
+            (order) => order.providerSessionId === args.where.providerSessionId,
           ) ?? null
         );
       }
@@ -88,7 +88,7 @@ const prisma = {
           (event) =>
             event.provider === args.where.provider_providerEventId.provider &&
             event.providerEventId ===
-              args.where.provider_providerEventId.providerEventId
+              args.where.provider_providerEventId.providerEventId,
         ) ?? null
       );
     },
@@ -139,9 +139,8 @@ mock.module("./providers/dodo", () => ({
   unwrapDodoWebhook: (rawBody: string) => JSON.parse(rawBody),
 }));
 
-const { getFixTierForPageCount, processDodoWebhook } = await import(
-  "./billing.service.ts"
-);
+const { getFixTierForPageCount, processDodoWebhook } =
+  await import("./billing.service.ts");
 
 beforeEach(() => {
   resetStore();

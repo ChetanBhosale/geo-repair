@@ -10,7 +10,9 @@ const { prepareRun } = proxyActivities<typeof activities>({
   retry: { maximumAttempts: 3 },
 });
 
-const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<typeof activities>({
+const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<
+  typeof activities
+>({
   startToCloseTimeout: "45 minutes",
   retry: { maximumAttempts: 1 },
 });
@@ -20,7 +22,9 @@ const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<typeof acti
 // problem — runHarness and finalizeRun return outcomes as data and the sandbox
 // is always torn down. Only an infra failure in prepareRun (which is retried)
 // can surface as a workflow error.
-export async function fixSiteWorkflow(input: FixSiteInput): Promise<FixSiteResult> {
+export async function fixSiteWorkflow(
+  input: FixSiteInput,
+): Promise<FixSiteResult> {
   const { sandboxId, tasks } = await prepareRun(input);
 
   try {

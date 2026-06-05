@@ -40,7 +40,7 @@ function htmlAdvertisesTwin(page: PageModel): boolean {
   return page.links.some(
     (l) =>
       l.rel?.toLowerCase().split(/\s+/).includes("alternate") &&
-      (l.type?.toLowerCase() === "text/markdown"),
+      l.type?.toLowerCase() === "text/markdown",
   );
 }
 
@@ -78,28 +78,41 @@ export async function probeTwin(
   if (md.ok) {
     const ct = md.contentType.toLowerCase();
     base.contentTypeMarkdown = ct.startsWith("text/markdown");
-    base.tokensHeader = /^[1-9]\d*$/.test(md.headers["x-markdown-tokens"] ?? "");
-    base.noindex = (md.headers["x-robots-tag"] ?? "").toLowerCase().includes("noindex");
+    base.tokensHeader = /^[1-9]\d*$/.test(
+      md.headers["x-markdown-tokens"] ?? "",
+    );
+    base.noindex = (md.headers["x-robots-tag"] ?? "")
+      .toLowerCase()
+      .includes("noindex");
     base.varyAccept = headerHasToken(md.headers["vary"], "accept");
     base.nonEmptyBody = md.body.trim().length > 0;
     base.aeoVersion = /^\d+\.\d+$/.test(md.headers["x-aeo-version"] ?? "");
-    base.nosniff = (md.headers["x-content-type-options"] ?? "").toLowerCase() === "nosniff";
+    base.nosniff =
+      (md.headers["x-content-type-options"] ?? "").toLowerCase() === "nosniff";
   }
 
   // 2) Content negotiation on the HTML URL: Accept: text/markdown should return markdown.
-  const negotiated = await rawFetch(page.finalUrl, { ...options, accept: "text/markdown" });
+  const negotiated = await rawFetch(page.finalUrl, {
+    ...options,
+    accept: "text/markdown",
+  });
   if (!negotiated.error) {
-    base.acceptNegotiation = negotiated.contentType.toLowerCase().startsWith("text/markdown");
+    base.acceptNegotiation = negotiated.contentType
+      .toLowerCase()
+      .startsWith("text/markdown");
   }
 
   // 3) Bot-UA negotiation: a GPTBot UA should receive markdown by default.
   const bot = await rawFetch(page.finalUrl, {
     ...options,
-    userAgent: "Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)",
+    userAgent:
+      "Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)",
     accept: "*/*",
   });
   if (!bot.error) {
-    base.botUaNegotiation = bot.contentType.toLowerCase().startsWith("text/markdown");
+    base.botUaNegotiation = bot.contentType
+      .toLowerCase()
+      .startsWith("text/markdown");
   }
 
   return base;

@@ -14,7 +14,8 @@ export function buildAdvisories(ctx: CheckContext): AdvisoryItem[] {
 
   // 1) Core Web Vitals / performance. Needs real rendering or field data, not static HTML.
   const heavyHints: string[] = [];
-  if (page.scriptCount >= 15) heavyHints.push(`${page.scriptCount} script tags`);
+  if (page.scriptCount >= 15)
+    heavyHints.push(`${page.scriptCount} script tags`);
   if (page.htmlByteLength > 1_000_000) {
     heavyHints.push(`${Math.round(page.htmlByteLength / 1024)} KB HTML`);
   }
@@ -25,7 +26,9 @@ export function buildAdvisories(ctx: CheckContext): AdvisoryItem[] {
     detail:
       "Performance and layout-stability are a ranking pillar but cannot be measured from static HTML. We do not score them, so the overall number is not a performance grade.",
     needs: "Tier 1 (Playwright) timings or the PageSpeed Insights / CrUX API",
-    observed: heavyHints.length ? `static hints: ${heavyHints.join(", ")}` : null,
+    observed: heavyHints.length
+      ? `static hints: ${heavyHints.join(", ")}`
+      : null,
   });
 
   // 2) Multi-page crawl. We audited a single URL; real audits aggregate across key pages.
@@ -35,7 +38,8 @@ export function buildAdvisories(ctx: CheckContext): AdvisoryItem[] {
     status: "planned",
     detail:
       "This run scored a single page. Site-wide issues (duplicate titles/descriptions, orphan pages, inconsistent schema) need a crawl of key pages and are not reflected here.",
-    needs: "Sitemap-driven crawl of homepage + key pages, then per-check aggregation",
+    needs:
+      "Sitemap-driven crawl of homepage + key pages, then per-check aggregation",
     observed: domain.sitemap.ok
       ? `sitemap lists ${domain.sitemap.urlCount} URL(s) available to crawl`
       : "no usable sitemap found to seed a crawl",
@@ -48,7 +52,8 @@ export function buildAdvisories(ctx: CheckContext): AdvisoryItem[] {
     status: "not-measured",
     detail:
       "Whether AI engines cite third-party roundups instead of you is a placement signal on sites we do not control. It is non-deterministic, never scored, and cannot be fixed by a repo PR.",
-    needs: "Querying ChatGPT / Perplexity for category questions (diagnostic only, respect ToS)",
+    needs:
+      "Querying ChatGPT / Perplexity for category questions (diagnostic only, respect ToS)",
     observed: null,
   });
 
@@ -60,7 +65,8 @@ export function buildAdvisories(ctx: CheckContext): AdvisoryItem[] {
     detail: page.spaRootDetected
       ? "This page looks client-rendered, so the static read may understate its real content. We report ssr-visibility as a likely failure rather than executing JavaScript."
       : "We read the raw no-JS HTML only. Content injected purely by client JavaScript is not seen.",
-    needs: "Tier 1 headless render (Playwright + stealth) with the block detector",
+    needs:
+      "Tier 1 headless render (Playwright + stealth) with the block detector",
     observed: page.spaRootDetected
       ? `SPA shell detected (wordCount=${page.wordCount}, scripts=${page.scriptCount})`
       : null,

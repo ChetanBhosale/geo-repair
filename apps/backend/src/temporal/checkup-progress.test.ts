@@ -98,7 +98,9 @@ function createEvent(runId: string, event: EventCreate): EventRow {
     message: event.message,
     pageUrl: event.pageUrl ?? null,
     metadata: event.metadata,
-    createdAt: new Date(`2026-06-04T00:00:${String(nextId).padStart(2, "0")}.000Z`),
+    createdAt: new Date(
+      `2026-06-04T00:00:${String(nextId).padStart(2, "0")}.000Z`,
+    ),
   };
 }
 
@@ -135,9 +137,14 @@ const prisma = {
 
       for (const [key, value] of Object.entries(args.data)) {
         if (value === undefined) continue;
-        if (typeof value === "object" && value !== null && "increment" in value) {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "increment" in value
+        ) {
           const current = run[key as keyof RunRow];
-          if (typeof current !== "number") throw new Error(`cannot increment ${key}`);
+          if (typeof current !== "number")
+            throw new Error(`cannot increment ${key}`);
           (run as Record<string, unknown>)[key] = current + value.increment;
         } else {
           (run as Record<string, unknown>)[key] = value;
@@ -201,7 +208,7 @@ test("progress helpers create, update, append, and read checkup progress", async
   await setCheckupProgress(
     "workflow-1",
     { currentPageUrl: null },
-    { pagesCompleted: 1, checksEvaluated: 23, issuesFound: 4 }
+    { pagesCompleted: 1, checksEvaluated: 23, issuesFound: 4 },
   );
   await appendCheckupRunEvent("workflow-1", {
     phase: "scoring_pages",

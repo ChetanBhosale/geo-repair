@@ -80,11 +80,16 @@ export interface BuildFixPlanOptions {
 }
 
 /** A finding is worth acting on when it failed or partially failed somewhere. */
-function isActionable(status: RubricFinding["siteStatus"]): status is "fail" | "partial" | "mixed" {
+function isActionable(
+  status: RubricFinding["siteStatus"],
+): status is "fail" | "partial" | "mixed" {
   return status === "fail" || status === "partial" || status === "mixed";
 }
 
-export function buildFixPlan(findings: RubricFinding[], _opts: BuildFixPlanOptions = {}): FixPlan {
+export function buildFixPlan(
+  findings: RubricFinding[],
+  _opts: BuildFixPlanOptions = {},
+): FixPlan {
   const siteWide: FixTask[] = [];
   const perPage: FixTask[] = [];
   const flagged: FlaggedFinding[] = [];
@@ -97,7 +102,10 @@ export function buildFixPlan(findings: RubricFinding[], _opts: BuildFixPlanOptio
         rubricId: f.id,
         siteStatus: f.siteStatus,
         affectedCount: f.affectedCount,
-        reason: f.tier === "out-of-scope" ? "out of scope (flag only)" : "not agent-fixable",
+        reason:
+          f.tier === "out-of-scope"
+            ? "out of scope (flag only)"
+            : "not agent-fixable",
       });
       continue;
     }
@@ -109,7 +117,9 @@ export function buildFixPlan(findings: RubricFinding[], _opts: BuildFixPlanOptio
     const applicable = f.counts.pass + f.counts.partial + f.counts.fail;
     const failsEverywhere = applicable > 1 && f.affectedCount === applicable;
     const scope: FindingScope =
-      f.scope === "site-wide" || (isCentralizable(f.id) && failsEverywhere) ? "site-wide" : "per-page";
+      f.scope === "site-wide" || (isCentralizable(f.id) && failsEverywhere)
+        ? "site-wide"
+        : "per-page";
 
     const task: FixTask = {
       rubricId: f.id,
@@ -123,14 +133,19 @@ export function buildFixPlan(findings: RubricFinding[], _opts: BuildFixPlanOptio
       affectedCount: f.affectedCount,
       representativeEvidence: f.representativeEvidence,
       gated: f.tier === "C",
-      pages: f.pages.map((p) => ({ url: p.url, status: p.status, evidence: p.evidence })),
+      pages: f.pages.map((p) => ({
+        url: p.url,
+        status: p.status,
+        evidence: p.evidence,
+      })),
     };
 
     (scope === "site-wide" ? siteWide : perPage).push(task);
   }
 
   // Highest weight first, then most-affected — matches the agent's "process highest-weight first".
-  const byPriority = (a: FixTask, b: FixTask) => b.weight - a.weight || b.affectedCount - a.affectedCount;
+  const byPriority = (a: FixTask, b: FixTask) =>
+    b.weight - a.weight || b.affectedCount - a.affectedCount;
   siteWide.sort(byPriority);
   perPage.sort(byPriority);
 
@@ -140,6 +155,11 @@ export function buildFixPlan(findings: RubricFinding[], _opts: BuildFixPlanOptio
     siteWide,
     perPage,
     flagged,
-    totals: { tasks: siteWide.length + perPage.length, siteWide: siteWide.length, perPage: perPage.length, gated },
+    totals: {
+      tasks: siteWide.length + perPage.length,
+      siteWide: siteWide.length,
+      perPage: perPage.length,
+      gated,
+    },
   };
 }

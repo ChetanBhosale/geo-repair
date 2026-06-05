@@ -22,6 +22,9 @@ import { Faq } from "@/components/sections/faq"
 import { CtaBand } from "@/components/sections/cta-band"
 import { CornerMarks } from "@/components/sections/frame"
 import { CtaButton } from "@/components/analytics/cta-button"
+import { EeatBadge } from "@/components/layout/eeat-badge"
+import { DefinitionsGlossary } from "@/components/sections/definitions-glossary"
+import { CitationReferences } from "@/components/sections/citation-references"
 
 export const metadata = buildMetadata({
   title:
@@ -30,6 +33,32 @@ export const metadata = buildMetadata({
     "Run a free AI-search readiness checkup, no signup, no card. Fix it with a one-time fee sized to your sitemap, starting at $49.",
   path: "/pricing",
 })
+
+const PRICING_TERMS = [
+  {
+    name: "AI Search Fix",
+    definition: "A targeted, sandbox-validated code change that corrects technical crawl, structured data, and rendering issues directly in your repository.",
+  },
+  {
+    name: "Autopilot",
+    definition: "A system that continually scans your sitemap, identifies new pages or content drift, and automates new fix pull requests.",
+  }
+]
+
+const PRICING_REFERENCES = [
+  {
+    title: "Google Search Central: Price & Product Schema Guides",
+    sourceName: "Google Search Central",
+    url: "https://developers.google.com/search/docs/appearance/structured-data/product",
+    description: "Our structured data and pricing formats align with Google's official structured data schemas for products, merchants, and pricing transparency.",
+  },
+  {
+    title: "OpenAI GPTBot Crawler Documentation",
+    sourceName: "OpenAI Docs",
+    url: "https://platform.openai.com/docs/gptbot",
+    description: "Detailed behavior guidelines for GPTBot on handling and caching pricing structures and public web layouts.",
+  }
+]
 
 // Shared vertical card for the free checkup plan. The one-time fix uses its own
 // compact tier cards below.
@@ -113,6 +142,8 @@ export default function PricingPage() {
         title={PRICING_HEADER.title}
         description={PRICING_HEADER.description}
       />
+
+      <EeatBadge />
 
       {/* Step 1 — the free checkup. */}
       <Section
@@ -216,6 +247,10 @@ export default function PricingPage() {
           .
         </p>
       </Section>
+
+      <DefinitionsGlossary terms={PRICING_TERMS} />
+
+      <CitationReferences references={PRICING_REFERENCES} />
 
       <Faq
         items={PRICING_FAQ}

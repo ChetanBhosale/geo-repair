@@ -14,7 +14,13 @@ import type {
 } from "./types.ts";
 
 // Inline elements whose text should not introduce whitespace gaps.
-const SKIP_TEXT_TAGS = new Set(["script", "style", "noscript", "template", "svg"]);
+const SKIP_TEXT_TAGS = new Set([
+  "script",
+  "style",
+  "noscript",
+  "template",
+  "svg",
+]);
 
 function parseJsonLd(raw: string): JsonLdBlock {
   const trimmed = raw.trim();
@@ -33,7 +39,8 @@ function parseJsonLd(raw: string): JsonLdBlock {
         const obj = node as Record<string, unknown>;
         const t = obj["@type"];
         if (typeof t === "string") types.add(t);
-        else if (Array.isArray(t)) t.forEach((x) => typeof x === "string" && types.add(x));
+        else if (Array.isArray(t))
+          t.forEach((x) => typeof x === "string" && types.add(x));
         if (Array.isArray(obj["@graph"])) collect(obj["@graph"]);
       }
     };
@@ -100,18 +107,29 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
   let noscriptBuf: string | null = null;
 
   // Current heading/anchor capture.
-  type Capture = { kind: "heading"; level: number; text: string } | {
-    kind: "anchor";
-    attrs: Map<string, string>;
-    text: string;
-    hasImg: boolean;
-    imgAlt?: string;
-  } | { kind: "interactive"; tag: Interactive["tag"]; attrs: Map<string, string>; text: string };
+  type Capture =
+    | { kind: "heading"; level: number; text: string }
+    | {
+        kind: "anchor";
+        attrs: Map<string, string>;
+        text: string;
+        hasImg: boolean;
+        imgAlt?: string;
+      }
+    | {
+        kind: "interactive";
+        tag: Interactive["tag"];
+        attrs: Map<string, string>;
+        text: string;
+      };
   let capture: Capture | null = null;
 
   const visibleParts: string[] = [];
 
-  const getAttrs = (el: { getAttribute: (n: string) => string | null }, names: string[]): Map<string, string> => {
+  const getAttrs = (
+    el: { getAttribute: (n: string) => string | null },
+    names: string[],
+  ): Map<string, string> => {
     const m = new Map<string, string>();
     for (const n of names) {
       const v = el.getAttribute(n);
@@ -189,10 +207,26 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
         }
       },
     })
-    .on("header", { element() { landmarks.header = true; } })
-    .on("nav", { element() { landmarks.nav = true; } })
-    .on("main", { element() { landmarks.main = true; } })
-    .on("footer", { element() { landmarks.footer = true; } })
+    .on("header", {
+      element() {
+        landmarks.header = true;
+      },
+    })
+    .on("nav", {
+      element() {
+        landmarks.nav = true;
+      },
+    })
+    .on("main", {
+      element() {
+        landmarks.main = true;
+      },
+    })
+    .on("footer", {
+      element() {
+        landmarks.footer = true;
+      },
+    })
     .on("label", {
       element(el) {
         const f = el.getAttribute("for");
@@ -264,8 +298,17 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
   rewriter.on("input", {
     element(el) {
       const attrs = getAttrs(el, [
-        "type", "aria-label", "aria-labelledby", "aria-hidden", "title",
-        "value", "alt", "placeholder", "id", "role", "disabled",
+        "type",
+        "aria-label",
+        "aria-labelledby",
+        "aria-hidden",
+        "title",
+        "value",
+        "alt",
+        "placeholder",
+        "id",
+        "role",
+        "disabled",
       ]);
       interactives.push({
         tag: "input",
@@ -278,7 +321,11 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
     },
   });
 
-  const interactiveTags: Exclude<Interactive["tag"], "input">[] = ["button", "select", "textarea"];
+  const interactiveTags: Exclude<Interactive["tag"], "input">[] = [
+    "button",
+    "select",
+    "textarea",
+  ];
   for (const tag of interactiveTags) {
     rewriter.on(tag, {
       element(el) {
@@ -311,7 +358,8 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
         });
       },
       text(t) {
-        if (capture?.kind === "interactive" && capture.tag === tag) capture.text += t.text;
+        if (capture?.kind === "interactive" && capture.tag === tag)
+          capture.text += t.text;
       },
     });
   }
@@ -366,7 +414,8 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
   }
 
   const viewport = metaByKey.get("viewport") ?? null;
-  const viewportResponsive = viewport !== null && /width\s*=\s*device-width/i.test(viewport);
+  const viewportResponsive =
+    viewport !== null && /width\s*=\s*device-width/i.test(viewport);
 
   const visibleText = visibleParts.join(" ").replace(/\s+/g, " ").trim();
   const wordCount = visibleText ? visibleText.split(/\s+/).length : 0;
@@ -375,7 +424,8 @@ export async function parsePage(raw: RawFetch): Promise<PageModel> {
   const bodyTextLen = visibleText.length;
   const spaRootDetected =
     bodyTextLen < 200 &&
-    (/<div[^>]+id=["'](root|app|__next|___gatsby)["']/i.test(html) || scriptCount >= 1);
+    (/<div[^>]+id=["'](root|app|__next|___gatsby)["']/i.test(html) ||
+      scriptCount >= 1);
 
   return {
     requestedUrl: raw.requestedUrl,

@@ -1,6 +1,8 @@
 import Secrets from "@repo/secrets/backend";
 
-function required(name: "TEMPORAL_API_KEY" | "TEMPORAL_ENDPOINT" | "TEMPORAL_NAMESPACE") {
+function required(
+  name: "TEMPORAL_API_KEY" | "TEMPORAL_ENDPOINT" | "TEMPORAL_NAMESPACE",
+) {
   const value = Secrets[name];
   if (!value) {
     throw new Error(`${name} must be set to connect to Temporal Cloud.`);

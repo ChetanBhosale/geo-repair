@@ -19,12 +19,47 @@ import {
   FREE_TOOLS_HEADER,
 } from "@/lib/free-tools-content"
 import { buildMetadata, breadcrumbJsonLd, SITE } from "@/lib/seo"
+import { EeatBadge } from "@/components/layout/eeat-badge"
+import { DefinitionsGlossary } from "@/components/sections/definitions-glossary"
+import { CitationReferences } from "@/components/sections/citation-references"
 
 export const metadata = buildMetadata({
   title: FREE_TOOLS_HEADER.metaTitle,
   description: FREE_TOOLS_HEADER.metaDescription,
   path: FREE_TOOLS_HEADER.path,
 })
+
+const FREE_TOOLS_TERMS = [
+  {
+    name: "Generative Engine Optimization (GEO)",
+    definition: "The structural and mathematical optimization of web layouts, metadata, and body content to align with LLM ranking and retrieval parameters.",
+  },
+  {
+    name: "Answer Engine Optimization (AEO)",
+    definition: "A specialized field focused on structuring and presenting direct answers to questions, facilitating easy and rapid extraction by conversational models.",
+  }
+]
+
+const FREE_TOOLS_REFERENCES = [
+  {
+    title: "IETF RFC 9309: Robots Exclusion Protocol",
+    sourceName: "IETF Standards",
+    url: "https://datatracker.ietf.org/doc/html/rfc9309",
+    description: "Our crawler analysis and validation tool complies strictly with the formal internet standards established under RFC 9309 for web crawling exclusions.",
+  },
+  {
+    title: "Sitemaps.org Protocol specifications",
+    sourceName: "Sitemaps.org",
+    url: "https://www.sitemaps.org/protocol.html",
+    description: "Our sitemap analyzers parse XML indexes against the official Sitemaps XML Schema definition maintained by Sitemaps.org.",
+  },
+  {
+    title: "W3C HTML Living Standard specifications",
+    sourceName: "WHATWG Living Standard",
+    url: "https://html.spec.whatwg.org/multipage/",
+    description: "Our clean HTML rendering checker validates page structure against the latest living standard markup spec compiled by WHATWG and W3C.",
+  }
+]
 
 function softwareApplicationJsonLd() {
   return {
@@ -83,6 +118,8 @@ export default function FreeGeoToolsPage() {
         title={FREE_TOOLS_HEADER.title}
         description={FREE_TOOLS_HEADER.description}
       />
+
+      <EeatBadge />
 
       <Section className="border-t-0 pt-12">
         <div className="relative mx-auto grid max-w-5xl border border-border bg-border md:grid-cols-[1.1fr_0.9fr]">
@@ -178,6 +215,10 @@ export default function FreeGeoToolsPage() {
           ))}
         </div>
       </Section>
+
+      <DefinitionsGlossary terms={FREE_TOOLS_TERMS} />
+
+      <CitationReferences references={FREE_TOOLS_REFERENCES} />
 
       <Section
         eyebrow="Fix path"

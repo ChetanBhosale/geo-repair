@@ -8,7 +8,7 @@ const { runCheckup } = proxyActivities<typeof activities>({
 });
 
 export async function checkupWorkflow(
-  input: CheckupInput
+  input: CheckupInput,
 ): Promise<CheckupResult> {
   return runCheckup(input);
 }
