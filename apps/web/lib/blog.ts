@@ -146,6 +146,36 @@ const POSTS: Post[] = [
     author: "GEO Repair",
   },
   {
+    slug: "tool-optimize-aeo-seo-geo-website",
+    title: "Is There a Tool That Optimizes AEO, SEO, and GEO for My Website?",
+    description:
+      "Yes, but the useful tool changes the website, not just the score. Here is what an AEO, SEO, and GEO tool should diagnose, fix, and verify.",
+    date: "2026-06-05",
+    thumbnail: "/images/blog/aeo-seo-geo-tool.jpg",
+    tags: ["AEO", "GEO", "Tools"],
+    author: "GEO Repair",
+  },
+  {
+    slug: "ai-tool-actually-fixes-aeo-geo-issues",
+    title: "Is There an AI Tool That Actually Fixes AEO and GEO Issues?",
+    description:
+      "Most tools report AI visibility problems. A real fixing tool works at the website source level, opens a pull request, and re-checks the result.",
+    date: "2026-06-05",
+    thumbnail: "/images/blog/ai-tool-fixes-aeo-geo.jpg",
+    tags: ["AEO", "GEO", "Fixes"],
+    author: "GEO Repair",
+  },
+  {
+    slug: "aeo-geo-audit-tool-vs-fix-tool",
+    title: "AEO and GEO Audit Tools vs Fix Tools: What Is the Difference?",
+    description:
+      "An audit tool tells you what is wrong. A fix tool changes the website and verifies the blocker was removed. Here is when to use each one.",
+    date: "2026-06-05",
+    thumbnail: "/images/blog/audit-vs-fix-tools.jpg",
+    tags: ["AEO", "GEO", "Tools"],
+    author: "GEO Repair",
+  },
+  {
     slug: "is-seo-worth-it-2026",
     title: "Is SEO Still Worth It in 2026?",
     description:
