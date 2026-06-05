@@ -5,7 +5,12 @@ import { notFound } from "next/navigation"
 import { ArrowLeftIcon } from "@phosphor-icons/react/ssr"
 
 import { buildMetadata, breadcrumbJsonLd, SITE } from "@/lib/seo"
-import { getAllSlugs, getPostBySlug } from "@/lib/blog"
+import {
+  getAllSlugs,
+  getPostBySlug,
+  getPostModifiedDate,
+  getPostSeoTitle,
+} from "@/lib/blog"
 import { JsonLd } from "@/components/seo/json-ld"
 import { Prose } from "@/components/layout/prose"
 
@@ -34,7 +39,7 @@ export async function generateMetadata({
   if (!post) return {}
 
   return buildMetadata({
-    title: `${post.title} · GEO Repair`,
+    title: getPostSeoTitle(post),
     description: post.description,
     path: `/blog/${post.slug}`,
     ogType: "article",
@@ -51,9 +56,10 @@ function articleJsonLd(slug: string) {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: post.title,
+    alternativeHeadline: getPostSeoTitle(post),
     description: post.description,
     datePublished: post.date,
-    dateModified: post.updated ?? post.date,
+    dateModified: getPostModifiedDate(post),
     author: { "@type": "Organization", name: post.author, url: SITE.url },
     publisher: {
       "@type": "Organization",

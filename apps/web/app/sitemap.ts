@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next"
 
-import { getAllPosts } from "@/lib/blog"
+import { getAllPosts, getPostModifiedDate } from "@/lib/blog"
 import { SITE } from "@/lib/seo"
 
 const STATIC_ROUTES = [
@@ -27,7 +27,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const postEntries: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
     url: new URL(`/blog/${post.slug}`, SITE.url).toString(),
-    lastModified: new Date(post.updated ?? post.date),
+    lastModified: new Date(getPostModifiedDate(post)),
     changeFrequency: "monthly",
     priority: 0.6,
   }))

@@ -10,6 +10,8 @@ export type Post = {
   draft?: boolean
 }
 
+export const BLOG_SEO_METADATA_UPDATED = "2026-06-05"
+
 // Post metadata lives here (typed, single source); the prose lives in the
 // matching content/blog/<slug>.mdx file, imported by the post route. Keeping
 // metadata out of MDX frontmatter avoids runtime parsing and keeps the
@@ -348,6 +350,79 @@ const POSTS: Post[] = [
   },
 ]
 
+const SEO_TITLES_BY_SLUG: Record<string, string> = {
+  "free-geo-tools-2026":
+    "Free GEO tools in 2026: choose audits before paid platforms | GEO Repair",
+  "what-is-ai-search-optimization":
+    "What is AI search optimization? Fix crawl blockers | GEO Repair",
+  "how-ai-crawlers-read-your-site":
+    "How AI crawlers read your site: expose HTML | GEO Repair",
+  "ai-search-optimization-checklist":
+    "AI search checklist: fix crawl, schema, and answers | GEO Repair",
+  "increase-ai-citation-chances":
+    "Increase AI citation chances with sourceable pages | GEO Repair",
+  "traditional-seo-ai-overviews":
+    "Traditional SEO for AI Overviews: keep clicks | GEO Repair",
+  "ai-mentions-vs-citations":
+    "AI mentions vs citations: track the right signal | GEO Repair",
+  "automated-ai-blog-publishing":
+    "AI blog automation: avoid thin content risks | GEO Repair",
+  "rankings-good-traffic-dropping-ai-search":
+    "Traffic dropping despite rankings? Fix AI CTR loss | GEO Repair",
+  "is-ai-search-optimization-just-seo":
+    "Is AI search optimization just SEO? Add crawl fixes | GEO Repair",
+  "google-search-console-ai-search-gaps":
+    "Google Search Console gaps for AI search | GEO Repair",
+  "ai-overviews-organic-traffic":
+    "Do AI Overviews kill organic traffic? Find pages losing clicks | GEO Repair",
+  "chatgpt-perplexity-business-recommendations":
+    "Get recommended by ChatGPT with stronger entity signals | GEO Repair",
+  "ai-search-optimization-tool-checklist":
+    "AI search tool checklist: audit, scan, report, fix, and verify | GEO Repair",
+  "tool-optimize-aeo-seo-geo-website":
+    "Free GEO and AEO scan: check your website before buying tools | GEO Repair",
+  "ai-tool-actually-fixes-aeo-geo-issues":
+    "Free AEO audit: find GEO issues, then fix them in code | GEO Repair",
+  "aeo-geo-audit-tool-vs-fix-tool":
+    "Free AEO and GEO audit tools vs fix tools | GEO Repair",
+  "is-seo-worth-it-2026":
+    "Is SEO worth it in 2026? Build trust and AI-readable pages | GEO Repair",
+  "ai-content-seo-mistakes":
+    "AI content SEO mistakes: avoid generic drafts | GEO Repair",
+  "eeat-ai-search-trust":
+    "E-E-A-T for AI search: prove experience, sources, and trust | GEO Repair",
+  "content-ai-answers-cannot-replace":
+    "Content AI answers cannot replace: tools, data, proof | GEO Repair",
+  "ai-translation-international-seo":
+    "AI translation for SEO: add hreflang and local intent | GEO Repair",
+  "titles-meta-descriptions-ai-answers":
+    "Titles and descriptions for AI answers: clearer snippets | GEO Repair",
+  "topical-authority-ai-search":
+    "Topical authority for AI search: connect expert pages | GEO Repair",
+  "server-rendered-content-ai-search":
+    "Server-rendered content for AI search: expose HTML | GEO Repair",
+  "structured-data-for-ai-search":
+    "Structured data for AI search: match JSON-LD to pages | GEO Repair",
+  "robots-txt-ai-crawlers":
+    "Robots.txt for AI crawlers: allow useful pages and block noise | GEO Repair",
+  "llms-txt-for-ai-search":
+    "llms.txt for AI search: publish a clean site map | GEO Repair",
+  "answer-first-content-ai-search":
+    "Answer-first content for AI search: write quotable sections | GEO Repair",
+  "ai-search-optimization-for-saas":
+    "AI search for SaaS: fix pricing and security pages | GEO Repair",
+  "next-js-ai-search-audit":
+    "Next.js AI search audit: fix rendering and metadata | GEO Repair",
+  "product-pages-ai-search-readiness":
+    "Product page AI search checklist: clarify features | GEO Repair",
+  "measure-ai-search-readiness":
+    "AI search readiness report: measure crawl and schema | GEO Repair",
+}
+
+function latestIsoDate(a: string, b: string): string {
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b
+}
+
 export function getAllPosts(): Post[] {
   return POSTS.filter((post) => !post.draft).sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -361,4 +436,12 @@ export function getPostBySlug(slug: string): Post | undefined {
 
 export function getAllSlugs(): string[] {
   return getAllPosts().map((post) => post.slug)
+}
+
+export function getPostSeoTitle(post: Post): string {
+  return SEO_TITLES_BY_SLUG[post.slug] ?? `${post.title} | GEO Repair`
+}
+
+export function getPostModifiedDate(post: Post): string {
+  return latestIsoDate(post.updated ?? post.date, BLOG_SEO_METADATA_UPDATED)
 }

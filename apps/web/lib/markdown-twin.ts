@@ -41,7 +41,7 @@ import {
   CONTACT_HEADER,
   CONTACT_CHANNELS,
 } from "./marketing-content"
-import { getAllPosts, getPostBySlug } from "./blog"
+import { getAllPosts, getPostBySlug, getPostSeoTitle } from "./blog"
 export { MARKDOWN_TWIN_PATHS, markdownTwinPath } from "./twin-paths"
 
 // Markdown "twins": a faithful, machine-readable copy of each primary page,
@@ -371,7 +371,7 @@ async function blogPostTwin(slug: string): Promise<string | null> {
   ].join("\n")
 
   return doc({
-    title: post.title,
+    title: getPostSeoTitle(post),
     description: post.description,
     canonicalPath: `/blog/${slug}`,
     body,
