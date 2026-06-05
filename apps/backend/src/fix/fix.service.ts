@@ -3,7 +3,10 @@ import type {
   FixRunSummary,
   FixRunDetail,
   FixRunIntake,
+  FixRunCogs,
 } from "@repo/types/fix";
+
+const exposeInternalCosts = process.env.NODE_ENV !== "production";
 
 // Map a FixRun (+ repo) DB row to the summary view used by the polling endpoint.
 function toSummary(run: {
@@ -16,6 +19,14 @@ function toSummary(run: {
   pendingChecks: number;
   prUrl: string | null;
   error: string | null;
+  model: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  sandboxSeconds: number | null;
+  imageCount: number;
+  tokenCostCents: number;
+  sandboxCostCents: number;
+  imageCostCents: number;
   createdAt: Date;
   updatedAt: Date;
   repository: { fullName: string };
@@ -31,8 +42,36 @@ function toSummary(run: {
     pendingChecks: run.pendingChecks,
     prUrl: run.prUrl,
     error: run.error,
+    cogs: exposeInternalCosts ? toCogs(run) : null,
     createdAt: run.createdAt.toISOString(),
     updatedAt: run.updatedAt.toISOString(),
+  };
+}
+
+function toCogs(run: {
+  model: string | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  sandboxSeconds: number | null;
+  imageCount: number;
+  tokenCostCents: number;
+  sandboxCostCents: number;
+  imageCostCents: number;
+}): FixRunCogs {
+  const tokenCostCents = run.tokenCostCents ?? 0;
+  const sandboxCostCents = run.sandboxCostCents ?? 0;
+  const imageCostCents = run.imageCostCents ?? 0;
+
+  return {
+    model: run.model,
+    tokensIn: run.tokensIn ?? 0,
+    tokensOut: run.tokensOut ?? 0,
+    sandboxSeconds: run.sandboxSeconds ?? 0,
+    imageCount: run.imageCount,
+    tokenCostCents,
+    sandboxCostCents,
+    imageCostCents,
+    totalCostCents: tokenCostCents + sandboxCostCents + imageCostCents,
   };
 }
 

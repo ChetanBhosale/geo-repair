@@ -345,6 +345,11 @@ model FixRun {
   tokensIn       Int?
   tokensOut      Int?
   sandboxSeconds Int?
+  imageCount     Int @default(0)
+
+  tokenCostCents   Int @default(0)
+  sandboxCostCents Int @default(0)
+  imageCostCents   Int @default(0)
 
   error String?
 

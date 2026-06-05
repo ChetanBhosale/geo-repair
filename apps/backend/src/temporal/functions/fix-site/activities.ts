@@ -22,6 +22,7 @@ import {
   refreshCounters,
   setPr,
   addCogs,
+  recordSandboxCogs,
 } from "./run-store";
 
 const REPO_DIR = "/home/user/repo";
@@ -664,5 +665,10 @@ export async function teardownSandbox(
     // already gone
   }
   await setSandbox(input.fixRunId, sandboxId, "KILLED");
-  await logEvent(input.fixRunId, "sandbox_killed", null, { sandboxId });
+  const cogs = await recordSandboxCogs(input.fixRunId);
+  await logEvent(input.fixRunId, "sandbox_killed", null, {
+    sandboxId,
+    sandboxSeconds: cogs?.sandboxSeconds ?? null,
+    sandboxCostCents: cogs?.sandboxCostCents ?? null,
+  });
 }
