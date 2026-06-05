@@ -1,16 +1,28 @@
-import { proxyActivities } from "@temporalio/workflow";
+import {
+  condition,
+  defineSignal,
+  proxyActivities,
+  setHandler,
+} from "@temporalio/workflow";
+import type { FixRunIntake } from "@repo/types/fix";
 import type { FixSiteInput, FixSiteResult } from "../../shared";
 import type * as activities from "./activities";
 
-// prepareRun (scan + sandbox + clone) can be retried safely — it reconnects to
-// the stored sandbox id. The harness and finalize are designed to never throw,
-// so they don't need retries; we keep one attempt to avoid duplicate PRs.
-const { prepareRun } = proxyActivities<typeof activities>({
+export const submitFixIntakeSignal =
+  defineSignal<[FixRunIntake]>("submitFixIntake");
+
+// planRun can be retried safely before a sandbox exists. prepareSandbox can be
+// retried safely because it reconnects to the stored sandbox id. The harness
+// and finalize are designed to never throw, so they don't need retries; we keep
+// one attempt to avoid duplicate PRs.
+const { planRun, prepareSandbox } = proxyActivities<typeof activities>({
   startToCloseTimeout: "15 minutes",
   retry: { maximumAttempts: 3 },
 });
 
-const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<typeof activities>({
+const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<
+  typeof activities
+>({
   startToCloseTimeout: "45 minutes",
   retry: { maximumAttempts: 1 },
 });
@@ -18,14 +30,26 @@ const { runHarness, finalizeRun, teardownSandbox } = proxyActivities<typeof acti
 // The fix run is a harness: prepare the sandbox, let one autonomous agent fix
 // the repo, then finalize (push + PR). The workflow never hard-fails on a fix
 // problem — runHarness and finalizeRun return outcomes as data and the sandbox
-// is always torn down. Only an infra failure in prepareRun (which is retried)
-// can surface as a workflow error.
+// is always torn down. Only infra failures in planning or sandbox setup can
+// surface as workflow errors.
 export async function fixSiteWorkflow(input: FixSiteInput): Promise<FixSiteResult> {
-  const { sandboxId, tasks } = await prepareRun(input);
+  let intake = input.intake;
+  setHandler(submitFixIntakeSignal, (submitted) => {
+    intake = submitted;
+  });
+
+  const { tasks, clarificationRequest } = await planRun(input);
+
+  if (!intake?.answers.length && clarificationRequest?.questions.length) {
+    await condition(() => !!intake?.answers.length);
+  }
+
+  const runInput: FixSiteInput = intake ? { ...input, intake } : input;
+  const { sandboxId } = await prepareSandbox(runInput);
 
   try {
-    const { committed, summary } = await runHarness(input, sandboxId, tasks);
-    const result = await finalizeRun(input, sandboxId, committed, summary);
+    const { committed, summary } = await runHarness(runInput, sandboxId, tasks);
+    const result = await finalizeRun(runInput, sandboxId, committed, summary);
     return {
       prUrl: result.prUrl ?? "",
       prNumber: result.prNumber ?? 0,
@@ -33,6 +57,6 @@ export async function fixSiteWorkflow(input: FixSiteInput): Promise<FixSiteResul
       totalChecks: result.totalChecks,
     };
   } finally {
-    await teardownSandbox(input, sandboxId);
+    await teardownSandbox(runInput, sandboxId);
   }
 }

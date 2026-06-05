@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FixRunIntake, FixRunState } from "@repo/types/fix"
-import { startFix, getFixRuns, getFixRun } from "@/lib/api"
+import { startFix, getFixRuns, getFixRun, submitFixIntake } from "@/lib/api"
 
 const TERMINAL: FixRunState[] = ["PR_OPENED", "COMPLETED", "FAILED"]
 
@@ -14,14 +14,23 @@ export function useStartFix() {
       website,
       repositoryId,
       orderId,
-      intake,
     }: {
       website: string
       repositoryId: string
       orderId: string
-      intake?: FixRunIntake
-    }) => startFix(website, repositoryId, orderId, intake),
+    }) => startFix(website, repositoryId, orderId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fix-runs"] }),
+  })
+}
+
+export function useSubmitFixIntake(runId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (intake: FixRunIntake) => submitFixIntake(runId, intake),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fix-runs"] })
+      qc.invalidateQueries({ queryKey: ["fix-run", runId] })
+    },
   })
 }
 

@@ -9,6 +9,7 @@ import {
   sandboxTools,
 } from "@repo/sandbox";
 import Secrets from "@repo/secrets/backend";
+import type { FixClarificationRequest } from "@repo/types/fix";
 import type { FixSiteInput } from "../../shared";
 import { checkSite } from "../checkup/crawler";
 import { buildFixPlan } from "./fix-plan";
@@ -39,20 +40,23 @@ export interface HarnessResult {
   error: string | null;
 }
 
-// ── 1. Scan + plan + sandbox + clone. Records the checks for the UI and gets
-//      the repo onto a fix branch in a live sandbox. Returns the failing-check
-//      task list for the agent. Best-effort; only true infra errors throw
-//      (Temporal will retry those against the same sandbox id). ───────────────
-export async function prepareRun(input: FixSiteInput): Promise<{
-  sandboxId: string;
-  branch: string;
-  tasks: {
-    rubricId: string;
-    category: string;
-    scope: string;
-    skill: string | null;
-  }[];
-}> {
+export interface PlannedFixTask {
+  rubricId: string;
+  category: string;
+  scope: string;
+  tier: string;
+  affectedCount: number;
+  skill: string | null;
+}
+
+export interface PlanRunResult {
+  tasks: PlannedFixTask[];
+  clarificationRequest: FixClarificationRequest | null;
+}
+
+// ── 1. Scan + plan. Records the checks for the UI and emits the agent's
+//      clarification request before any sandbox is created. ──────────────────
+export async function planRun(input: FixSiteInput): Promise<PlanRunResult> {
   // Fresh authoritative scan -> fix plan.
   await setState(input.fixRunId, "SCANNING");
   await logEvent(input.fixRunId, "scan_started", null, {
@@ -110,7 +114,31 @@ export async function prepareRun(input: FixSiteInput): Promise<{
     flagged: plan.flagged.length,
   });
 
-  // Sandbox: reconnect to a stored id (crash recovery) or create fresh.
+  const tasks = planTasks.map((t) => ({
+    rubricId: t.rubricId,
+    category: t.category,
+    scope: t.scope,
+    tier: t.tier,
+    affectedCount: t.affectedCount,
+    skill: loadSkill(t.rubricId),
+  }));
+
+  const clarificationRequest = buildClarificationRequest(tasks);
+  if (clarificationRequest && !input.intake?.answers.length) {
+    await logEvent(input.fixRunId, "agent_clarification_requested", null, {
+      ...clarificationRequest,
+    });
+  }
+
+  return { tasks, clarificationRequest };
+}
+
+// ── 2. Sandbox + clone. Gets the repo onto a fix branch in a live sandbox.
+//      Best-effort; only true infra errors throw so Temporal can retry. ───────
+export async function prepareSandbox(input: FixSiteInput): Promise<{
+  sandboxId: string;
+  branch: string;
+}> {
   const run = await prisma.fixRun.findUnique({
     where: { id: input.fixRunId },
     select: { sandboxId: true },
@@ -166,28 +194,172 @@ export async function prepareRun(input: FixSiteInput): Promise<{
   }
   await runCommand(sandbox, `git checkout -B ${branch}`, { cwd: REPO_DIR });
 
-  const tasks = planTasks.map((t) => ({
-    rubricId: t.rubricId,
-    category: t.category,
-    scope: t.scope,
-    skill: loadSkill(t.rubricId),
-  }));
-
-  return { sandboxId, branch, tasks };
+  return { sandboxId, branch };
 }
 
-// ── 2. The harness: ONE autonomous agent with full sandbox access. Explores,
+function buildClarificationRequest(
+  tasks: PlannedFixTask[],
+): FixClarificationRequest | null {
+  if (tasks.length === 0) return null;
+
+  const topChecks = tasks
+    .slice(0, 4)
+    .map((task) => task.rubricId)
+    .join(", ");
+  const categories = Array.from(new Set(tasks.map((task) => task.category)));
+  const categorySummary =
+    categories.length > 3
+      ? `${categories.slice(0, 3).join(", ")} and ${categories.length - 3} more`
+      : categories.join(", ");
+  const summary = `I found ${tasks.length} fixable AI search readiness ${tasks.length === 1 ? "check" : "checks"} across ${categorySummary}. Top checks: ${topChecks}.`;
+
+  const questions: FixClarificationRequest["questions"] = [
+    {
+      id: `agent_scope_${tasks
+        .slice(0, 3)
+        .map((task) => task.rubricId.replace(/[^a-z0-9]+/gi, "_"))
+        .join("_")}`,
+      question: "What scope should I use for this fix PR?",
+      notePlaceholder:
+        "List pages, sections, brand phrases, or components I should avoid.",
+      options: [
+        {
+          id: "technical_only",
+          label: "Technical only",
+          description:
+            "Fix metadata, schema, crawler files, labels, and markup without changing visible copy.",
+        },
+        {
+          id: "use_existing_copy",
+          label: "Use existing copy",
+          description:
+            "I can clarify or reorganize copy that is already present on the site.",
+        },
+        {
+          id: "small_content_blocks",
+          label: "Small content blocks",
+          description:
+            "I can add short FAQ, definition, or answer blocks when your notes provide the facts.",
+        },
+      ],
+    },
+  ];
+
+  const needsFacts = tasks.some(
+    (task) =>
+      task.tier === "C" ||
+      task.category === "Answerability" ||
+      task.category === "Content",
+  );
+
+  if (needsFacts) {
+    questions.push({
+      id: "agent_facts_content",
+      question: "Which new facts, answers, or claims are approved?",
+      notePlaceholder:
+        "Add approved FAQ answers, product facts, pricing, proof points, or claims to avoid.",
+      options: [
+        {
+          id: "no_new_claims",
+          label: "No new claims",
+          description:
+            "Use only facts already visible in the repository or on the live site.",
+        },
+        {
+          id: "provided_facts_only",
+          label: "Provided facts only",
+          description:
+            "Use only facts you write here, and skip anything unclear.",
+        },
+        {
+          id: "flag_uncertain",
+          label: "Flag uncertain",
+          description:
+            "Do not add uncertain content. Leave a PR note for manual review.",
+        },
+      ],
+    });
+  }
+
+  const needsDesignBounds = tasks.some(
+    (task) =>
+      task.category === "Semantics" ||
+      task.rubricId === "image-alt-text" ||
+      task.rubricId === "interactive-labels" ||
+      task.rubricId === "semantic-html",
+  );
+
+  if (needsDesignBounds) {
+    questions.push({
+      id: "agent_design_bounds",
+      question: "How much visual or component structure can change?",
+      notePlaceholder:
+        "Mention any layouts, components, or brand treatments that are off limits.",
+      options: [
+        {
+          id: "keep_layout",
+          label: "Keep layout",
+          description:
+            "Preserve the visual layout. Make semantic and accessibility fixes only.",
+        },
+        {
+          id: "minor_polish",
+          label: "Minor polish",
+          description:
+            "Small spacing, label, heading, and markup changes are acceptable.",
+        },
+        {
+          id: "simple_blocks",
+          label: "Simple blocks",
+          description:
+            "Compact content blocks are acceptable when needed for the check.",
+        },
+      ],
+    });
+  }
+
+  if (tasks.length > 1) {
+    questions.push({
+      id: "agent_priority",
+      question: "If there is a tradeoff, what should I prioritize?",
+      notePlaceholder: "Add any PR-review preference I should follow.",
+      options: [
+        {
+          id: "small_safe_pr",
+          label: "Small safe PR",
+          description: "Prefer fewer, lower-risk changes.",
+        },
+        {
+          id: "score_lift",
+          label: "Score lift",
+          description:
+            "Prioritize the largest AI search readiness improvements.",
+        },
+        {
+          id: "flag_more",
+          label: "Flag more",
+          description:
+            "Skip uncertain edits and explain them clearly in the PR.",
+        },
+      ],
+    });
+  }
+
+  return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    summary,
+    questions,
+  };
+}
+
+// ── 3. The harness: ONE autonomous agent with full sandbox access. Explores,
 //      fixes the failing checks, commits. Wraps everything so it NEVER throws —
 //      whatever happens, it returns a structured result the workflow records. ─
 export async function runHarness(
   input: FixSiteInput,
   sandboxId: string,
-  tasks: {
-    rubricId: string;
-    category: string;
-    scope: string;
-    skill: string | null;
-  }[],
+  tasks: PlannedFixTask[],
 ): Promise<{ committed: boolean; summary: string }> {
   await setState(input.fixRunId, "FIXING");
   await logEvent(input.fixRunId, "harness_started", null, {
@@ -299,7 +471,7 @@ export async function runHarness(
 async function applySummaryToChecks(
   fixRunId: string,
   summary: string,
-  tasks: { rubricId: string }[],
+  tasks: Pick<PlannedFixTask, "rubricId">[],
   committed: boolean,
 ): Promise<void> {
   const lower = summary.toLowerCase();

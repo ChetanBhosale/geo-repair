@@ -1,8 +1,17 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
-import { Loader2 } from "lucide-react"
+import { Loader2, Send } from "lucide-react"
 import type { FixRunDetail, FixRunSummary } from "@repo/types/fix"
+import { useSubmitFixIntake } from "@/hooks/use-fix"
+import {
+  buildIntake,
+  defaultAnswersForQuestions,
+  latestClarificationRequest,
+  type IntakeAnswers,
+  type IntakeNotes,
+} from "@/lib/fix-intake"
 import {
   eventBody,
   eventStatus,
@@ -29,6 +38,7 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Card,
   CardContent,
@@ -51,8 +61,37 @@ export function RunTranscript({
   selectedRun: FixRunSummary
 }) {
   const transcriptEvents =
-    detail?.events.filter((event) => event.type !== "intake_submitted") ?? []
+    detail?.events.filter(
+      (event) =>
+        event.type !== "intake_submitted" &&
+        event.type !== "agent_clarification_requested"
+    ) ?? []
   const activeRun = isActiveFixRun(selectedRun.state)
+  const clarificationRequest = latestClarificationRequest(detail)
+  const needsClarification = !!clarificationRequest && !detail?.intake
+  const submitIntake = useSubmitFixIntake(selectedRun.id)
+  const [intakeAnswers, setIntakeAnswers] = React.useState<IntakeAnswers>({})
+  const [intakeNotes, setIntakeNotes] = React.useState<IntakeNotes>({})
+  const initializedRequestKey = React.useRef<string | null>(null)
+
+  React.useEffect(() => {
+    if (!clarificationRequest) return
+    if (initializedRequestKey.current === clarificationRequest.generatedAt) {
+      return
+    }
+    initializedRequestKey.current = clarificationRequest.generatedAt
+    setIntakeAnswers(defaultAnswersForQuestions(clarificationRequest.questions))
+    setIntakeNotes({})
+  }, [clarificationRequest])
+
+  function onSubmitClarification(event: React.FormEvent) {
+    event.preventDefault()
+    if (!clarificationRequest) return
+
+    submitIntake.mutate(
+      buildIntake(clarificationRequest, intakeAnswers, intakeNotes)
+    )
+  }
 
   return (
     <Card className="min-h-0 overflow-hidden py-0">
@@ -107,7 +146,96 @@ export function RunTranscript({
               </Message>
             ) : null}
 
-            {detail && transcriptEvents.length === 0 ? (
+            {needsClarification ? (
+              <Message className="bg-secondary/30" from="assistant">
+                <MessageContent className="bg-transparent p-0">
+                  <h3 className="text-sm font-medium">
+                    Agent clarification needed
+                  </h3>
+                  <MessageResponse>
+                    {clarificationRequest.summary}
+                  </MessageResponse>
+                  <form
+                    className="mt-4 grid gap-4"
+                    onSubmit={onSubmitClarification}
+                  >
+                    {clarificationRequest.questions.map((question) => (
+                      <fieldset className="grid gap-3" key={question.id}>
+                        <legend className="text-sm font-medium">
+                          {question.question}
+                        </legend>
+                        <div className="grid gap-2 md:grid-cols-3">
+                          {question.options.map((option) => {
+                            const selected =
+                              intakeAnswers[question.id] === option.id
+
+                            return (
+                              <button
+                                className={cn(
+                                  "rounded-lg p-3 text-left transition-colors",
+                                  selected
+                                    ? "bg-primary"
+                                    : "bg-primary/70 hover:bg-secondary"
+                                )}
+                                disabled={submitIntake.isPending}
+                                key={option.id}
+                                onClick={() =>
+                                  setIntakeAnswers((current) => ({
+                                    ...current,
+                                    [question.id]: option.id,
+                                  }))
+                                }
+                                type="button"
+                              >
+                                <span className="block text-sm font-medium">
+                                  {option.label}
+                                </span>
+                                <span className="mt-1 block text-xs leading-5 text-secondary">
+                                  {option.description}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <textarea
+                          className="min-h-18 w-full resize-y rounded-lg bg-primary px-3 py-2 text-sm transition-colors outline-none placeholder:text-secondary focus-visible:ring-3 focus-visible:ring-focus/50"
+                          disabled={submitIntake.isPending}
+                          onChange={(event) =>
+                            setIntakeNotes((current) => ({
+                              ...current,
+                              [question.id]: event.target.value,
+                            }))
+                          }
+                          placeholder={question.notePlaceholder}
+                          value={intakeNotes[question.id] ?? ""}
+                        />
+                      </fieldset>
+                    ))}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button disabled={submitIntake.isPending} type="submit">
+                        {submitIntake.isPending ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Send className="size-4" />
+                        )}
+                        Submit answers
+                      </Button>
+                      <p className="text-xs text-secondary">
+                        The sandbox starts after these answers are saved.
+                      </p>
+                    </div>
+                    {submitIntake.error ? (
+                      <p className="text-sm text-danger">
+                        {submitIntake.error.message}
+                      </p>
+                    ) : null}
+                  </form>
+                </MessageContent>
+              </Message>
+            ) : null}
+
+            {detail && transcriptEvents.length === 0 && !needsClarification ? (
               <ConversationEmptyState
                 title="No transcript events yet"
                 description="The agent log starts once the workflow appends run events."

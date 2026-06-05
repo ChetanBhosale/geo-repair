@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { ExternalLink, GitBranch, Loader2 } from "lucide-react"
-import type { FixIntakeQuestionId } from "@repo/types/fix"
 import { FixIntakeForm } from "@/components/fix-agent/fix-intake-form"
 import { FixTechPanel } from "@/components/fix-agent/fix-tech-panel"
 import { RunHistory } from "@/components/fix-agent/run-history"
@@ -16,12 +15,6 @@ import { useUser } from "@/hooks/use-auth"
 import { useBillingHistory } from "@/hooks/use-billing"
 import { useFixRun, useFixRuns, useStartFix } from "@/hooks/use-fix"
 import { useSavedRepos } from "@/hooks/use-repos"
-import {
-  buildIntake,
-  defaultIntakeAnswers,
-  type IntakeAnswers,
-  type IntakeNotes,
-} from "@/lib/fix-intake"
 import type { TechTab } from "@/lib/fix-run-view"
 
 export default function FixAgentPage() {
@@ -57,9 +50,6 @@ function FixAgentWorkspace() {
   >(null)
   const [activeTab, setActiveTab] = React.useState<TechTab>("console")
   const [selectedRunId, setSelectedRunId] = React.useState<string | null>(null)
-  const [intakeAnswers, setIntakeAnswers] =
-    React.useState<IntakeAnswers>(defaultIntakeAnswers)
-  const [intakeNotes, setIntakeNotes] = React.useState<IntakeNotes>({})
   const [refinement, setRefinement] = React.useState(
     "Keep the FAQ copy shorter and avoid changing the hero section."
   )
@@ -101,20 +91,6 @@ function FixAgentWorkspace() {
     runList.find((run) => run.id === selectedRunId) ?? runList[0] ?? null
   const detail = useFixRun(selectedRun?.id ?? null, isSignedIn)
 
-  function onAnswerChange(questionId: FixIntakeQuestionId, answerId: string) {
-    setIntakeAnswers((current) => ({
-      ...current,
-      [questionId]: answerId,
-    }))
-  }
-
-  function onNoteChange(questionId: FixIntakeQuestionId, note: string) {
-    setIntakeNotes((current) => ({
-      ...current,
-      [questionId]: note,
-    }))
-  }
-
   function onStartFix(event: React.FormEvent) {
     event.preventDefault()
     if (!selectedRepo || !selectedOrder || !formWebsite.trim()) {
@@ -124,7 +100,6 @@ function FixAgentWorkspace() {
       repositoryId: selectedRepo.id,
       orderId: selectedOrder.id,
       website: formWebsite.trim(),
-      intake: buildIntake(intakeAnswers, intakeNotes),
     })
   }
 
@@ -163,11 +138,7 @@ function FixAgentWorkspace() {
         <section className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(340px,0.55fr)]">
           <FixIntakeForm
             error={startFix.error ?? null}
-            intakeAnswers={intakeAnswers}
-            intakeNotes={intakeNotes}
             isPending={startFix.isPending}
-            onAnswerChange={onAnswerChange}
-            onNoteChange={onNoteChange}
             onOrderChange={setSelectedOrderOverride}
             onSubmit={onStartFix}
             onWebsiteChange={setWebsite}

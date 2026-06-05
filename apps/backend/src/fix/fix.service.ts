@@ -1,10 +1,14 @@
 import { prisma } from "@repo/db";
+import type { Prisma } from "@repo/db/generated/prisma/client";
 import type {
   FixRunSummary,
   FixRunDetail,
   FixRunIntake,
   FixRunCogs,
 } from "@repo/types/fix";
+import { getTemporalClient } from "../temporal/client";
+import { submitFixIntakeSignal } from "../temporal/functions/fix-site/workflows";
+import { logEvent } from "../temporal/functions/fix-site/run-store";
 
 const exposeInternalCosts = process.env.NODE_ENV !== "production";
 
@@ -141,4 +145,41 @@ export async function getRunDetail(
       }))
       .reverse(),
   };
+}
+
+export async function submitRunIntake(
+  userId: string,
+  fixRunId: string,
+  intake: FixRunIntake,
+): Promise<FixRunDetail | null> {
+  const run = await prisma.fixRun.findFirst({
+    where: { id: fixRunId, userId },
+    select: { id: true, temporalWorkflowId: true, state: true },
+  });
+  if (!run) return null;
+
+  if (
+    run.state === "PR_OPENED" ||
+    run.state === "COMPLETED" ||
+    run.state === "FAILED"
+  ) {
+    throw new Error("This fix run is no longer accepting clarification answers");
+  }
+
+  await prisma.fixRun.update({
+    where: { id: run.id },
+    data: { intake: intake as unknown as Prisma.InputJsonValue },
+  });
+  await logEvent(
+    run.id,
+    "intake_submitted",
+    null,
+    intake as unknown as Record<string, unknown>,
+  );
+
+  const client = await getTemporalClient();
+  const handle = client.workflow.getHandle(run.temporalWorkflowId);
+  await handle.signal(submitFixIntakeSignal, intake);
+
+  return getRunDetail(userId, fixRunId);
 }

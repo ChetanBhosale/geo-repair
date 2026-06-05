@@ -210,34 +210,37 @@ export async function appendCheckupRunEvent(
   workflowId: string,
   event: CheckupRunEventInput,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    const lockedRows = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "checkupRuns" WHERE "workflowId" = ${workflowId} FOR UPDATE
-    `;
-    const run = lockedRows[0];
-    if (!run) return;
+  await prisma.$transaction(
+    async (tx) => {
+      const lockedRows = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "checkupRuns" WHERE "workflowId" = ${workflowId} FOR UPDATE
+      `;
+      const run = lockedRows[0];
+      if (!run) return;
 
-    const lastEvent = await tx.checkupRunEvent.findFirst({
-      where: { runId: run.id },
-      orderBy: { sequence: "desc" },
-      select: { sequence: true },
-    });
+      const lastEvent = await tx.checkupRunEvent.findFirst({
+        where: { runId: run.id },
+        orderBy: { sequence: "desc" },
+        select: { sequence: true },
+      });
 
-    await tx.checkupRunEvent.create({
-      data: {
-        runId: run.id,
-        sequence: (lastEvent?.sequence ?? 0) + 1,
-        phase: event.phase,
-        type: event.type,
-        message: event.message,
-        pageUrl: event.pageUrl ?? null,
-        metadata:
-          event.metadata === undefined
-            ? undefined
-            : (event.metadata as Prisma.InputJsonValue),
-      },
-    });
-  });
+      await tx.checkupRunEvent.create({
+        data: {
+          runId: run.id,
+          sequence: (lastEvent?.sequence ?? 0) + 1,
+          phase: event.phase,
+          type: event.type,
+          message: event.message,
+          pageUrl: event.pageUrl ?? null,
+          metadata:
+            event.metadata === undefined
+              ? undefined
+              : (event.metadata as Prisma.InputJsonValue),
+        },
+      });
+    },
+    { maxWait: 20_000, timeout: 20_000 },
+  );
 }
 
 export async function getCheckupProgress(

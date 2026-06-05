@@ -23,6 +23,18 @@ Three planes (do not collapse them):
 The product narrative, rubric, pricing, and architecture live in [`plan/plan.md`](plan/plan.md).
 Read it before making product or architecture decisions.
 
+## System flow diagrams
+
+The end-to-end system flow lives in [`docs/system-flow.md`](docs/system-flow.md). It contains
+the canonical Mermaid flowchart and sequence diagram for the public checkup, dashboard,
+GitHub auth/repo selection, Dodo checkout/webhooks, Temporal fix workflow, E2B sandbox,
+agent execution, PR creation, reports, and planned post-merge re-check loop.
+
+Keep that file updated in the same change whenever you modify a route, API contract,
+workflow/activity/signal, run state, provider integration, persistence model, or user-facing
+handoff that changes how the system works. If a code change touches those areas and the
+diagrams do not need to change, say that explicitly in the PR notes.
+
 ## Stack & tooling
 
 - **Monorepo:** Turborepo `^2.9`. **Package manager: Bun `1.3.3` — use `bun`, never npm/pnpm/yarn.**

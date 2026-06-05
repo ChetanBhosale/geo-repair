@@ -4,11 +4,11 @@ import type * as activities from "./activities";
 
 const { runCheckup } = proxyActivities<typeof activities>({
   startToCloseTimeout: "10 minutes",
-  retry: { maximumAttempts: 3 },
+  retry: { maximumAttempts: 1 },
 });
 
 export async function checkupWorkflow(
-  input: CheckupInput
+  input: CheckupInput,
 ): Promise<CheckupResult> {
   return runCheckup(input);
 }

@@ -8,7 +8,23 @@ import { checkSite, type CheckupProgressSignal } from "./crawler";
 
 async function recordProgress(
   workflowId: string,
-  signal: CheckupProgressSignal
+  signal: CheckupProgressSignal,
+): Promise<void> {
+  try {
+    await writeProgress(workflowId, signal);
+  } catch (err) {
+    console.warn("[checkup] progress write failed", {
+      workflowId,
+      phase: signal.phase,
+      type: signal.type,
+      message: progressErrorMessage(err),
+    });
+  }
+}
+
+async function writeProgress(
+  workflowId: string,
+  signal: CheckupProgressSignal,
 ): Promise<void> {
   switch (signal.type) {
     case "phase":
@@ -62,7 +78,7 @@ async function recordProgress(
           pagesCompleted: 1,
           checksEvaluated: signal.checksEvaluated,
           issuesFound: signal.issuesFound,
-        }
+        },
       );
       await appendCheckupRunEvent(workflowId, {
         phase: signal.phase,
@@ -84,7 +100,7 @@ async function recordProgress(
           phase: signal.phase,
           currentPageUrl: null,
         },
-        { pagesFailed: 1 }
+        { pagesFailed: 1 },
       );
       await appendCheckupRunEvent(workflowId, {
         phase: signal.phase,
@@ -94,6 +110,66 @@ async function recordProgress(
       });
       break;
   }
+}
+
+async function recordCompletedProgress(
+  input: CheckupInput,
+  resultKey: string,
+  result: { overall: number; crawl: { pagesChecked: number } },
+  websiteType: string,
+): Promise<void> {
+  try {
+    await setCheckupProgress(input.workflowId, {
+      status: "completed",
+      phase: "completed",
+      currentPageUrl: null,
+      resultKey,
+      error: null,
+    });
+    await appendCheckupRunEvent(input.workflowId, {
+      phase: "completed",
+      type: "completed",
+      message: "Checkup complete.",
+      metadata: {
+        overall: result.overall,
+        pagesChecked: result.crawl.pagesChecked,
+        websiteType,
+      },
+    });
+  } catch (err) {
+    console.warn("[checkup] completion progress write failed", {
+      workflowId: input.workflowId,
+      message: progressErrorMessage(err),
+    });
+  }
+}
+
+async function recordFailedProgress(
+  workflowId: string,
+  message: string,
+): Promise<void> {
+  try {
+    await setCheckupProgress(workflowId, {
+      status: "failed",
+      phase: "failed",
+      currentPageUrl: null,
+      error: message,
+    });
+    await appendCheckupRunEvent(workflowId, {
+      phase: "failed",
+      type: "failed",
+      message,
+    });
+  } catch (err) {
+    console.warn("[checkup] failure progress write failed", {
+      workflowId,
+      message: progressErrorMessage(err),
+    });
+  }
+}
+
+function progressErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // Activity for the checkup queue. Does the network I/O (fetch + scoring), so it
@@ -141,23 +217,7 @@ export async function runCheckup(input: CheckupInput): Promise<CheckupResult> {
       },
     });
 
-    await setCheckupProgress(input.workflowId, {
-      status: "completed",
-      phase: "completed",
-      currentPageUrl: null,
-      resultKey: row.id,
-      error: null,
-    });
-    await appendCheckupRunEvent(input.workflowId, {
-      phase: "completed",
-      type: "completed",
-      message: "Checkup complete.",
-      metadata: {
-        overall: report.overall,
-        pagesChecked: report.crawl.pagesChecked,
-        websiteType,
-      },
-    });
+    await recordCompletedProgress(input, row.id, report, websiteType);
 
     return {
       key: row.id,
@@ -168,17 +228,7 @@ export async function runCheckup(input: CheckupInput): Promise<CheckupResult> {
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await setCheckupProgress(input.workflowId, {
-      status: "failed",
-      phase: "failed",
-      currentPageUrl: null,
-      error: message,
-    });
-    await appendCheckupRunEvent(input.workflowId, {
-      phase: "failed",
-      type: "failed",
-      message,
-    });
+    await recordFailedProgress(input.workflowId, message);
     throw err;
   }
 }
