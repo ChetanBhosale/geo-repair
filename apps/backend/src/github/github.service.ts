@@ -149,12 +149,15 @@ export async function saveSelectedRepo(
           githubRepoId: BigInt(input.githubRepoId),
         },
       },
-      create: {
-        userId,
-        githubRepoId: BigInt(input.githubRepoId),
-        website: website ?? null,
-        ...data,
-      },
+      create:
+        website === undefined
+          ? { userId, githubRepoId: BigInt(input.githubRepoId), ...data }
+          : {
+              userId,
+              githubRepoId: BigInt(input.githubRepoId),
+              website,
+              ...data,
+            },
       update: website === undefined ? data : { ...data, website },
     }),
   ]);
@@ -189,9 +192,45 @@ export async function updateRepositoryWebsite(
 export async function listSavedRepos(
   userId: string,
 ): Promise<SavedRepository[]> {
-  const rows = await prisma.repository.findMany({
-    where: { userId },
-    orderBy: { updatedAt: "desc" },
-  });
-  return rows.map(toSavedRepository);
+  try {
+    const rows = await prisma.repository.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+    });
+    return rows.map(toSavedRepository);
+  } catch (err) {
+    if (!isSchemaOutOfSyncError(err)) {
+      throw err;
+    }
+
+    const rows = await prisma.repository.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        githubRepoId: true,
+        name: true,
+        fullName: true,
+        owner: true,
+        private: true,
+        htmlUrl: true,
+        cloneUrl: true,
+        defaultBranch: true,
+        description: true,
+        language: true,
+        selected: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return rows.map((row) => toSavedRepository({ ...row, website: null }));
+  }
+}
+
+function isSchemaOutOfSyncError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  return /column .*website.* does not exist|no such column.*website/i.test(
+    message,
+  );
 }

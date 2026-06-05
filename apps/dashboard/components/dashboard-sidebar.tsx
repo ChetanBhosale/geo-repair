@@ -19,7 +19,9 @@ import {
 import type { LucideIcon } from "lucide-react"
 import type { SavedRepository } from "@repo/types/github"
 import { BrandLogo } from "@/components/brand-logo"
+import { GithubIcon } from "@/components/icons/github-icon"
 import { Button } from "@/components/ui/button"
+import { loginWithGithub } from "@/hooks/use-auth"
 import { useSavedRepos, useSelectRepo } from "@/hooks/use-repos"
 import { navItems, sidebarUtilityItems } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
@@ -52,7 +54,6 @@ function toSelectPayload(repo: SavedRepository) {
     name: repo.name,
     owner: repo.owner,
     private: repo.private,
-    website: repo.website,
   }
 }
 
@@ -78,7 +79,12 @@ export function DashboardSidebar({
     selectedRepo,
     reposLoading: savedRepos.isLoading,
     reposError: savedRepos.isError,
+    reposErrorMessage:
+      savedRepos.error instanceof Error ? savedRepos.error.message : null,
     selectPending: selectRepo.isPending,
+    onReconnectGithub() {
+      loginWithGithub(currentDashboardPath(pathname))
+    },
     onSelectRepo(repo: SavedRepository) {
       selectRepo.mutate(toSelectPayload(repo))
     },
@@ -122,7 +128,9 @@ function SidebarContent({
   selectedRepo,
   reposLoading,
   reposError,
+  reposErrorMessage,
   selectPending,
+  onReconnectGithub,
   onSelectRepo,
   onClose,
 }: {
@@ -133,7 +141,9 @@ function SidebarContent({
   selectedRepo: SavedRepository | null
   reposLoading: boolean
   reposError: boolean
+  reposErrorMessage: string | null
   selectPending: boolean
+  onReconnectGithub: () => void
   onSelectRepo: (repo: SavedRepository) => void
   onClose?: () => void
 }) {
@@ -169,7 +179,9 @@ function SidebarContent({
           selectedRepo={selectedRepo}
           isLoading={reposLoading}
           isError={reposError}
+          errorMessage={reposErrorMessage}
           isPending={selectPending}
+          onReconnectGithub={onReconnectGithub}
           onSelectRepo={onSelectRepo}
         />
       ) : null}
@@ -227,7 +239,9 @@ function ProjectSwitcher({
   selectedRepo,
   isLoading,
   isError,
+  errorMessage,
   isPending,
+  onReconnectGithub,
   onSelectRepo,
 }: {
   id: string
@@ -235,7 +249,9 @@ function ProjectSwitcher({
   selectedRepo: SavedRepository | null
   isLoading: boolean
   isError: boolean
+  errorMessage: string | null
   isPending: boolean
+  onReconnectGithub: () => void
   onSelectRepo: (repo: SavedRepository) => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -261,6 +277,7 @@ function ProjectSwitcher({
   }
 
   const dropdownId = `${id}-listbox`
+  const canReconnectGithub = isGithubReconnectError(errorMessage)
 
   return (
     <div className="relative" ref={switcherRef}>
@@ -270,9 +287,28 @@ function ProjectSwitcher({
           Loading projects
         </p>
       ) : isError ? (
-        <p className="rounded-md bg-sidebar-accent p-3 text-sm text-destructive">
-          Projects unavailable
-        </p>
+        <div className="grid gap-2 rounded-md bg-sidebar-accent p-3">
+          <div className="grid gap-1">
+            <p className="text-sm font-medium text-destructive">
+              Project sync failed
+            </p>
+            <p className="max-h-10 overflow-hidden text-xs text-muted-foreground">
+              {errorMessage ?? "Reconnect GitHub and try again."}
+            </p>
+          </div>
+          {canReconnectGithub ? (
+            <Button
+              className="w-full justify-start"
+              onClick={onReconnectGithub}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <GithubIcon />
+              Reconnect GitHub
+            </Button>
+          ) : null}
+        </div>
       ) : repos.length > 0 ? (
         <>
           <button
@@ -351,4 +387,16 @@ function ProjectSwitcher({
       )}
     </div>
   )
+}
+
+function currentDashboardPath(pathname: string) {
+  if (typeof window === "undefined") {
+    return pathname
+  }
+
+  return `${window.location.pathname}${window.location.search}`
+}
+
+function isGithubReconnectError(message: string | null) {
+  return !!message && /github|auth|token|session|not connected/i.test(message)
 }

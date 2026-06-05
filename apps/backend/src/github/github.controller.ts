@@ -82,8 +82,17 @@ export async function listSaved(req: Request, res: Response) {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const repositories = await listSavedRepos(userId);
-  return res.json({ repositories });
+  try {
+    const repositories = await listSavedRepos(userId);
+    return res.json({ repositories });
+  } catch (err) {
+    console.error("[github] listSaved error:", err);
+    return res.status(500).json({
+      error: isSchemaOutOfSyncError(err)
+        ? "Repository database schema is out of sync. Apply the latest database schema, then reload."
+        : "Failed to load saved repositories",
+    });
+  }
 }
 
 // PATCH /api/github/repos/:id/website -> bind/update the website for a repo.
@@ -140,4 +149,11 @@ function parseOptionalWebsite(
 
   const website = normalizeWebsite(value);
   return website ? { ok: true, website } : { ok: false };
+}
+
+function isSchemaOutOfSyncError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  return /column .*website.* does not exist|no such column.*website/i.test(
+    message,
+  );
 }

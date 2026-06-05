@@ -3,7 +3,8 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
 import { ArrowRight, Loader2, ScanSearch, Settings, Wrench } from "lucide-react"
-import { useUser } from "@/hooks/use-auth"
+import { GithubIcon } from "@/components/icons/github-icon"
+import { loginWithGithub, useUser } from "@/hooks/use-auth"
 import { useFixRuns } from "@/hooks/use-fix"
 import { useSavedRepos } from "@/hooks/use-repos"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -22,6 +23,18 @@ function formatState(value: string) {
   return value.replaceAll("_", " ").toLowerCase()
 }
 
+function isGithubReconnectError(message: string | null) {
+  return !!message && /github|auth|token|session|not connected/i.test(message)
+}
+
+function currentDashboardPath() {
+  if (typeof window === "undefined") {
+    return "/"
+  }
+
+  return `${window.location.pathname}${window.location.search}`
+}
+
 export default function DashboardHomePage() {
   const { isSignedIn } = useUser()
   const savedRepos = useSavedRepos(isSignedIn)
@@ -31,6 +44,9 @@ export default function DashboardHomePage() {
     repositories.find((repository) => repository.selected) ??
     repositories[0] ??
     null
+  const savedReposError =
+    savedRepos.error instanceof Error ? savedRepos.error.message : null
+  const canReconnectGithub = isGithubReconnectError(savedReposError)
   const latestRun = runs.data?.[0] ?? null
   const activeRun = runs.data?.find((run) =>
     [
@@ -60,12 +76,22 @@ export default function DashboardHomePage() {
         <StatePanel
           eyebrow="Repository error"
           title="Could not load saved repositories"
-          description={(savedRepos.error as Error).message}
+          description={savedReposError ?? "Failed to load saved repositories"}
           tone="danger"
           action={
-            <Button asChild variant="outline">
-              <Link href="/settings">Open settings</Link>
-            </Button>
+            canReconnectGithub ? (
+              <Button
+                onClick={() => loginWithGithub(currentDashboardPath())}
+                variant="outline"
+              >
+                <GithubIcon />
+                Reconnect GitHub
+              </Button>
+            ) : (
+              <Button asChild variant="outline">
+                <Link href="/settings">Open settings</Link>
+              </Button>
+            )
           }
         />
       ) : null}
