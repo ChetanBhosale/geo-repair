@@ -56,7 +56,7 @@ export function RunTranscript({
 
   return (
     <Card className="min-h-0 overflow-hidden py-0">
-      <CardHeader className="border-b border-border py-4">
+      <CardHeader className="py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Agent chat log</CardTitle>
@@ -82,15 +82,13 @@ export function RunTranscript({
             ) : null}
 
             {detail?.intake ? (
-              <Message className="border-border bg-muted/30" from="user">
-                <MessageContent className="border-0 bg-transparent p-0">
-                  <h3 className="text-sm font-medium">
-                    Clarification answers
-                  </h3>
+              <Message className="bg-muted/30" from="user">
+                <MessageContent className="bg-transparent p-0">
+                  <h3 className="text-sm font-medium">Clarification answers</h3>
                   <div className="grid gap-2">
                     {detail.intake.answers.map((answer) => (
                       <div
-                        className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        className="rounded-md bg-background px-3 py-2 text-sm"
                         key={answer.questionId}
                       >
                         <p className="font-medium">{answer.question}</p>
@@ -122,7 +120,7 @@ export function RunTranscript({
                 from="assistant"
                 key={event.seq}
               >
-                <MessageContent className="border-0 bg-transparent p-0">
+                <MessageContent className="bg-transparent p-0">
                   <div className="flex items-center justify-between gap-2 font-mono text-xs tracking-wide text-muted-foreground uppercase">
                     <span>#{event.seq}</span>
                     <span>{event.phase ?? event.type}</span>
@@ -134,11 +132,8 @@ export function RunTranscript({
             ))}
 
             {detail?.state === "PR_OPENED" || detail?.state === "COMPLETED" ? (
-              <Message
-                className="border-emerald-500/40 bg-emerald-500/5"
-                from="assistant"
-              >
-                <MessageContent className="border-0 bg-transparent p-0">
+              <Message className="bg-emerald-500/5" from="assistant">
+                <MessageContent className="bg-transparent p-0">
                   <h3 className="text-sm font-medium">Refine this PR</h3>
                   <MessageResponse>
                     Post-PR Refinement Mode is the only place users can

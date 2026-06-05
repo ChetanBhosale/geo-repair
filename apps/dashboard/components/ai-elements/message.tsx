@@ -35,7 +35,7 @@ export function MessageContent({ className, ...props }: MessageContentProps) {
   return (
     <div
       className={cn(
-        "grid w-full gap-2 overflow-hidden rounded-lg border border-border bg-card p-4 text-sm",
+        "grid w-full gap-2 overflow-hidden rounded-lg bg-card p-4 text-sm",
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
       className={cn(
-        "prose prose-sm dark:prose-invert max-w-none text-muted-foreground [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+        "prose prose-sm dark:prose-invert max-w-none text-muted-foreground [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className
       )}
       plugins={streamdownPlugins}

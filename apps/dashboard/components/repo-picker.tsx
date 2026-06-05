@@ -83,7 +83,7 @@ export function RepoPicker({
         />
       </div>
 
-      <div className="max-h-96 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+      <div className="max-h-96 overflow-y-auto rounded-lg">
         {filtered.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
             No repositories found.

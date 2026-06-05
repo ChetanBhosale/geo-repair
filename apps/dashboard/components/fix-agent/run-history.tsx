@@ -41,14 +41,16 @@ export function RunHistory({
             Loading runs
           </p>
         ) : null}
-        {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+        {error ? (
+          <p className="text-sm text-destructive">{error.message}</p>
+        ) : null}
         {!isLoading && runs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No fix runs yet.</p>
         ) : null}
         {runs.map((run) => (
           <button
             className={cn(
-              "rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted",
+              "rounded-lg p-3 text-left transition-colors hover:bg-muted",
               selectedRunId === run.id && "bg-muted"
             )}
             key={run.id}
@@ -56,7 +58,9 @@ export function RunHistory({
             type="button"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-sm font-medium">{run.website}</span>
+              <span className="truncate text-sm font-medium">
+                {run.website}
+              </span>
               <Badge variant={stateVariant(run.state)}>
                 {stateLabel(run.state)}
               </Badge>

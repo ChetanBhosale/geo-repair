@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/sheet"
 import { NAV_LINKS } from "@/lib/navigation"
 import { capture } from "@/lib/analytics"
+import { DASHBOARD_ONBOARDING_HREF } from "@/lib/dashboard-url"
 import { Logo } from "./logo"
+
+const PRIMARY_CTA_LABEL = "Get started"
 
 export function TopNav() {
   const [open, setOpen] = useState(false)
@@ -47,16 +50,16 @@ export function TopNav() {
           </Button>
           <Button asChild size="sm">
             <Link
-              href="/#checkup"
+              href={DASHBOARD_ONBOARDING_HREF}
               onClick={() =>
                 capture("cta_clicked", {
                   location: "nav",
-                  label: "Run free checkup",
-                  href: "/#checkup",
+                  label: PRIMARY_CTA_LABEL,
+                  href: DASHBOARD_ONBOARDING_HREF,
                 })
               }
             >
-              Run free checkup
+              {PRIMARY_CTA_LABEL}
             </Link>
           </Button>
         </div>
@@ -102,17 +105,17 @@ export function TopNav() {
               </Link>
               <Button asChild className="mt-3">
                 <Link
-                  href="/#checkup"
+                  href={DASHBOARD_ONBOARDING_HREF}
                   onClick={() => {
                     capture("cta_clicked", {
                       location: "nav_mobile",
-                      label: "Run free checkup",
-                      href: "/#checkup",
+                      label: PRIMARY_CTA_LABEL,
+                      href: DASHBOARD_ONBOARDING_HREF,
                     })
                     setOpen(false)
                   }}
                 >
-                  Run free checkup
+                  {PRIMARY_CTA_LABEL}
                 </Link>
               </Button>
             </div>

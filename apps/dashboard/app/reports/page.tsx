@@ -2,14 +2,14 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Link2, Loader2, RefreshCw } from "lucide-react"
+import { Loader2, RefreshCw } from "lucide-react"
 import { ReportGenerationCard } from "@/components/reports/report-generation-card"
 import { ReportList } from "@/components/reports/report-list"
 import { ReportPreview } from "@/components/reports/report-preview"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { StatePanel } from "@/components/state-panel"
 import { Button } from "@/components/ui/button"
-import { loginWithGithub, useUser } from "@/hooks/use-auth"
+import { useUser } from "@/hooks/use-auth"
 import {
   useCreateReportShareLink,
   useGenerateReports,
@@ -19,7 +19,7 @@ import {
 } from "@/hooks/use-reports"
 
 export default function ReportsPage() {
-  const { isLoading, isSignedIn } = useUser()
+  const { isSignedIn } = useUser()
   const reports = useReports(isSignedIn)
   const generate = useGenerateReports()
   const createShare = useCreateReportShareLink()
@@ -52,27 +52,13 @@ export default function ReportsPage() {
 
   return (
     <DashboardShell eyebrow="Reports" title="Project reports">
-      {isLoading || reports.isLoading ? (
+      {reports.isLoading ? (
         <StatePanel
           eyebrow="Loading"
           title="Loading reports"
           description="We are checking stored scan, fix, and export artifacts."
           action={
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          }
-        />
-      ) : null}
-
-      {!isLoading && !isSignedIn ? (
-        <StatePanel
-          eyebrow="GitHub required"
-          title="Connect GitHub to view project reports"
-          description="Reports are scoped to your authenticated account and selected project."
-          action={
-            <Button onClick={loginWithGithub}>
-              <Link2 className="size-4" />
-              Continue with GitHub
-            </Button>
           }
         />
       ) : null}

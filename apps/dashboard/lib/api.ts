@@ -6,6 +6,7 @@ import type {
   SelectRepoRequest,
   SelectRepoResponse,
   ListSavedReposResponse,
+  UpdateRepositoryWebsiteResponse,
 } from "@repo/types/github"
 import type { User } from "@repo/types/user"
 import type {
@@ -38,13 +39,53 @@ export interface CreateAuditResponse {
 
 // GET /api/checkups/:id/status response (discriminated by `status`)
 export type TemporalStatus =
-  | { status: "RUNNING" | "PENDING" }
-  | { status: "COMPLETED"; result: AuditSummary }
+  | { status: "RUNNING" | "PENDING"; progress: CheckupProgress | null }
+  | {
+      status: "COMPLETED"
+      result: AuditSummary
+      progress: CheckupProgress | null
+    }
   | {
       status: "FAILED" | "TERMINATED" | "CANCELED" | "TIMED_OUT"
       error: string
+      progress: CheckupProgress | null
     }
-  | { status: "NOT_FOUND" }
+  | { status: "NOT_FOUND"; progress: null }
+
+export interface CheckupProgressEvent {
+  sequence: number
+  phase: string
+  type: string
+  message: string
+  pageUrl?: string | null
+  metadata?: unknown
+  createdAt: string
+}
+
+export interface RecentCheckupPage {
+  url: string
+  status: "completed" | "failed"
+  score?: number
+}
+
+export interface CheckupProgress {
+  workflowId: string
+  website: string
+  status: string
+  phase: string
+  percent: number
+  pagesTotal: number
+  pagesCompleted: number
+  pagesFailed: number
+  checksEvaluated: number
+  issuesFound: number
+  currentPageUrl: string | null
+  recentPages: RecentCheckupPage[]
+  events: CheckupProgressEvent[]
+  resultKey: string | null
+  error: string | null
+  updatedAt: string
+}
 
 // Small summary returned by the workflow (full report lives in the DB).
 export interface AuditSummary {
@@ -135,6 +176,20 @@ export async function selectRepo(
     method: "POST",
     body: JSON.stringify(payload),
   })
+  return data.repository
+}
+
+export async function updateRepoWebsite(
+  repositoryId: string,
+  website: string
+): Promise<SavedRepository> {
+  const data = await request<UpdateRepositoryWebsiteResponse>(
+    ENDPOINTS.repoWebsite(repositoryId),
+    {
+      method: "PATCH",
+      body: JSON.stringify({ website }),
+    }
+  )
   return data.repository
 }
 

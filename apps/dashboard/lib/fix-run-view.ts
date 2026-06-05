@@ -1,8 +1,4 @@
-import type {
-  FixRunDetail,
-  FixRunState,
-  RunEventView,
-} from "@repo/types/fix"
+import type { FixRunDetail, FixRunState, RunEventView } from "@repo/types/fix"
 import type { DashboardBadgeVariant } from "@/lib/dashboard-format"
 
 export type TechTab = "diff" | "console" | "logs" | "terminal"
@@ -64,12 +60,12 @@ export function eventBody(event: RunEventView) {
 
 export function eventStatus(event: RunEventView) {
   if (event.type.toLowerCase().includes("error")) {
-    return "border-destructive/40 bg-destructive/5"
+    return " bg-destructive/5"
   }
   if (event.type.toLowerCase().includes("pr")) {
-    return "border-emerald-500/40 bg-emerald-500/5"
+    return " bg-emerald-500/5"
   }
-  return "border-border bg-card"
+  return " bg-card"
 }
 
 export function commandFromEvent(event: RunEventView) {

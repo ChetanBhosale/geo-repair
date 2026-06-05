@@ -22,6 +22,8 @@ export const ENDPOINTS = {
   repos: `${BACKEND_URL}/api/github/repos`,
   savedRepos: `${BACKEND_URL}/api/github/repos/saved`,
   selectRepo: `${BACKEND_URL}/api/github/repos/select`,
+  repoWebsite: (id: string) =>
+    `${BACKEND_URL}/api/github/repos/${encodeURIComponent(id)}/website`,
 
   // Fix runs (premium)
   fix: `${BACKEND_URL}/api/fix`,

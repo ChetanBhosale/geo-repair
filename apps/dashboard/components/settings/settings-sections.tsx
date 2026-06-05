@@ -1,14 +1,17 @@
 "use client"
 
+import * as React from "react"
 import {
   CreditCard,
   Download,
+  Globe2,
   Loader2,
   LogOut,
   Mail,
   MessageSquareText,
   ReceiptText,
   RefreshCw,
+  Save,
 } from "lucide-react"
 import type {
   BillingInvoice,
@@ -25,10 +28,12 @@ import {
   orderStatusVariant,
 } from "@/lib/dashboard-format"
 import { ENDPOINTS } from "@/lib/endpoint"
+import { useUpdateRepoWebsite } from "@/hooks/use-repos"
 import { RepoPicker } from "@/components/repo-picker"
 import { StatePanel } from "@/components/state-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Card,
   CardContent,
@@ -152,7 +157,9 @@ export function SupportCard() {
     <Card>
       <CardHeader>
         <CardTitle>Support</CardTitle>
-        <CardDescription>Reach support or send dashboard feedback.</CardDescription>
+        <CardDescription>
+          Reach support or send dashboard feedback.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
         <Button asChild variant="outline">
@@ -220,7 +227,9 @@ export function InvoicesCard({
             Loading invoice
           </p>
         ) : null}
-        {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+        {error ? (
+          <p className="text-sm text-destructive">{error.message}</p>
+        ) : null}
         {invoice ? <InvoiceDetail invoice={invoice} /> : null}
       </CardContent>
     </Card>
@@ -240,7 +249,9 @@ export function PaymentHistoryCard({ orders }: { orders: BillingOrder[] }) {
         {orders.length > 0 ? (
           orders.map((order) => <OrderRow key={order.id} order={order} />)
         ) : (
-          <p className="text-sm text-muted-foreground">No payment history yet.</p>
+          <p className="text-sm text-muted-foreground">
+            No payment history yet.
+          </p>
         )}
       </CardContent>
     </Card>
@@ -276,7 +287,9 @@ export function SavedProjectsCard({
     <Card>
       <CardHeader>
         <CardTitle>Saved projects</CardTitle>
-        <CardDescription>One project maps to one selected repository.</CardDescription>
+        <CardDescription>
+          One project maps to one selected repository.
+        </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-2">
         {isLoading ? (
@@ -285,24 +298,29 @@ export function SavedProjectsCard({
             Loading repositories
           </p>
         ) : null}
-        {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+        {error ? (
+          <p className="text-sm text-destructive">{error.message}</p>
+        ) : null}
         {!isLoading && repositories.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No saved repositories yet.
           </p>
         ) : null}
         {repositories.map((repo) => (
-          <div
-            className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
-            key={repo.id}
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{repo.fullName}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {repo.defaultBranch}
-              </p>
+          <div className="grid gap-3 rounded-lg p-3" key={repo.id}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{repo.fullName}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {repo.defaultBranch}
+                </p>
+              </div>
+              {repo.selected ? <Badge variant="pass">Active</Badge> : null}
             </div>
-            {repo.selected ? <Badge variant="pass">Active</Badge> : null}
+            <RepositoryWebsiteForm
+              key={`${repo.id}:${repo.website ?? ""}`}
+              repo={repo}
+            />
           </div>
         ))}
       </CardContent>
@@ -310,9 +328,59 @@ export function SavedProjectsCard({
   )
 }
 
+function RepositoryWebsiteForm({ repo }: { repo: SavedRepository }) {
+  const updateWebsite = useUpdateRepoWebsite()
+  const [website, setWebsite] = React.useState(repo.website ?? "")
+  const savedWebsite = repo.website ?? ""
+  const isDirty = website.trim() !== savedWebsite
+  const isPending =
+    updateWebsite.isPending && updateWebsite.variables?.repositoryId === repo.id
+
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmed = website.trim()
+    if (!trimmed || !isDirty) {
+      return
+    }
+
+    updateWebsite.mutate({ repositoryId: repo.id, website: trimmed })
+  }
+
+  return (
+    <form className="grid gap-2 sm:grid-cols-[1fr_auto]" onSubmit={onSubmit}>
+      <div className="relative min-w-0">
+        <Globe2 className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="pl-8"
+          disabled={isPending}
+          inputMode="url"
+          onChange={(event) => setWebsite(event.target.value)}
+          placeholder="https://example.com"
+          type="text"
+          value={website}
+        />
+      </div>
+      <Button disabled={isPending || !website.trim() || !isDirty} type="submit">
+        {isPending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Save className="size-4" />
+        )}
+        Save
+      </Button>
+      {updateWebsite.isError &&
+      updateWebsite.variables?.repositoryId === repo.id ? (
+        <p className="text-sm text-destructive sm:col-span-2">
+          {(updateWebsite.error as Error).message}
+        </p>
+      ) : null}
+    </form>
+  )
+}
+
 function InvoiceDetail({ invoice }: { invoice: BillingInvoiceDetail }) {
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="rounded-lg p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">{invoice.id}</p>
@@ -340,7 +408,7 @@ function InvoiceDetail({ invoice }: { invoice: BillingInvoiceDetail }) {
       <div className="mt-4 grid gap-2">
         {invoice.lineItems.map((item) => (
           <div
-            className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/25 px-3 py-2 text-sm"
+            className="flex items-center justify-between gap-3 rounded-md bg-muted/25 px-3 py-2 text-sm"
             key={item.label}
           >
             <span>{item.label}</span>
@@ -371,10 +439,8 @@ function InvoiceRow({
 }) {
   return (
     <button
-      className={`rounded-lg border p-3 text-left transition-colors ${
-        isSelected
-          ? "border-foreground bg-muted/40"
-          : "border-border bg-background hover:bg-muted/25"
+      className={`rounded-lg p-3 text-left transition-colors ${
+        isSelected ? "bg-muted/40" : "bg-background hover:bg-muted/25"
       }`}
       onClick={onSelect}
       type="button"
@@ -404,7 +470,7 @@ function InvoiceRow({
 
 function OrderRow({ order }: { order: BillingOrder }) {
   return (
-    <div className="rounded-lg border border-border p-3">
+    <div className="rounded-lg p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{order.website}</p>
@@ -423,7 +489,9 @@ function OrderRow({ order }: { order: BillingOrder }) {
         </span>
         <span className="inline-flex items-center gap-1">
           <ReceiptText className="size-3.5" />
-          {order.providerPaymentId ?? order.providerSessionId ?? "No provider ID"}
+          {order.providerPaymentId ??
+            order.providerSessionId ??
+            "No provider ID"}
         </span>
       </div>
     </div>
@@ -432,7 +500,7 @@ function OrderRow({ order }: { order: BillingOrder }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/25 p-4">
+    <div className="rounded-lg bg-muted/25 p-4">
       <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
@@ -443,7 +511,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-border py-2 last:border-0">
+    <div className="flex items-center justify-between gap-4 py-2">
       <span className="text-muted-foreground">{label}</span>
       <span className="truncate text-right font-mono text-xs">{value}</span>
     </div>

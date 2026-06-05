@@ -1,4 +1,8 @@
+import { ArrowRightIcon } from "@phosphor-icons/react/ssr"
+
+import { CtaButton } from "@/components/analytics/cta-button"
 import { type LandingContent, LANDING_FEATURES } from "@/lib/landing-content"
+import { DASHBOARD_ONBOARDING_HREF } from "@/lib/dashboard-url"
 import { AsciiOverlay } from "@/components/ascii/ascii-overlay"
 import { Reveal } from "@/components/ui/reveal"
 import { CheckupForm } from "@/components/checkup/checkup-form"
@@ -49,9 +53,20 @@ export function LandingPage({ content }: { content: LandingContent }) {
               {content.subhead}
             </p>
 
+            <CtaButton
+              href={DASHBOARD_ONBOARDING_HREF}
+              location="hero"
+              label="Get started"
+              size="lg"
+              className="bg-white text-primary hover:bg-white/90"
+            >
+              Get started
+              <ArrowRightIcon className="size-4" aria-hidden />
+            </CtaButton>
+
             <div
               id="checkup"
-              className="relative mt-2 w-full max-w-xl scroll-mt-24 border border-black/5 bg-white p-4 text-left sm:p-5"
+              className="relative w-full max-w-xl scroll-mt-24 border border-black/5 bg-white p-4 text-left sm:p-5"
             >
               <CornerMarks />
               <CheckupForm inputId={content.inputId} />

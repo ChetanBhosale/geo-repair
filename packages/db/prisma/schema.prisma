@@ -262,6 +262,7 @@ model Repository {
   defaultBranch String
   description   String?
   language      String?
+  website       String?
 
   // Whether this is the repo currently chosen for fixing.
   selected      Boolean  @default(true)

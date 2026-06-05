@@ -39,7 +39,7 @@ export async function listUserRepos(token: string): Promise<GithubRepo[]> {
         "User-Agent": "geo-repair",
         "X-GitHub-Api-Version": "2022-11-28",
       },
-    }
+    },
   );
 
   if (!res.ok) {
@@ -76,6 +76,7 @@ function toSavedRepository(row: {
   defaultBranch: string;
   description: string | null;
   language: string | null;
+  website: string | null;
   selected: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -92,6 +93,7 @@ function toSavedRepository(row: {
     defaultBranch: row.defaultBranch,
     description: row.description,
     language: row.language,
+    website: row.website,
     selected: row.selected,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -111,7 +113,7 @@ async function getGithubAccountId(userId: string): Promise<string | null> {
 // (and de-selecting any previously selected repo). Idempotent per repo.
 export async function saveSelectedRepo(
   userId: string,
-  input: SelectRepoRequest
+  input: SelectRepoRequest,
 ): Promise<SavedRepository> {
   const accountId = await getGithubAccountId(userId);
   if (!accountId) {
@@ -131,6 +133,8 @@ export async function saveSelectedRepo(
     language: input.language ?? null,
     selected: true,
   };
+  const hasWebsite = Object.prototype.hasOwnProperty.call(input, "website");
+  const website = hasWebsite ? (input.website ?? null) : undefined;
 
   const [, row] = await prisma.$transaction([
     // Only one repo is "selected" at a time per user.
@@ -140,18 +144,51 @@ export async function saveSelectedRepo(
     }),
     prisma.repository.upsert({
       where: {
-        userId_githubRepoId: { userId, githubRepoId: BigInt(input.githubRepoId) },
+        userId_githubRepoId: {
+          userId,
+          githubRepoId: BigInt(input.githubRepoId),
+        },
       },
-      create: { userId, githubRepoId: BigInt(input.githubRepoId), ...data },
-      update: data,
+      create: {
+        userId,
+        githubRepoId: BigInt(input.githubRepoId),
+        website: website ?? null,
+        ...data,
+      },
+      update: website === undefined ? data : { ...data, website },
     }),
   ]);
 
   return toSavedRepository(row);
 }
 
+// Updates the website/domain bound to one saved repository.
+export async function updateRepositoryWebsite(
+  userId: string,
+  repositoryId: string,
+  website: string,
+): Promise<SavedRepository> {
+  const existing = await prisma.repository.findFirst({
+    where: { id: repositoryId, userId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new Error("Repository not found");
+  }
+
+  const row = await prisma.repository.update({
+    where: { id: existing.id },
+    data: { website },
+  });
+
+  return toSavedRepository(row);
+}
+
 // Lists the repositories this user has saved (newest first).
-export async function listSavedRepos(userId: string): Promise<SavedRepository[]> {
+export async function listSavedRepos(
+  userId: string,
+): Promise<SavedRepository[]> {
   const rows = await prisma.repository.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },

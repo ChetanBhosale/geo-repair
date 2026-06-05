@@ -2,15 +2,8 @@
 
 import Link from "next/link"
 import type { ReactNode } from "react"
-import {
-  ArrowRight,
-  GitBranch,
-  Loader2,
-  ScanSearch,
-  Settings,
-  Wrench,
-} from "lucide-react"
-import { loginWithGithub, useUser } from "@/hooks/use-auth"
+import { ArrowRight, Loader2, ScanSearch, Settings, Wrench } from "lucide-react"
+import { useUser } from "@/hooks/use-auth"
 import { useFixRuns } from "@/hooks/use-fix"
 import { useSavedRepos } from "@/hooks/use-repos"
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -30,7 +23,7 @@ function formatState(value: string) {
 }
 
 export default function DashboardHomePage() {
-  const { isLoading, isSignedIn } = useUser()
+  const { isSignedIn } = useUser()
   const savedRepos = useSavedRepos(isSignedIn)
   const runs = useFixRuns(isSignedIn)
   const repositories = savedRepos.data ?? []
@@ -52,31 +45,6 @@ export default function DashboardHomePage() {
 
   return (
     <DashboardShell eyebrow="Dashboard" title="Project command center">
-      {isLoading ? (
-        <StatePanel
-          eyebrow="Loading"
-          title="Loading your dashboard"
-          description="We are checking your session and project access."
-          action={
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          }
-        />
-      ) : null}
-
-      {!isLoading && !isSignedIn ? (
-        <StatePanel
-          eyebrow="GitHub required"
-          title="Connect GitHub to create your first project"
-          description="The dashboard starts after GitHub auth because fixes are scoped to the repository you choose."
-          action={
-            <Button onClick={loginWithGithub}>
-              <GitBranch className="size-4" />
-              Continue with GitHub
-            </Button>
-          }
-        />
-      ) : null}
-
       {isSignedIn && savedRepos.isLoading ? (
         <StatePanel
           eyebrow="Loading"
@@ -109,10 +77,7 @@ export default function DashboardHomePage() {
           description="A project is created around one website and one GitHub repo. After that, scans, fixes, runs, reports, and settings stay attached to it."
           action={
             <Button asChild>
-              <Link href="/settings">
-                <GitBranch className="size-4" />
-                Choose repository
-              </Link>
+              <Link href="/settings">Choose repository</Link>
             </Button>
           }
         />
@@ -222,7 +187,7 @@ function Metric({
   detail: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/25 p-4">
+    <div className="rounded-lg bg-muted/25 p-4">
       <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
@@ -265,7 +230,7 @@ function InsightCard({
 }) {
   return (
     <Link
-      className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-muted/50"
+      className="rounded-lg bg-card p-5 transition-colors hover:bg-muted/50"
       href={href}
     >
       <h2 className="font-semibold">{title}</h2>

@@ -12,7 +12,7 @@ import { RunTranscript } from "@/components/fix-agent/run-transcript"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { StatePanel } from "@/components/state-panel"
 import { Button } from "@/components/ui/button"
-import { loginWithGithub, useUser } from "@/hooks/use-auth"
+import { useUser } from "@/hooks/use-auth"
 import { useBillingHistory } from "@/hooks/use-billing"
 import { useFixRun, useFixRuns, useStartFix } from "@/hooks/use-fix"
 import { useSavedRepos } from "@/hooks/use-repos"
@@ -47,7 +47,7 @@ export default function FixAgentPage() {
 
 function FixAgentWorkspace() {
   const searchParams = useSearchParams()
-  const { isLoading, isSignedIn } = useUser()
+  const { isSignedIn } = useUser()
   const savedRepos = useSavedRepos(isSignedIn)
   const billing = useBillingHistory(isSignedIn)
   const runs = useFixRuns(isSignedIn)
@@ -65,12 +65,25 @@ function FixAgentWorkspace() {
   const [refinement, setRefinement] = React.useState(
     "Keep the FAQ copy shorter and avoid changing the hero section."
   )
+  const prefetchedWebsiteRepoId = React.useRef<string | null>(null)
 
   const repositories = savedRepos.data ?? []
   const selectedRepo =
     repositories.find((repository) => repository.selected) ??
     repositories[0] ??
     null
+
+  React.useEffect(() => {
+    if (
+      selectedRepo?.website &&
+      prefetchedWebsiteRepoId.current !== selectedRepo.id &&
+      !website.trim()
+    ) {
+      setWebsite(selectedRepo.website)
+      prefetchedWebsiteRepoId.current = selectedRepo.id
+    }
+  }, [selectedRepo?.id, selectedRepo?.website, website])
+
   const paidOrders = React.useMemo(() => {
     const repoFullName = selectedRepo?.fullName
     return (billing.data?.orders ?? []).filter(
@@ -132,31 +145,6 @@ function FixAgentWorkspace() {
         ) : null
       }
     >
-      {isLoading ? (
-        <StatePanel
-          eyebrow="Loading"
-          title="Loading fix workspace"
-          description="We are checking your session and project access."
-          action={
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          }
-        />
-      ) : null}
-
-      {!isLoading && !isSignedIn ? (
-        <StatePanel
-          eyebrow="GitHub required"
-          title="Connect GitHub before running the fix agent"
-          description="The fix agent can only work after a repository is selected for the active project."
-          action={
-            <Button onClick={loginWithGithub}>
-              <GitBranch className="size-4" />
-              Continue with GitHub
-            </Button>
-          }
-        />
-      ) : null}
-
       {isSignedIn && !savedRepos.isLoading && !selectedRepo ? (
         <StatePanel
           eyebrow="No repository"

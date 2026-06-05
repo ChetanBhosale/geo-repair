@@ -6,6 +6,7 @@ import { upsertUserFromProfile, getUserById } from "./auth.service";
 import { signToken, verifyToken, AUTH_COOKIE } from "./jwt";
 
 const STATE_COOKIE = "oauth_state";
+const REDIRECT_COOKIE = "oauth_redirect_to";
 const isProd = process.env.NODE_ENV === "production";
 
 function sessionCookieOptions(maxAgeMs: number) {
@@ -28,6 +29,21 @@ function stateCookieOptions(maxAgeMs: number) {
   };
 }
 
+function safeDashboardPath(value: unknown): string {
+  if (typeof value !== "string") return "/dashboard";
+
+  const trimmed = value.trim();
+  if (
+    !trimmed.startsWith("/") ||
+    trimmed.startsWith("//") ||
+    /[\r\n]/.test(trimmed)
+  ) {
+    return "/dashboard";
+  }
+
+  return trimmed.slice(0, 512);
+}
+
 export function startOAuth(req: Request, res: Response) {
   const provider = getProvider(String(req.params.provider ?? ""));
   if (!provider) {
@@ -35,7 +51,9 @@ export function startOAuth(req: Request, res: Response) {
   }
 
   const state = crypto.randomBytes(16).toString("hex");
+  const redirectTo = safeDashboardPath(req.query.redirect_to);
   res.cookie(STATE_COOKIE, state, stateCookieOptions(10 * 60 * 1000));
+  res.cookie(REDIRECT_COOKIE, redirectTo, stateCookieOptions(10 * 60 * 1000));
 
   return res.redirect(provider.getAuthorizationUrl(state));
 }
@@ -57,15 +75,21 @@ export async function handleOAuthCallback(req: Request, res: Response) {
   }
 
   res.clearCookie(STATE_COOKIE, { path: "/" });
+  const redirectTo = safeDashboardPath(req.cookies?.[REDIRECT_COOKIE]);
+  res.clearCookie(REDIRECT_COOKIE, { path: "/" });
 
   try {
     const profile = await provider.handleCallback(code);
     const user = await upsertUserFromProfile(profile);
 
     const token = signToken({ sub: user.id, email: user.email });
-    res.cookie(AUTH_COOKIE, token, sessionCookieOptions(7 * 24 * 60 * 60 * 1000));
+    res.cookie(
+      AUTH_COOKIE,
+      token,
+      sessionCookieOptions(7 * 24 * 60 * 60 * 1000),
+    );
 
-    return res.redirect(`${Secrets.DASHBOARD_URL}/dashboard`);
+    return res.redirect(`${Secrets.DASHBOARD_URL}${redirectTo}`);
   } catch (err) {
     console.error("[auth] OAuth callback error:", err);
     return redirectWithError(res, "oauth_failed");
@@ -105,5 +129,5 @@ export function logout(_req: Request, res: Response) {
 }
 
 function redirectWithError(res: Response, code: string) {
-  return res.redirect(`${Secrets.DASHBOARD_URL}/?auth_error=${code}`);
+  return res.redirect(`${Secrets.DASHBOARD_URL}/onboarding?auth_error=${code}`);
 }

@@ -33,6 +33,7 @@ export interface SelectRepoRequest {
   defaultBranch: string;
   description?: string | null;
   language?: string | null;
+  website?: string | null;
 }
 
 // A repository saved in our DB (what a sandbox will later clone + PR against).
@@ -48,6 +49,7 @@ export interface SavedRepository {
   defaultBranch: string;
   description: string | null;
   language: string | null;
+  website: string | null;
   selected: boolean;
   createdAt: string;
   updatedAt: string;
@@ -59,4 +61,12 @@ export interface SelectRepoResponse {
 
 export interface ListSavedReposResponse {
   repositories: SavedRepository[];
+}
+
+export interface UpdateRepositoryWebsiteRequest {
+  website: string;
+}
+
+export interface UpdateRepositoryWebsiteResponse {
+  repository: SavedRepository;
 }

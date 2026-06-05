@@ -56,12 +56,12 @@ export function FixIntakeForm({
       <CardHeader>
         <CardTitle>Start a fix run</CardTitle>
         <CardDescription>
-          Select the paid order for {selectedRepoFullName}. The backend
-          verifies it before starting the Temporal workflow.
+          Select the paid order for {selectedRepoFullName}. The backend verifies
+          it before starting the Temporal workflow.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <div className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4">
+        <div className="grid gap-3 rounded-lg bg-muted/20 p-4">
           <div className="flex items-center gap-2">
             <CreditCard className="size-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">Paid order</h2>
@@ -69,7 +69,7 @@ export function FixIntakeForm({
           {paidOrders.length > 0 ? (
             <>
               <select
-                className="h-9 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-9 rounded-lg bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 disabled={isPending}
                 onChange={(event) =>
                   onOrderChange(event.target.value.trim() || null)
@@ -81,7 +81,8 @@ export function FixIntakeForm({
                 </option>
                 {paidOrders.map((order) => (
                   <option key={order.id} value={order.id}>
-                    {order.website} · {formatMoney(order.amountCents, order.currency)}
+                    {order.website} ·{" "}
+                    {formatMoney(order.amountCents, order.currency)}
                   </option>
                 ))}
               </select>
@@ -100,7 +101,7 @@ export function FixIntakeForm({
           )}
         </div>
 
-        <div className="grid gap-4 rounded-lg border border-border bg-muted/20 p-4">
+        <div className="grid gap-4 rounded-lg bg-muted/20 p-4">
           <div>
             <h2 className="text-sm font-semibold">
               Agent clarification questions
@@ -112,10 +113,7 @@ export function FixIntakeForm({
           </div>
 
           {intakeQuestions.map((question) => (
-            <fieldset
-              className="grid gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0"
-              key={question.id}
-            >
+            <fieldset className="grid gap-3 pt-4 first:pt-0" key={question.id}>
               <legend className="text-sm font-medium">
                 {question.question}
               </legend>
@@ -126,10 +124,10 @@ export function FixIntakeForm({
                   return (
                     <button
                       className={cn(
-                        "rounded-lg border p-3 text-left transition-colors",
+                        "rounded-lg p-3 text-left transition-colors",
                         selected
-                          ? "border-foreground bg-background"
-                          : "border-border bg-background/70 hover:bg-muted"
+                          ? "bg-background"
+                          : "bg-background/70 hover:bg-muted"
                       )}
                       key={option.id}
                       onClick={() => onAnswerChange(question.id, option.id)}
@@ -146,7 +144,7 @@ export function FixIntakeForm({
                 })}
               </div>
               <textarea
-                className="min-h-18 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="min-h-18 w-full resize-y rounded-lg bg-background px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 onChange={(event) =>
                   onNoteChange(question.id, event.target.value)
                 }

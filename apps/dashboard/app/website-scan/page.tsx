@@ -3,11 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowRight, CreditCard, GitBranch, Loader2 } from "lucide-react"
-import { loginWithGithub, useUser } from "@/hooks/use-auth"
+import { CreditCard, GitBranch, Loader2 } from "lucide-react"
+import type { CheckupProgress } from "@/lib/api"
+import { useUser } from "@/hooks/use-auth"
 import { useAudit } from "@/hooks/use-audit"
 import { useCreateFixCheckout } from "@/hooks/use-billing"
-import { useSavedRepos } from "@/hooks/use-repos"
+import { useSavedRepos, useUpdateRepoWebsite } from "@/hooks/use-repos"
 import { AuditReport } from "@/components/audit-report"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { StatePanel } from "@/components/state-panel"
@@ -21,12 +22,21 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
+const URL_STORAGE_KEY = "geo-repair:dashboard:website-scan-url"
+
+function readStoredUrl() {
+  if (typeof window === "undefined") return ""
+  return window.sessionStorage.getItem(URL_STORAGE_KEY) ?? ""
+}
+
 export default function WebsiteScanPage() {
   const router = useRouter()
-  const [url, setUrl] = React.useState("")
+  const [url, setUrl] = React.useState(readStoredUrl)
+  const prefilledRepoId = React.useRef<string | null>(null)
   const audit = useAudit()
-  const { isSignedIn, isLoading: isUserLoading } = useUser()
+  const { isSignedIn } = useUser()
   const savedRepos = useSavedRepos(isSignedIn)
+  const updateWebsite = useUpdateRepoWebsite()
   const checkout = useCreateFixCheckout()
   const repositories = savedRepos.data ?? []
   const selectedRepo =
@@ -34,12 +44,39 @@ export default function WebsiteScanPage() {
     repositories[0] ??
     null
 
+  React.useEffect(() => {
+    if (
+      selectedRepo?.website &&
+      prefilledRepoId.current !== selectedRepo.id &&
+      !url.trim()
+    ) {
+      setUrl(selectedRepo.website)
+      prefilledRepoId.current = selectedRepo.id
+    }
+  }, [selectedRepo?.id, selectedRepo?.website, url])
+
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
     const trimmed = url.trim()
     if (!trimmed) {
       return
     }
+
+    if (selectedRepo) {
+      updateWebsite.mutate(
+        { repositoryId: selectedRepo.id, website: trimmed },
+        {
+          onSuccess: (repo) => {
+            const scanUrl = repo.website ?? trimmed
+            window.sessionStorage.setItem(URL_STORAGE_KEY, scanUrl)
+            audit.start.mutate({ url: scanUrl, singlePage: false })
+          },
+        }
+      )
+      return
+    }
+
+    window.sessionStorage.setItem(URL_STORAGE_KEY, trimmed)
     audit.start.mutate({ url: trimmed, singlePage: false })
   }
 
@@ -66,7 +103,11 @@ export default function WebsiteScanPage() {
     )
   }
 
-  const busy = audit.isStarting || audit.isPolling || audit.isLoadingResult
+  const busy =
+    updateWebsite.isPending ||
+    audit.isStarting ||
+    audit.isPolling ||
+    audit.isLoadingResult
 
   return (
     <DashboardShell eyebrow="Website scan" title="AI Search readiness scan">
@@ -91,39 +132,26 @@ export default function WebsiteScanPage() {
             />
             <Button disabled={busy || !url.trim()} type="submit">
               {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-              {audit.isStarting
-                ? "Starting"
-                : audit.isPolling
-                  ? "Scanning"
-                  : audit.isLoadingResult
-                    ? "Loading"
-                    : "Run scan"}
+              {updateWebsite.isPending
+                ? "Saving"
+                : audit.isStarting
+                  ? "Starting"
+                  : audit.isPolling
+                    ? "Scanning"
+                    : audit.isLoadingResult
+                      ? "Loading"
+                      : "Run scan"}
             </Button>
           </form>
 
-          {!isUserLoading && !isSignedIn ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/25 p-4">
-              <p className="text-sm text-muted-foreground">
-                Connect GitHub before starting a paid fix.
-              </p>
-              <Button onClick={loginWithGithub} variant="outline">
-                <GitBranch className="size-4" />
-                Connect GitHub
-              </Button>
-            </div>
-          ) : null}
-
-          {audit.startError ? (
+          {updateWebsite.error || audit.startError ? (
             <p className="text-sm text-destructive">
-              {audit.startError.message}
+              {(updateWebsite.error ?? audit.startError)?.message}
             </p>
           ) : null}
 
           {audit.isPolling ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Running scan. Larger sites can take a moment.
-            </p>
+            <ScanProgressPanel progress={audit.progress} />
           ) : null}
 
           {audit.failed ? (
@@ -140,13 +168,11 @@ export default function WebsiteScanPage() {
       {audit.result?.report ? (
         <>
           <AuditReport report={audit.result.report} />
-          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium">Ready for the paid fix</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {selectedRepo
-                  ? `Checkout will use ${selectedRepo.fullName} and this scan report.`
-                  : "Choose a repository before checkout so the fix can open a PR."}
+                {resultActionDescription(selectedRepo?.fullName)}
               </p>
               {checkout.error ? (
                 <p className="mt-2 text-sm text-destructive">
@@ -155,16 +181,8 @@ export default function WebsiteScanPage() {
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              {!isSignedIn ? (
-                <Button onClick={loginWithGithub}>
-                  <GitBranch className="size-4" />
-                  Connect GitHub
-                </Button>
-              ) : selectedRepo ? (
-                <Button
-                  disabled={checkout.isPending}
-                  onClick={onStartCheckout}
-                >
+              {selectedRepo ? (
+                <Button disabled={checkout.isPending} onClick={onStartCheckout}>
                   {checkout.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
@@ -180,16 +198,109 @@ export default function WebsiteScanPage() {
                   </Link>
                 </Button>
               )}
-              <Button asChild variant="outline">
-                <Link href="/fix-agent">
-                  Fix workspace
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
             </div>
           </div>
         </>
       ) : null}
     </DashboardShell>
+  )
+}
+
+function phaseLabel(value: string | null | undefined) {
+  return value ? value.replaceAll("_", " ") : "Starting"
+}
+
+function resultActionDescription(selectedRepoFullName: string | undefined) {
+  if (selectedRepoFullName) {
+    return `Checkout will use ${selectedRepoFullName} and this scan report.`
+  }
+
+  return "Choose a repository before checkout so the fix can open a PR."
+}
+
+function ScanProgressPanel({ progress }: { progress: CheckupProgress | null }) {
+  const percent = Math.max(0, Math.min(100, progress?.percent ?? 5))
+  const events = progress?.events.slice(-6).reverse() ?? []
+
+  return (
+    <div className="grid gap-3 rounded-lg bg-muted/20 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Loader2 className="size-4 animate-spin" />
+            {phaseLabel(progress?.phase)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {progress?.currentPageUrl
+              ? `Reading ${progress.currentPageUrl}`
+              : "Preparing crawl and score checks."}
+          </p>
+        </div>
+        <span className="font-mono text-sm text-muted-foreground">
+          {Math.round(percent)}%
+        </span>
+      </div>
+
+      <div
+        className="h-2 overflow-hidden rounded-full bg-background"
+        role="progressbar"
+        aria-valuenow={Math.round(percent)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="h-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+
+      <div className="grid gap-2 text-xs sm:grid-cols-4">
+        <ProgressStat
+          label="Pages"
+          value={`${progress?.pagesCompleted ?? 0}/${progress?.pagesTotal ?? 0}`}
+        />
+        <ProgressStat
+          label="Failed"
+          value={String(progress?.pagesFailed ?? 0)}
+        />
+        <ProgressStat
+          label="Checks"
+          value={String(progress?.checksEvaluated ?? 0)}
+        />
+        <ProgressStat
+          label="Issues"
+          value={String(progress?.issuesFound ?? 0)}
+        />
+      </div>
+
+      {events.length > 0 ? (
+        <div>
+          <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            Live log
+          </p>
+          <ul className="mt-2 grid gap-1.5">
+            {events.map((event) => (
+              <li
+                className="rounded-lg bg-background px-3 py-2 text-xs"
+                key={event.sequence}
+              >
+                <span className="font-mono text-muted-foreground">
+                  #{event.sequence} {phaseLabel(event.phase)}
+                </span>
+                <span className="ml-2 text-foreground">{event.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ProgressStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-background px-3 py-2">
+      <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-1 font-mono text-sm">{value}</p>
+    </div>
   )
 }

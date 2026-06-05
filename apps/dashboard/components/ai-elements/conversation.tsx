@@ -91,7 +91,7 @@ export function ConversationScrollButton({
     <button
       aria-label="Scroll to latest agent event"
       className={cn(
-        "absolute right-4 bottom-4 grid size-8 place-items-center rounded-full border border-border bg-background text-foreground",
+        "absolute right-4 bottom-4 grid size-8 place-items-center rounded-full bg-background text-foreground",
         className
       )}
       onClick={handleScrollToBottom}

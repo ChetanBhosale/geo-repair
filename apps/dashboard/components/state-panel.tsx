@@ -17,10 +17,10 @@ export function StatePanel({
   return (
     <section
       className={cn(
-        "flex min-h-72 flex-col items-start justify-center gap-3 rounded-lg border border-border bg-card p-8",
-        tone === "warning" && "border-amber-500/40",
-        tone === "danger" && "border-destructive/40",
-        tone === "success" && "border-emerald-500/40"
+        "flex min-h-72 flex-col items-start justify-center gap-3 rounded-lg bg-background p-8",
+        tone === "warning" && "bg-amber-500/10",
+        tone === "danger" && "bg-destructive/10",
+        tone === "success" && "bg-emerald-500/10"
       )}
     >
       <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">

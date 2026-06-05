@@ -16,8 +16,8 @@ type CtaButtonProps = {
   children?: React.ReactNode
 } & Omit<ComponentProps<typeof Button>, "asChild" | "children">
 
-// Small client island for primary "Run free checkup" CTAs that live in server
-// components. Renders the same Button+Link and emits a labelled cta_clicked.
+// Small client island for primary CTAs that live in server components. Renders
+// the same Button+Link and emits a labelled cta_clicked.
 export function CtaButton({
   href,
   location,

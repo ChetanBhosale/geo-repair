@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.76",
     "@repo/db": "*",
     "@repo/secrets": "*",
     "@repo/types": "*",

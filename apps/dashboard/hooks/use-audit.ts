@@ -9,6 +9,8 @@ import {
   type TemporalStatus,
 } from "@/lib/api"
 
+const STORAGE_KEY = "geo-repair:dashboard:last-audit"
+
 const TERMINAL: TemporalStatus["status"][] = [
   "COMPLETED",
   "FAILED",
@@ -18,8 +20,49 @@ const TERMINAL: TemporalStatus["status"][] = [
   "NOT_FOUND",
 ]
 
+interface StoredAudit {
+  temporalId: string | null
+  resultKey: string | null
+  url: string | null
+}
+
+function readStoredAudit(): StoredAudit {
+  if (typeof window === "undefined") {
+    return { temporalId: null, resultKey: null, url: null }
+  }
+
+  try {
+    const parsed = JSON.parse(
+      window.sessionStorage.getItem(STORAGE_KEY) ?? "{}"
+    ) as Partial<StoredAudit>
+
+    return {
+      temporalId:
+        typeof parsed.temporalId === "string" ? parsed.temporalId : null,
+      resultKey: typeof parsed.resultKey === "string" ? parsed.resultKey : null,
+      url: typeof parsed.url === "string" ? parsed.url : null,
+    }
+  } catch {
+    return { temporalId: null, resultKey: null, url: null }
+  }
+}
+
+function writeStoredAudit(value: StoredAudit) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+}
+
 export function useAudit() {
-  const [temporalId, setTemporalId] = React.useState<string | null>(null)
+  const [initialStoredAudit] = React.useState(() => readStoredAudit())
+  const [persistedResultKey, setPersistedResultKey] = React.useState(
+    initialStoredAudit.resultKey
+  )
+  const [temporalId, setTemporalId] = React.useState<string | null>(
+    initialStoredAudit.temporalId
+  )
 
   // 1) Start the audit.
   const start = useMutation({
@@ -27,6 +70,12 @@ export function useAudit() {
       createAudit(url, singlePage),
     onSuccess: (data) => {
       setTemporalId(data.temporalId)
+      setPersistedResultKey(null)
+      writeStoredAudit({
+        temporalId: data.temporalId,
+        resultKey: null,
+        url: data.website,
+      })
     },
   })
 
@@ -42,9 +91,23 @@ export function useAudit() {
   })
 
   // 3) The result key is derived from the completed status, not mirrored into
-  //    state via an effect (avoids cascading renders).
+  // state via an effect (avoids cascading renders).
   const resultKey =
-    status.data?.status === "COMPLETED" ? status.data.result.key : null
+    status.data?.status === "COMPLETED"
+      ? status.data.result.key
+      : persistedResultKey
+
+  React.useEffect(() => {
+    if (status.data?.status !== "COMPLETED") {
+      return
+    }
+
+    writeStoredAudit({
+      temporalId,
+      resultKey: status.data.result.key,
+      url: status.data.result.website,
+    })
+  }, [status.data, temporalId])
 
   // 4) Fetch the full saved report.
   const result = useQuery({
@@ -71,6 +134,7 @@ export function useAudit() {
     failed,
     startError: start.error,
     result: result.data,
+    progress: status.data?.progress ?? null,
     isLoadingResult: result.isLoading && !!resultKey,
   }
 }

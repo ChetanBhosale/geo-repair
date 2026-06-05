@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   },
   description:
     "Dashboard for website scans, fix-agent runs, reports, and project settings.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+    apple: [{ url: "/apple-icon.png", type: "image/png" }],
+  },
 }
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })

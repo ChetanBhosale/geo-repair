@@ -112,10 +112,7 @@ export default function SharedReportPage() {
               <CardContent>
                 <ul className="grid gap-2 text-sm">
                   {section.items.map((item) => (
-                    <li
-                      className="rounded-md border border-border bg-muted/25 px-3 py-2"
-                      key={item}
-                    >
+                    <li className="rounded-md bg-muted/25 px-3 py-2" key={item}>
                       {item}
                     </li>
                   ))}
@@ -133,14 +130,14 @@ function PublicShell({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-5xl gap-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <header className="flex flex-wrap items-center justify-between gap-3 pb-4">
           <div>
             <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
               Shared report
             </p>
             <h1 className="mt-1 text-xl font-semibold">geo.repair</h1>
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-muted-foreground">
             <FileText className="size-3.5" />
             Read-only
           </div>
@@ -163,9 +160,7 @@ function State({
   return (
     <Card>
       <CardContent className="flex items-start gap-3 p-6">
-        <div className="rounded-md border border-border p-2 text-muted-foreground">
-          {icon}
-        </div>
+        <div className="rounded-md p-2 text-muted-foreground">{icon}</div>
         <div>
           <h2 className="text-sm font-semibold">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
@@ -185,7 +180,7 @@ function Metric({
   detail: string | null
 }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/25 p-4">
+    <div className="rounded-lg bg-muted/25 p-4">
       <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </p>

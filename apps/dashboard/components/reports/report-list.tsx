@@ -2,10 +2,7 @@
 
 import { FileText } from "lucide-react"
 import type { ProjectReportSummary } from "@repo/types/reports"
-import {
-  formatDateTime,
-  reportStatusVariant,
-} from "@/lib/dashboard-format"
+import { formatDateTime, reportStatusVariant } from "@/lib/dashboard-format"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -65,10 +62,8 @@ function ReportListItem({
 }) {
   return (
     <button
-      className={`rounded-lg border p-3 text-left transition-colors ${
-        isSelected
-          ? "border-foreground bg-muted/40"
-          : "border-border bg-background hover:bg-muted/25"
+      className={`rounded-lg p-3 text-left transition-colors ${
+        isSelected ? "bg-muted/40" : "bg-background hover:bg-muted/25"
       }`}
       onClick={onSelect}
       type="button"

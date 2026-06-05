@@ -25,7 +25,7 @@ export function FixTechPanel({
 }) {
   return (
     <Card className="min-h-0 overflow-hidden py-0">
-      <div className="flex flex-wrap gap-2 border-b border-border p-3">
+      <div className="flex flex-wrap gap-2 p-3">
         {techTabs.map((tab) => (
           <Button
             key={tab.id}
@@ -65,21 +65,21 @@ function TechPanel({
     if (diffEvent) {
       return (
         <div className="grid gap-3">
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg p-3">
             <h3 className="text-sm font-semibold">Changed files</h3>
-            <pre className="mt-3 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
               {nameStatus || "No changed files recorded."}
             </pre>
           </div>
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg p-3">
             <h3 className="text-sm font-semibold">Diff stat</h3>
-            <pre className="mt-3 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
               {stat || "No diff stat recorded."}
             </pre>
           </div>
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg p-3">
             <h3 className="text-sm font-semibold">Patch preview</h3>
-            <pre className="mt-3 max-h-[420px] overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 max-h-[420px] overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
               {patch || "No patch preview recorded."}
             </pre>
           </div>
@@ -97,10 +97,7 @@ function TechPanel({
           <p className="text-sm text-muted-foreground">No checks yet.</p>
         ) : null}
         {detail.checks.map((check) => (
-          <div
-            className="rounded-lg border border-border p-3"
-            key={check.rubricId}
-          >
+          <div className="rounded-lg p-3" key={check.rubricId}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-mono text-sm">{check.rubricId}</span>
               <Badge variant={fixCheckStatusVariant(check.status)}>
@@ -122,7 +119,7 @@ function TechPanel({
 
   if (activeTab === "logs") {
     return (
-      <pre className="overflow-auto rounded-lg border border-border bg-muted/30 p-4 text-xs leading-6">
+      <pre className="overflow-auto rounded-lg bg-muted/30 p-4 text-xs leading-6">
         {JSON.stringify(detail.events, null, 2)}
       </pre>
     )
@@ -140,7 +137,7 @@ export function EventList({ events }: { events: RunEventView[] }) {
     <div className="grid gap-2">
       {events.map((event) => (
         <div
-          className="grid grid-cols-[52px_120px_minmax(0,1fr)] gap-3 border-b border-border py-2 text-sm"
+          className="grid grid-cols-[52px_120px_minmax(0,1fr)] gap-3 py-2 text-sm"
           key={event.seq}
         >
           <span className="font-mono text-xs text-muted-foreground">
@@ -176,7 +173,7 @@ export function TerminalPanel({
 
   return (
     <div className="grid gap-3">
-      <pre className="overflow-auto rounded-lg border border-border bg-muted/30 p-4 text-xs leading-6">
+      <pre className="overflow-auto rounded-lg bg-muted/30 p-4 text-xs leading-6">
         {`run=${detail.id}
 state=${detail.state}
 sandbox=${detail.sandboxStatus}
@@ -203,14 +200,14 @@ fixed=${detail.fixedChecks}/${detail.totalChecks}`}
               : null
 
         return (
-          <div className="rounded-lg border border-border p-3" key={event.seq}>
+          <div className="rounded-lg p-3" key={event.seq}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-mono text-xs text-muted-foreground">
                 #{event.seq}
               </span>
               <Badge variant="muted">{event.type}</Badge>
             </div>
-            <pre className="mt-3 overflow-auto rounded-md border border-border bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
               {command ? `$ ${command}` : eventBody(event)}
               {output ? `\n\n${output}` : ""}
             </pre>

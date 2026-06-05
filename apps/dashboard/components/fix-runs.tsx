@@ -63,7 +63,7 @@ export function FixRuns() {
         const active = ACTIVE_STATES.includes(run.state)
         const isOpen = openId === run.id
         return (
-          <div key={run.id} className="rounded-lg border border-border">
+          <div key={run.id} className="rounded-lg">
             <button
               type="button"
               onClick={() => setOpenId(isOpen ? null : run.id)}
@@ -120,14 +120,14 @@ function RunDetail({ id }: { id: string }) {
 
   if (isLoading || !detail) {
     return (
-      <div className="border-t border-border px-4 py-3">
+      <div className="px-4 py-3">
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4 border-t border-border px-4 py-4">
+    <div className="flex flex-col gap-4 px-4 py-4">
       {detail.error ? (
         <p className="flex items-center gap-2 text-sm text-destructive">
           <XCircle className="size-4" />
@@ -140,7 +140,7 @@ function RunDetail({ id }: { id: string }) {
         <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Checks ({detail.fixedChecks}/{detail.totalChecks} fixed)
         </h4>
-        <div className="flex flex-col divide-y divide-border rounded-md border border-border">
+        <div className="flex flex-col rounded-md">
           {detail.checks.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">
               No checks yet.
@@ -181,7 +181,7 @@ function RunDetail({ id }: { id: string }) {
         <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Activity log
         </h4>
-        <div className="max-h-64 overflow-y-auto rounded-md border border-border bg-muted/30 p-2 font-mono text-xs">
+        <div className="max-h-64 overflow-y-auto rounded-md bg-muted/30 p-2 font-mono text-xs">
           {detail.events.length === 0 ? (
             <p className="text-muted-foreground">No events yet.</p>
           ) : (

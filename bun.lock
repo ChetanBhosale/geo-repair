@@ -45,6 +45,7 @@
       "name": "dashboard",
       "version": "0.0.1",
       "dependencies": {
+        "@paper-design/shaders-react": "^0.0.76",
         "@repo/db": "*",
         "@repo/secrets": "*",
         "@repo/types": "*",

@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  Clipboard,
-  Download,
-  Eye,
-  Loader2,
-  Share2,
-  X,
-} from "lucide-react"
+import { Clipboard, Download, Eye, Loader2, Share2, X } from "lucide-react"
 import type { ProjectReportDetail } from "@repo/types/reports"
 import { reportStatusVariant } from "@/lib/dashboard-format"
 import { ENDPOINTS } from "@/lib/endpoint"
@@ -52,7 +45,8 @@ export function ReportPreview({
           <div>
             <CardTitle>{report?.title ?? "Report preview"}</CardTitle>
             <CardDescription>
-              {report?.summary ?? "Select a report to inspect the stored artifact."}
+              {report?.summary ??
+                "Select a report to inspect the stored artifact."}
             </CardDescription>
           </div>
           {report ? (
@@ -75,7 +69,8 @@ export function ReportPreview({
             eyebrow="Preview error"
             title="Could not load this report"
             description={
-              error?.message ?? "The selected report detail could not be loaded."
+              error?.message ??
+              "The selected report detail could not be loaded."
             }
             tone="danger"
           />
@@ -136,7 +131,7 @@ function ReportDetail({
       <div className="grid gap-3">
         {report.content.sections.map((section) => (
           <section
-            className="rounded-lg border border-border bg-background p-4"
+            className="rounded-lg bg-background p-4"
             key={section.heading}
           >
             <h3 className="text-sm font-semibold">{section.heading}</h3>
@@ -144,10 +139,7 @@ function ReportDetail({
             {section.items.length > 0 ? (
               <ul className="mt-3 grid gap-2 text-sm">
                 {section.items.map((item) => (
-                  <li
-                    className="rounded-md border border-border bg-muted/25 px-3 py-2"
-                    key={item}
-                  >
+                  <li className="rounded-md bg-muted/25 px-3 py-2" key={item}>
                     {item}
                   </li>
                 ))}
@@ -247,7 +239,7 @@ function Metric({
   detail: string | null
 }) {
   return (
-    <div className="rounded-lg border border-border bg-muted/25 p-4">
+    <div className="rounded-lg bg-muted/25 p-4">
       <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
