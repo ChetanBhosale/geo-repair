@@ -145,7 +145,7 @@ export default function WebsiteScanPage() {
           </form>
 
           {updateWebsite.error || audit.startError ? (
-            <p className="text-sm text-destructive">
+            <p className="text-sm text-danger">
               {(updateWebsite.error ?? audit.startError)?.message}
             </p>
           ) : null}
@@ -168,14 +168,14 @@ export default function WebsiteScanPage() {
       {audit.result?.report ? (
         <>
           <AuditReport report={audit.result.report} />
-          <div className="flex flex-col gap-3 rounded-lg bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-lg bg-secondary/20 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium">Ready for the paid fix</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-secondary">
                 {resultActionDescription(selectedRepo?.fullName)}
               </p>
               {checkout.error ? (
-                <p className="mt-2 text-sm text-destructive">
+                <p className="mt-2 text-sm text-danger">
                   {checkout.error.message}
                 </p>
               ) : null}
@@ -221,34 +221,69 @@ function resultActionDescription(selectedRepoFullName: string | undefined) {
 function ScanProgressPanel({ progress }: { progress: CheckupProgress | null }) {
   const percent = Math.max(0, Math.min(100, progress?.percent ?? 5))
   const events = progress?.events.slice(-6).reverse() ?? []
+  const activePageLabel = progress?.currentPageUrl
+    ? `Reading ${progress.currentPageUrl}`
+    : "Preparing crawl and score checks."
 
   return (
-    <div className="grid gap-3 rounded-lg bg-muted/20 p-4">
+    <div className="scan-progress-motion relative grid gap-3 overflow-hidden rounded-lg bg-secondary/20 p-4">
+      <ScanProgressMotionStyles />
+
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent"
+        style={{ animation: "scan-sweep 2.4s ease-in-out infinite" }}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 text-sm font-medium">
-            <Loader2 className="size-4 animate-spin" />
+            <span className="relative flex size-4 items-center justify-center">
+              <span
+                className="absolute size-4 rounded-full bg-brand/25"
+                style={{ animation: "scan-ping 1.4s ease-out infinite" }}
+              />
+              <span className="relative size-2 rounded-full bg-brand" />
+            </span>
             {phaseLabel(progress?.phase)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {progress?.currentPageUrl
-              ? `Reading ${progress.currentPageUrl}`
-              : "Preparing crawl and score checks."}
+          <p
+            className="mt-1 truncate text-xs text-secondary transition-opacity duration-300"
+            key={activePageLabel}
+            style={{ animation: "scan-fade-up 180ms ease-out" }}
+          >
+            {activePageLabel}
           </p>
         </div>
-        <span className="font-mono text-sm text-muted-foreground">
+        <span
+          className="font-mono text-sm text-secondary transition-transform duration-300"
+          key={Math.round(percent)}
+          style={{ animation: "scan-fade-up 180ms ease-out" }}
+        >
           {Math.round(percent)}%
         </span>
       </div>
 
       <div
-        className="h-2 overflow-hidden rounded-full bg-background"
+        className="relative h-2 overflow-hidden rounded-full bg-primary"
         role="progressbar"
         aria-valuenow={Math.round(percent)}
         aria-valuemin={0}
         aria-valuemax={100}
       >
-        <div className="h-full bg-primary" style={{ width: `${percent}%` }} />
+        <div
+          className="relative h-full overflow-hidden rounded-full bg-brand"
+          style={{
+            width: `${percent}%`,
+            transition: "width 700ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        >
+          <span
+            aria-hidden
+            className="absolute inset-y-0 right-0 w-16 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+            style={{ animation: "scan-shimmer 1.5s ease-in-out infinite" }}
+          />
+        </div>
       </div>
 
       <div className="grid gap-2 text-xs sm:grid-cols-4">
@@ -272,19 +307,23 @@ function ScanProgressPanel({ progress }: { progress: CheckupProgress | null }) {
 
       {events.length > 0 ? (
         <div>
-          <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+          <p className="font-mono text-[10px] tracking-wide text-secondary uppercase">
             Live log
           </p>
           <ul className="mt-2 grid gap-1.5">
-            {events.map((event) => (
+            {events.map((event, index) => (
               <li
-                className="rounded-lg bg-background px-3 py-2 text-xs"
-                key={event.sequence}
+                className="rounded-lg bg-primary px-3 py-2 text-xs"
+                key={eventKey(event, index)}
+                style={{
+                  animation: "scan-fade-up 220ms ease-out both",
+                  animationDelay: `${index * 35}ms`,
+                }}
               >
-                <span className="font-mono text-muted-foreground">
+                <span className="font-mono text-secondary">
                   #{event.sequence} {phaseLabel(event.phase)}
                 </span>
-                <span className="ml-2 text-foreground">{event.message}</span>
+                <span className="ml-2 text-primary">{event.message}</span>
               </li>
             ))}
           </ul>
@@ -294,13 +333,64 @@ function ScanProgressPanel({ progress }: { progress: CheckupProgress | null }) {
   )
 }
 
+function eventKey(event: CheckupProgress["events"][number], index: number) {
+  return `${event.sequence}-${event.createdAt}-${event.type}-${event.pageUrl ?? ""}-${event.message}-${index}`
+}
+
 function ProgressStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-background px-3 py-2">
-      <p className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div
+      className="rounded-lg bg-primary px-3 py-2 transition-colors duration-300"
+      style={{ animation: "scan-fade-up 180ms ease-out" }}
+    >
+      <p className="font-mono text-[10px] tracking-wide text-secondary uppercase">
         {label}
       </p>
-      <p className="mt-1 font-mono text-sm">{value}</p>
+      <p className="mt-1 overflow-hidden font-mono text-sm">
+        <span
+          className="inline-block"
+          key={`${label}-${value}`}
+          style={{ animation: "scan-fade-up 180ms ease-out" }}
+        >
+          {value}
+        </span>
+      </p>
     </div>
+  )
+}
+
+function ScanProgressMotionStyles() {
+  return (
+    <style>{`
+      @keyframes scan-sweep {
+        0% { transform: translateX(-100%); opacity: 0; }
+        20% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { transform: translateX(100%); opacity: 0; }
+      }
+
+      @keyframes scan-shimmer {
+        0% { transform: translateX(-140%); }
+        100% { transform: translateX(140%); }
+      }
+
+      @keyframes scan-ping {
+        0% { transform: scale(0.65); opacity: 0.75; }
+        100% { transform: scale(1.85); opacity: 0; }
+      }
+
+      @keyframes scan-fade-up {
+        from { transform: translateY(4px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scan-progress-motion,
+        .scan-progress-motion * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    `}</style>
   )
 }

@@ -43,13 +43,14 @@ function progressPercent(progress: {
   pagesCompleted: number;
   pagesFailed: number;
 }): number {
-  if (progress.status === "completed" || progress.phase === "completed") return 100;
+  if (progress.status === "completed" || progress.phase === "completed")
+    return 100;
   if (progress.status === "failed" || progress.phase === "failed") return 100;
 
   if (progress.phase === "scoring_pages" && progress.pagesTotal > 0) {
     const done = Math.min(
       progress.pagesTotal,
-      progress.pagesCompleted + progress.pagesFailed
+      progress.pagesCompleted + progress.pagesFailed,
     );
     return Math.min(89, 45 + Math.round((done / progress.pagesTotal) * 40));
   }
@@ -76,7 +77,10 @@ function progressPercent(progress: {
 
 function recentPages(events: CheckupProgressEvent[]): RecentCheckupPage[] {
   return events
-    .filter((event) => event.type === "page_completed" || event.type === "page_failed")
+    .filter(
+      (event) =>
+        event.type === "page_completed" || event.type === "page_failed",
+    )
     .slice(-5)
     .reverse()
     .map((event) => {
@@ -84,7 +88,8 @@ function recentPages(events: CheckupProgressEvent[]): RecentCheckupPage[] {
         typeof event.metadata === "object" && event.metadata !== null
           ? (event.metadata as Record<string, unknown>)
           : {};
-      const score = typeof metadata.score === "number" ? metadata.score : undefined;
+      const score =
+        typeof metadata.score === "number" ? metadata.score : undefined;
       const status: RecentCheckupPage["status"] =
         event.type === "page_completed" ? "completed" : "failed";
       return {
@@ -112,7 +117,7 @@ function toProgress(
     error: string | null;
     updatedAt: Date;
   },
-  events: CheckupProgressEvent[]
+  events: CheckupProgressEvent[],
 ): CheckupProgress {
   const status = run.status as CheckupRunStatus;
   const phase = run.phase as CheckupPhase;
@@ -139,7 +144,7 @@ function toProgress(
 
 export async function createCheckupRun(
   workflowId: string,
-  website: string
+  website: string,
 ): Promise<void> {
   await prisma.checkupRun.create({
     data: {
@@ -162,18 +167,21 @@ export async function createCheckupRun(
 export async function setCheckupProgress(
   workflowId: string,
   patch: ProgressPatch,
-  increment?: ProgressIncrement
+  increment?: ProgressIncrement,
 ): Promise<void> {
   const data: Prisma.CheckupRunUncheckedUpdateInput = {};
 
   if (patch.status !== undefined) data.status = patch.status;
   if (patch.phase !== undefined) data.phase = patch.phase;
   if (patch.pagesTotal !== undefined) data.pagesTotal = patch.pagesTotal;
-  if (patch.pagesCompleted !== undefined) data.pagesCompleted = patch.pagesCompleted;
+  if (patch.pagesCompleted !== undefined)
+    data.pagesCompleted = patch.pagesCompleted;
   if (patch.pagesFailed !== undefined) data.pagesFailed = patch.pagesFailed;
-  if (patch.checksEvaluated !== undefined) data.checksEvaluated = patch.checksEvaluated;
+  if (patch.checksEvaluated !== undefined)
+    data.checksEvaluated = patch.checksEvaluated;
   if (patch.issuesFound !== undefined) data.issuesFound = patch.issuesFound;
-  if (patch.currentPageUrl !== undefined) data.currentPageUrl = patch.currentPageUrl;
+  if (patch.currentPageUrl !== undefined)
+    data.currentPageUrl = patch.currentPageUrl;
   if (patch.resultKey !== undefined) data.resultKey = patch.resultKey;
   if (patch.error !== undefined) data.error = patch.error;
 
@@ -200,53 +208,63 @@ export async function setCheckupProgress(
 
 export async function appendCheckupRunEvent(
   workflowId: string,
-  event: CheckupRunEventInput
+  event: CheckupRunEventInput,
 ): Promise<void> {
-  const run = await prisma.checkupRun.findUnique({
-    where: { workflowId },
-    select: { id: true, _count: { select: { events: true } } },
-  });
-  if (!run) return;
+  await prisma.$transaction(async (tx) => {
+    const lockedRows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "checkupRuns" WHERE "workflowId" = ${workflowId} FOR UPDATE
+    `;
+    const run = lockedRows[0];
+    if (!run) return;
 
-  await prisma.checkupRunEvent.create({
-    data: {
-      runId: run.id,
-      sequence: run._count.events + 1,
-      phase: event.phase,
-      type: event.type,
-      message: event.message,
-      pageUrl: event.pageUrl ?? null,
-      metadata:
-        event.metadata === undefined
-          ? undefined
-          : (event.metadata as Prisma.InputJsonValue),
-    },
+    const lastEvent = await tx.checkupRunEvent.findFirst({
+      where: { runId: run.id },
+      orderBy: { sequence: "desc" },
+      select: { sequence: true },
+    });
+
+    await tx.checkupRunEvent.create({
+      data: {
+        runId: run.id,
+        sequence: (lastEvent?.sequence ?? 0) + 1,
+        phase: event.phase,
+        type: event.type,
+        message: event.message,
+        pageUrl: event.pageUrl ?? null,
+        metadata:
+          event.metadata === undefined
+            ? undefined
+            : (event.metadata as Prisma.InputJsonValue),
+      },
+    });
   });
 }
 
 export async function getCheckupProgress(
-  workflowId: string
+  workflowId: string,
 ): Promise<CheckupProgress | null> {
   const run = await prisma.checkupRun.findUnique({
     where: { workflowId },
     include: {
       events: {
-        orderBy: { sequence: "desc" },
+        orderBy: [{ sequence: "desc" }, { createdAt: "desc" }],
         take: 50,
       },
     },
   });
   if (!run) return null;
 
-  const events: CheckupProgressEvent[] = [...run.events].reverse().map((event) => ({
-    sequence: event.sequence,
-    phase: event.phase as CheckupPhase,
-    type: event.type,
-    message: event.message,
-    pageUrl: event.pageUrl,
-    metadata: event.metadata,
-    createdAt: event.createdAt.toISOString(),
-  }));
+  const events: CheckupProgressEvent[] = [...run.events]
+    .reverse()
+    .map((event) => ({
+      sequence: event.sequence,
+      phase: event.phase as CheckupPhase,
+      type: event.type,
+      message: event.message,
+      pageUrl: event.pageUrl,
+      metadata: event.metadata,
+      createdAt: event.createdAt.toISOString(),
+    }));
 
   return toProgress(run, events);
 }
