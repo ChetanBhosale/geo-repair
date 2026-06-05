@@ -4,8 +4,12 @@ import {
   BillingError,
   createDevFixtureOrder,
   createFixCheckoutForOrder,
+  getInvoiceForUser,
   getOrderById,
+  invoiceDownloadFilename,
+  listBillingHistoryForUser,
   processDodoWebhook,
+  renderInvoiceMarkdown,
 } from "./billing.service";
 import type { DodoWebhookHeaders } from "./providers/dodo";
 
@@ -29,7 +33,9 @@ function intBodyValue(value: unknown): number | undefined {
 
 export async function createFixCheckout(req: Request, res: Response) {
   try {
-    const orderId = stringBodyValue((req.body as { orderId?: unknown }).orderId);
+    const orderId = stringBodyValue(
+      (req.body as { orderId?: unknown }).orderId,
+    );
     if (!orderId) {
       return res.status(400).json({ error: "orderId is required." });
     }
@@ -63,6 +69,56 @@ export async function getOrderStatus(req: Request, res: Response) {
   }
 }
 
+export async function getBillingHistory(req: Request, res: Response) {
+  try {
+    const history = await listBillingHistoryForUser(req.userId!);
+    return res.json(history);
+  } catch (err) {
+    return sendBillingError(res, err);
+  }
+}
+
+export async function getInvoice(req: Request, res: Response) {
+  try {
+    const orderId = stringBodyValue(req.params.orderId);
+    if (!orderId) {
+      return res.status(400).json({ error: "orderId is required." });
+    }
+
+    const invoice = await getInvoiceForUser(req.userId!, orderId);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found." });
+    }
+
+    return res.json({ invoice });
+  } catch (err) {
+    return sendBillingError(res, err);
+  }
+}
+
+export async function downloadInvoice(req: Request, res: Response) {
+  try {
+    const orderId = stringBodyValue(req.params.orderId);
+    if (!orderId) {
+      return res.status(400).json({ error: "orderId is required." });
+    }
+
+    const invoice = await getInvoiceForUser(req.userId!, orderId);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found." });
+    }
+
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${invoiceDownloadFilename(invoice)}"`,
+    );
+    return res.send(renderInvoiceMarkdown(invoice));
+  } catch (err) {
+    return sendBillingError(res, err);
+  }
+}
+
 export async function createDevFixtureCheckout(req: Request, res: Response) {
   try {
     const body = req.body as Record<string, unknown>;
@@ -80,7 +136,10 @@ export async function createDevFixtureCheckout(req: Request, res: Response) {
   }
 }
 
-function webhookHeader(req: Request, name: keyof DodoWebhookHeaders): string | null {
+function webhookHeader(
+  req: Request,
+  name: keyof DodoWebhookHeaders,
+): string | null {
   const value = req.headers[name];
   if (Array.isArray(value)) return value[0] ?? null;
   return typeof value === "string" && value ? value : null;

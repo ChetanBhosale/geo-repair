@@ -1,4 +1,6 @@
 import { prisma } from "@repo/db";
+import type { Prisma } from "@repo/db/generated/prisma/client";
+import type { FixRunIntake } from "@repo/types/fix";
 import { getTemporalClient } from "./client";
 import { TASK_QUEUES } from "./shared";
 import { fixSiteWorkflow } from "./functions/fix-site/workflows";
@@ -10,6 +12,7 @@ export async function startFix(params: {
   userId: string;
   website: string;
   repositoryId: string;
+  intake?: FixRunIntake;
 }): Promise<{ fixRunId: string; temporalWorkflowId: string }> {
   const repo = await prisma.repository.findFirst({
     where: { id: params.repositoryId, userId: params.userId },
@@ -25,11 +28,26 @@ export async function startFix(params: {
       userId: params.userId,
       repositoryId: repo.id,
       website: params.website,
+      intake: params.intake
+        ? (params.intake as unknown as Prisma.InputJsonValue)
+        : undefined,
       temporalWorkflowId: workflowId,
       state: "QUEUED",
       sandboxStatus: "NONE",
     },
   });
+
+  if (params.intake) {
+    await prisma.runEvent.create({
+      data: {
+        fixRunId: run.id,
+        seq: 1,
+        type: "intake_submitted",
+        phase: "QUEUED",
+        payload: params.intake as unknown as Prisma.InputJsonValue,
+      },
+    });
+  }
 
   const client = await getTemporalClient();
   const handle = await client.workflow.start(fixSiteWorkflow, {
@@ -43,6 +61,7 @@ export async function startFix(params: {
         cloneUrl: repo.cloneUrl,
         defaultBranch: repo.defaultBranch,
         userId: params.userId,
+        intake: params.intake,
       },
     ],
     workflowExecutionTimeout: "1 hour",

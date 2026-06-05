@@ -60,6 +60,19 @@ enum WebhookProcessingStatus {
   DUPLICATE
 }
 
+enum ProjectReportType {
+  SCAN
+  FIX_SUMMARY
+  BEFORE_AFTER
+  EXPORT
+}
+
+enum ProjectReportStatus {
+  READY
+  DRAFT
+  FAILED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String?  @unique
@@ -73,6 +86,8 @@ model User {
   orders       Order[]
   repositories Repository[]
   fixRuns      FixRun[]
+  reports      ProjectReport[]
+  reportShares ReportShareLink[]
 
   @@map("users")
 }
@@ -112,6 +127,7 @@ model CheckupReport {
 
   runs              CheckupRun[]
   orders            Order[]
+  reports           ProjectReport[]
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -303,6 +319,7 @@ model FixRun {
   repositoryId String
   repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
   website      String
+  intake       Json?
 
   // Temporal handles.
   temporalWorkflowId String  @unique
@@ -335,6 +352,7 @@ model FixRun {
 
   checks FixCheck[]
   events RunEvent[]
+  reports ProjectReport[]
 
   @@index([userId])
   @@index([repositoryId])
@@ -384,4 +402,52 @@ model RunEvent {
   @@unique([fixRunId, seq])
   @@index([fixRunId])
   @@map("run_events")
+}
+
+// Stored client-facing artifacts. Generated from scan reports, fix runs, and
+// later re-checks so the dashboard can render, share, and download reports.
+model ProjectReport {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            ProjectReportType
+  status          ProjectReportStatus @default(READY)
+  title           String
+  summary         String
+  content         Json
+  sourceKey       String              @unique
+  website         String?
+  repoFullName    String?
+  checkupReportId String?
+  checkupReport   CheckupReport?      @relation(fields: [checkupReportId], references: [id], onDelete: SetNull)
+  fixRunId        String?
+  fixRun          FixRun?             @relation(fields: [fixRunId], references: [id], onDelete: SetNull)
+  generatedAt     DateTime            @default(now())
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  shareLinks ReportShareLink[]
+
+  @@index([userId, type])
+  @@index([checkupReportId])
+  @@index([fixRunId])
+  @@map("project_reports")
+}
+
+model ReportShareLink {
+  id        String        @id @default(cuid())
+  reportId  String
+  report    ProjectReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String        @unique
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([reportId])
+  @@index([userId])
+  @@index([token])
+  @@map("report_share_links")
 }

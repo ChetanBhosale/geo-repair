@@ -9,7 +9,8 @@
     "./scraper": "./src/scraper.ts",
     "./github": "./src/github.ts",
     "./fix": "./src/fix.ts",
-    "./billing": "./src/billing.ts"
+    "./billing": "./src/billing.ts",
+    "./reports": "./src/reports.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

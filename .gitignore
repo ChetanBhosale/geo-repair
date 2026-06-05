@@ -39,3 +39,5 @@ yarn-error.log*
 .gstack/
 .claude/
 .firecrawl/
+
+apps/dashboard/_archive/

@@ -22,6 +22,27 @@ export type FixCheckStatus =
   | "FLAGGED"
   | "FAILED";
 
+export type FixIntakeQuestionId =
+  | "visible_copy"
+  | "new_content"
+  | "claims"
+  | "visual_changes"
+  | "review_preference";
+
+export interface FixIntakeAnswer {
+  questionId: FixIntakeQuestionId;
+  question: string;
+  answerId: string;
+  answerLabel: string;
+  notes: string | null;
+}
+
+export interface FixRunIntake {
+  version: 1;
+  submittedAt: string;
+  answers: FixIntakeAnswer[];
+}
+
 // One check within a run (drives "X of Y fixed").
 export interface FixCheckView {
   rubricId: string;
@@ -65,6 +86,7 @@ export interface FixRunDetail extends FixRunSummary {
   branch: string | null;
   prNumber: number | null;
   sandboxId: string | null;
+  intake: FixRunIntake | null;
   checks: FixCheckView[];
   events: RunEventView[];
 }
@@ -73,6 +95,7 @@ export interface FixRunDetail extends FixRunSummary {
 export interface StartFixRequest {
   website: string;
   repositoryId: string;
+  intake?: FixRunIntake;
 }
 
 export interface StartFixResponse {

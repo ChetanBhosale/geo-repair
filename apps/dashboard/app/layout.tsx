@@ -1,11 +1,22 @@
+import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { QueryProvider } from "@/components/query-provider"
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'})
+export const metadata: Metadata = {
+  metadataBase: new URL("https://dashboard.geo.repair"),
+  title: {
+    default: "AI Search Dashboard",
+    template: "%s | AI Search Dashboard",
+  },
+  description:
+    "Dashboard for website scans, fix-agent runs, reports, and project settings.",
+}
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -21,7 +32,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", geist.variable)}
+      className={cn("font-sans antialiased", fontMono.variable, geist.variable)}
     >
       <body>
         <ThemeProvider>

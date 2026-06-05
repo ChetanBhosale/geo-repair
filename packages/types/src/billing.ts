@@ -32,3 +32,54 @@ export const OrderSummarySchema = z.object({
   startFixUnlocked: z.boolean(),
 });
 export type OrderSummary = z.infer<typeof OrderSummarySchema>;
+
+export interface BillingOrder {
+  id: string;
+  status: OrderStatus;
+  tier: FixTier;
+  amountCents: number;
+  currency: string;
+  website: string;
+  repoFullName: string | null;
+  provider: "DODO";
+  providerPaymentId: string | null;
+  providerSessionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  paidAt: string | null;
+  failedAt: string | null;
+  canceledAt: string | null;
+  refundedAt: string | null;
+  disputedAt: string | null;
+}
+
+export interface BillingInvoiceLineItem {
+  label: string;
+  quantity: number;
+  amountCents: number;
+}
+
+export interface BillingInvoice {
+  id: string;
+  orderId: string;
+  status: OrderStatus;
+  amountCents: number;
+  currency: string;
+  description: string;
+  website: string;
+  repoFullName: string | null;
+  issuedAt: string;
+  paidAt: string | null;
+  providerPaymentId: string | null;
+  downloadUrl: string;
+}
+
+export interface BillingInvoiceDetail extends BillingInvoice {
+  lineItems: BillingInvoiceLineItem[];
+  customerEmail: string | null;
+}
+
+export interface BillingHistoryResponse {
+  orders: BillingOrder[];
+  invoices: BillingInvoice[];
+}

@@ -1,4 +1,5 @@
 import type { SiteReport } from "./functions/checkup/crawler";
+import type { FixRunIntake } from "@repo/types/fix";
 
 // Task queues. Each maps to its own worker.
 export const TASK_QUEUES = {
@@ -114,6 +115,8 @@ export interface FixSiteInput {
   defaultBranch: string;
   // The user who owns this run (to resolve their GitHub token).
   userId: string;
+  // Structured pre-run clarification answers collected by the dashboard.
+  intake?: FixRunIntake;
 }
 
 export interface FixSiteResult {

@@ -7,13 +7,17 @@ import authRoutes from "./src/auth/auth.routes";
 import githubRoutes from "./src/github/github.routes";
 import fixRoutes from "./src/fix/fix.routes";
 import checkupRoutes from "./src/checkup/checkup.routes";
+import reportRoutes from "./src/reports/report.routes";
 import {
   billingRoutes,
   devBillingRoutes,
   dodoWebhookRoutes,
 } from "./src/billing/billing.routes";
 import { notFoundHandler, errorHandler } from "./src/middleware/error";
-import { authRateLimiter, globalRateLimiter } from "./src/middleware/rate-limit";
+import {
+  authRateLimiter,
+  globalRateLimiter,
+} from "./src/middleware/rate-limit";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
@@ -23,7 +27,7 @@ app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 const ALLOWED_ORIGINS = [Secrets.FRONTEND_URL, "http://localhost:3000"].filter(
-  Boolean
+  Boolean,
 ) as string[];
 
 app.use(
@@ -35,13 +39,13 @@ app.use(
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-  })
+  }),
 );
 
 app.use(
   "/api/webhooks/dodo",
   express.raw({ type: "application/json", limit: "1mb" }),
-  dodoWebhookRoutes
+  dodoWebhookRoutes,
 );
 
 app.use(express.json({ limit: "64kb" }));
@@ -58,6 +62,7 @@ app.use("/api", billingRoutes);
 app.use("/api", devBillingRoutes);
 app.use("/api", checkupRoutes);
 app.use("/api", fixRoutes);
+app.use("/api", reportRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

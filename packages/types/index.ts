@@ -4,3 +4,4 @@ export * from "./src/user";
 export * from "./src/scraper";
 export * from "./src/github";
 export * from "./src/fix";
+export * from "./src/reports";

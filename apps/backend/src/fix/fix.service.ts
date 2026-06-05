@@ -1,5 +1,9 @@
 import { prisma } from "@repo/db";
-import type { FixRunSummary, FixRunDetail } from "@repo/types/fix";
+import type {
+  FixRunSummary,
+  FixRunDetail,
+  FixRunIntake,
+} from "@repo/types/fix";
 
 // Map a FixRun (+ repo) DB row to the summary view used by the polling endpoint.
 function toSummary(run: {
@@ -32,6 +36,20 @@ function toSummary(run: {
   };
 }
 
+function toIntake(value: unknown): FixRunIntake | null {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "version" in value &&
+    "answers" in value
+  ) {
+    return value as FixRunIntake;
+  }
+
+  return null;
+}
+
 // All of a user's fix runs (active first). The centralized poll source.
 export async function listUserRuns(userId: string): Promise<FixRunSummary[]> {
   const runs = await prisma.fixRun.findMany({
@@ -43,7 +61,10 @@ export async function listUserRuns(userId: string): Promise<FixRunSummary[]> {
 }
 
 // One run's full detail (checks + recent events).
-export async function getRunDetail(userId: string, fixRunId: string): Promise<FixRunDetail | null> {
+export async function getRunDetail(
+  userId: string,
+  fixRunId: string,
+): Promise<FixRunDetail | null> {
   const run = await prisma.fixRun.findFirst({
     where: { id: fixRunId, userId },
     include: {
@@ -59,6 +80,7 @@ export async function getRunDetail(userId: string, fixRunId: string): Promise<Fi
     branch: run.branch,
     prNumber: run.prNumber,
     sandboxId: run.sandboxId,
+    intake: toIntake(run.intake),
     checks: run.checks.map((c) => ({
       rubricId: c.rubricId,
       category: c.category,

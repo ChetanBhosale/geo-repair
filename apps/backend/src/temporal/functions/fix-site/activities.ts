@@ -45,21 +45,32 @@ export interface HarnessResult {
 export async function prepareRun(input: FixSiteInput): Promise<{
   sandboxId: string;
   branch: string;
-  tasks: { rubricId: string; category: string; scope: string; skill: string | null }[];
+  tasks: {
+    rubricId: string;
+    category: string;
+    scope: string;
+    skill: string | null;
+  }[];
 }> {
   // Fresh authoritative scan -> fix plan.
   await setState(input.fixRunId, "SCANNING");
-  await logEvent(input.fixRunId, "scan_started", null, { website: input.website });
+  await logEvent(input.fixRunId, "scan_started", null, {
+    website: input.website,
+  });
 
   const report = await checkSite(input.website);
-  const plan = buildFixPlan(report.findings, { pagesChecked: report.crawl.pagesChecked });
+  const plan = buildFixPlan(report.findings, {
+    pagesChecked: report.crawl.pagesChecked,
+  });
   const planTasks = [...plan.siteWide, ...plan.perPage];
 
   // Persist each task as a FixCheck (for the dashboard). The harness updates
   // these from its summary at the end.
   for (const t of planTasks) {
     await prisma.fixCheck.upsert({
-      where: { fixRunId_rubricId: { fixRunId: input.fixRunId, rubricId: t.rubricId } },
+      where: {
+        fixRunId_rubricId: { fixRunId: input.fixRunId, rubricId: t.rubricId },
+      },
       create: {
         fixRunId: input.fixRunId,
         rubricId: t.rubricId,
@@ -75,7 +86,9 @@ export async function prepareRun(input: FixSiteInput): Promise<{
   }
   for (const f of plan.flagged) {
     await prisma.fixCheck.upsert({
-      where: { fixRunId_rubricId: { fixRunId: input.fixRunId, rubricId: f.rubricId } },
+      where: {
+        fixRunId_rubricId: { fixRunId: input.fixRunId, rubricId: f.rubricId },
+      },
       create: {
         fixRunId: input.fixRunId,
         rubricId: f.rubricId,
@@ -106,7 +119,10 @@ export async function prepareRun(input: FixSiteInput): Promise<{
     try {
       const sb = await connectSandbox(sandboxId);
       if (!(await sb.isRunning())) sandboxId = null;
-      else await logEvent(input.fixRunId, "sandbox_reconnected", null, { sandboxId });
+      else
+        await logEvent(input.fixRunId, "sandbox_reconnected", null, {
+          sandboxId,
+        });
     } catch {
       sandboxId = null;
     }
@@ -124,7 +140,10 @@ export async function prepareRun(input: FixSiteInput): Promise<{
   const sandbox = await connectSandbox(sandboxId);
 
   // Clone (idempotent) + branch.
-  const cloned = await runCommand(sandbox, `test -d ${REPO_DIR}/.git && echo yes || echo no`);
+  const cloned = await runCommand(
+    sandbox,
+    `test -d ${REPO_DIR}/.git && echo yes || echo no`,
+  );
   if (cloned.stdout.trim() !== "yes") {
     const token = await resolveGitToken(input.userId);
     const { result } = await cloneRepo(sandbox, {
@@ -136,8 +155,12 @@ export async function prepareRun(input: FixSiteInput): Promise<{
     if (result.exitCode !== 0) {
       throw new Error(`git clone failed: ${result.stderr}`); // true infra error -> retry
     }
-    await runCommand(sandbox, `git config user.email "bot@geo.repair"`, { cwd: REPO_DIR });
-    await runCommand(sandbox, `git config user.name "GEO Repair Bot"`, { cwd: REPO_DIR });
+    await runCommand(sandbox, `git config user.email "bot@geo.repair"`, {
+      cwd: REPO_DIR,
+    });
+    await runCommand(sandbox, `git config user.name "GEO Repair Bot"`, {
+      cwd: REPO_DIR,
+    });
     await logEvent(input.fixRunId, "repo_cloned", null, { branch });
   }
   await runCommand(sandbox, `git checkout -B ${branch}`, { cwd: REPO_DIR });
@@ -158,21 +181,32 @@ export async function prepareRun(input: FixSiteInput): Promise<{
 export async function runHarness(
   input: FixSiteInput,
   sandboxId: string,
-  tasks: { rubricId: string; category: string; scope: string; skill: string | null }[]
+  tasks: {
+    rubricId: string;
+    category: string;
+    scope: string;
+    skill: string | null;
+  }[],
 ): Promise<{ committed: boolean; summary: string }> {
   await setState(input.fixRunId, "FIXING");
-  await logEvent(input.fixRunId, "harness_started", null, { checks: tasks.map((t) => t.rubricId) });
+  await logEvent(input.fixRunId, "harness_started", null, {
+    checks: tasks.map((t) => t.rubricId),
+  });
 
   try {
     const sandbox = await connectSandbox(sandboxId);
-    const tools = sandboxTools(sandbox, { workdir: REPO_DIR }) as unknown as AgentTool[];
+    const tools = sandboxTools(sandbox, {
+      workdir: REPO_DIR,
+    }) as unknown as AgentTool[];
 
     // Build the goal: the failing checks + their skills (guidance, not a rigid
     // per-check loop). The agent decides how to apply them to THIS repo.
     const checkBlocks = tasks
       .map((t) => {
         const head = `### ${t.rubricId} (${t.category}, ${t.scope})`;
-        return t.skill ? `${head}\n${t.skill}` : `${head}\n(no skill doc — use judgment or flag)`;
+        return t.skill
+          ? `${head}\n${t.skill}`
+          : `${head}\n(no skill doc — use judgment or flag)`;
       })
       .join("\n\n");
 
@@ -182,6 +216,11 @@ export async function runHarness(
       `Live site: ${input.website}`,
       `Default branch: ${input.defaultBranch}`,
       `You are already on the fix branch in a fresh clone at the repo root.`,
+      ``,
+      `## User clarification intake`,
+      `Use these answers as hard scope and preference constraints. If a user did not opt into net-new claims, content, competitor pages, or visual changes, do not create them.`,
+      ``,
+      intakePromptBlock(input),
       ``,
       `## Failing checks to fix`,
       `Here are the GEO/AEO checks that failed, each with a skill doc describing the pass bar`,
@@ -207,19 +246,38 @@ export async function runHarness(
       },
     });
 
-    await addCogs(input.fixRunId, result.tokensIn, result.tokensOut, Secrets.LLM_MODEL);
+    await addCogs(
+      input.fixRunId,
+      result.tokensIn,
+      result.tokensOut,
+      Secrets.LLM_MODEL,
+    );
 
     // Did the agent actually produce a commit on this branch?
     const committedCheck = await runCommand(
       sandbox,
       `git rev-list --count ${input.defaultBranch}..HEAD 2>/dev/null || echo 0`,
-      { cwd: REPO_DIR }
+      { cwd: REPO_DIR },
     );
     const commitCount = parseInt(committedCheck.stdout.trim() || "0", 10);
     const committed = commitCount > 0;
 
+    if (committed) {
+      await logEvent(
+        input.fixRunId,
+        "diff_summary",
+        null,
+        await collectDiffSummary(sandbox, input.defaultBranch),
+      );
+    }
+
     // Best-effort: reflect the agent's summary onto the FixCheck rows.
-    await applySummaryToChecks(input.fixRunId, result.finalText, tasks, committed);
+    await applySummaryToChecks(
+      input.fixRunId,
+      result.finalText,
+      tasks,
+      committed,
+    );
 
     await logEvent(input.fixRunId, "harness_finished", null, {
       committed,
@@ -241,7 +299,7 @@ async function applySummaryToChecks(
   fixRunId: string,
   summary: string,
   tasks: { rubricId: string }[],
-  committed: boolean
+  committed: boolean,
 ): Promise<void> {
   const lower = summary.toLowerCase();
   for (const t of tasks) {
@@ -249,7 +307,10 @@ async function applySummaryToChecks(
     // If the summary mentions the check under a "fixed" context and we committed,
     // mark it FIXED; otherwise SKIPPED. This is display-only; the PR diff is truth.
     const mentioned = lower.includes(id);
-    const fixed = committed && mentioned && !/\bskip|already|flag/.test(sliceAround(lower, id));
+    const fixed =
+      committed &&
+      mentioned &&
+      !/\bskip|already|flag/.test(sliceAround(lower, id));
     await prisma.fixCheck.update({
       where: { fixRunId_rubricId: { fixRunId, rubricId: t.rubricId } },
       data: {
@@ -268,6 +329,54 @@ function sliceAround(text: string, needle: string): string {
   return text.slice(Math.max(0, i - 40), i + 80);
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+async function collectDiffSummary(
+  sandbox: Awaited<ReturnType<typeof connectSandbox>>,
+  defaultBranch: string,
+): Promise<Record<string, unknown>> {
+  const range = shellQuote(`${defaultBranch}..HEAD`);
+  const [stat, nameStatus, patch] = await Promise.all([
+    runCommand(sandbox, `git diff --stat ${range}`, { cwd: REPO_DIR }),
+    runCommand(sandbox, `git diff --name-status ${range}`, { cwd: REPO_DIR }),
+    runCommand(
+      sandbox,
+      `git diff --no-ext-diff --unified=3 ${range} | head -c 24000`,
+      {
+        cwd: REPO_DIR,
+        timeoutMs: 60_000,
+      },
+    ),
+  ]);
+
+  return {
+    stat: stat.stdout.slice(0, 8000),
+    nameStatus: nameStatus.stdout.slice(0, 8000),
+    patch: patch.stdout.slice(0, 24000),
+    truncated: patch.stdout.length >= 24000,
+  };
+}
+
+function intakePromptBlock(input: FixSiteInput): string {
+  if (!input.intake?.answers.length) {
+    return "No structured clarification intake was submitted.";
+  }
+
+  return input.intake.answers
+    .map((answer) =>
+      [
+        `- ${answer.question}`,
+        `  Answer: ${answer.answerLabel}`,
+        answer.notes ? `  Notes: ${answer.notes}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .join("\n");
+}
+
 // GitHub REST helpers for opening the PR with a fork fallback. A token that can
 // write the base repo (the owner's OAuth token) opens the PR directly; a token
 // that can't (a service account) forks, pushes to the fork, and opens a
@@ -284,13 +393,20 @@ function ghHeaders(token: string): Record<string, string> {
 }
 
 async function githubLogin(token: string): Promise<string> {
-  const res = await fetch("https://api.github.com/user", { headers: ghHeaders(token) });
+  const res = await fetch("https://api.github.com/user", {
+    headers: ghHeaders(token),
+  });
   const j = (await res.json()) as { login?: string };
-  if (!res.ok || !j.login) throw new Error(`github whoami failed: ${res.status}`);
+  if (!res.ok || !j.login)
+    throw new Error(`github whoami failed: ${res.status}`);
   return j.login;
 }
 
-async function ensureFork(token: string, repoFullName: string, login: string): Promise<string> {
+async function ensureFork(
+  token: string,
+  repoFullName: string,
+  login: string,
+): Promise<string> {
   const repoName = repoFullName.split("/")[1] ?? repoFullName;
   const forkFull = `${login}/${repoName}`;
   const existing = await fetch(`https://api.github.com/repos/${forkFull}`, {
@@ -316,14 +432,33 @@ async function ensureFork(token: string, repoFullName: string, login: string): P
 async function createPr(
   token: string,
   repoFullName: string,
-  payload: { head: string; base: string; title: string; body: string; maintainer_can_modify?: boolean }
-): Promise<{ ok: boolean; htmlUrl?: string; number?: number; message?: string; status: number }> {
-  const res = await fetch(`https://api.github.com/repos/${repoFullName}/pulls`, {
-    method: "POST",
-    headers: ghHeaders(token),
-    body: JSON.stringify(payload),
-  });
-  const j = (await res.json()) as { number?: number; html_url?: string; message?: string };
+  payload: {
+    head: string;
+    base: string;
+    title: string;
+    body: string;
+    maintainer_can_modify?: boolean;
+  },
+): Promise<{
+  ok: boolean;
+  htmlUrl?: string;
+  number?: number;
+  message?: string;
+  status: number;
+}> {
+  const res = await fetch(
+    `https://api.github.com/repos/${repoFullName}/pulls`,
+    {
+      method: "POST",
+      headers: ghHeaders(token),
+      body: JSON.stringify(payload),
+    },
+  );
+  const j = (await res.json()) as {
+    number?: number;
+    html_url?: string;
+    message?: string;
+  };
   return {
     ok: res.ok && !!j.html_url && !!j.number,
     htmlUrl: j.html_url,
@@ -344,22 +479,49 @@ async function pushAndOpenPr(opts: {
   body: string;
   onEvent: (type: string, payload: Record<string, unknown>) => Promise<void>;
 }): Promise<{ prUrl: string; prNumber: number; viaFork: boolean }> {
-  const { sandbox, token, repoFullName, branch, defaultBranch, title, body, onEvent } = opts;
-  const baseAuthUrl = opts.cloneUrl.replace("https://", `https://x-access-token:${token}@`);
+  const {
+    sandbox,
+    token,
+    repoFullName,
+    branch,
+    defaultBranch,
+    title,
+    body,
+    onEvent,
+  } = opts;
+  const baseAuthUrl = opts.cloneUrl.replace(
+    "https://",
+    `https://x-access-token:${token}@`,
+  );
 
   // 1. Direct path: push to the base repo and open a same-repo PR.
-  const directPush = await runCommand(sandbox, `git push ${baseAuthUrl} ${branch} --force`, {
-    cwd: REPO_DIR,
-    timeoutMs: 5 * 60 * 1000,
-  });
+  const directPush = await runCommand(
+    sandbox,
+    `git push ${baseAuthUrl} ${branch} --force`,
+    {
+      cwd: REPO_DIR,
+      timeoutMs: 5 * 60 * 1000,
+    },
+  );
   if (directPush.exitCode === 0) {
     await onEvent("branch_pushed", { branch, target: "base" });
-    const pr = await createPr(token, repoFullName, { head: branch, base: defaultBranch, title, body });
-    if (pr.ok) return { prUrl: pr.htmlUrl!, prNumber: pr.number!, viaFork: false };
-    await onEvent("direct_pr_failed", { status: pr.status, message: pr.message ?? null });
+    const pr = await createPr(token, repoFullName, {
+      head: branch,
+      base: defaultBranch,
+      title,
+      body,
+    });
+    if (pr.ok)
+      return { prUrl: pr.htmlUrl!, prNumber: pr.number!, viaFork: false };
+    await onEvent("direct_pr_failed", {
+      status: pr.status,
+      message: pr.message ?? null,
+    });
     // Branch is on the base but the PR was refused — fall through to the fork path.
   } else {
-    await onEvent("direct_push_failed", { detail: directPush.stderr.slice(-300) });
+    await onEvent("direct_push_failed", {
+      detail: directPush.stderr.slice(-300),
+    });
   }
 
   // 2. Fork path: fork into the token account, push there, open a cross-fork PR.
@@ -367,10 +529,14 @@ async function pushAndOpenPr(opts: {
   const forkFull = await ensureFork(token, repoFullName, login);
   await onEvent("fork_ready", { fork: forkFull });
   const forkUrl = `https://x-access-token:${token}@github.com/${forkFull}.git`;
-  const forkPush = await runCommand(sandbox, `git push ${forkUrl} ${branch} --force`, {
-    cwd: REPO_DIR,
-    timeoutMs: 5 * 60 * 1000,
-  });
+  const forkPush = await runCommand(
+    sandbox,
+    `git push ${forkUrl} ${branch} --force`,
+    {
+      cwd: REPO_DIR,
+      timeoutMs: 5 * 60 * 1000,
+    },
+  );
   if (forkPush.exitCode !== 0) {
     throw new Error(`push to fork failed: ${forkPush.stderr.slice(-400)}`);
   }
@@ -395,7 +561,7 @@ export async function finalizeRun(
   input: FixSiteInput,
   sandboxId: string,
   committed: boolean,
-  summary: string
+  summary: string,
 ): Promise<HarnessResult> {
   const counts = await prisma.fixCheck.findMany({
     where: { fixRunId: input.fixRunId },
@@ -409,7 +575,9 @@ export async function finalizeRun(
       where: { id: input.fixRunId },
       data: { state: "COMPLETED" },
     });
-    await logEvent(input.fixRunId, "no_changes", null, { summary: summary.slice(0, 500) });
+    await logEvent(input.fixRunId, "no_changes", null, {
+      summary: summary.slice(0, 500),
+    });
     return {
       ok: true,
       committed: false,
@@ -436,7 +604,9 @@ export async function finalizeRun(
       summary,
       "",
       "### Checks",
-      ...(fixed.length ? fixed.map((c) => `- fixed: \`${c.rubricId}\``) : ["- (see summary)"]),
+      ...(fixed.length
+        ? fixed.map((c) => `- fixed: \`${c.rubricId}\``)
+        : ["- (see summary)"]),
       ...flagged.map((c) => `- flagged: \`${c.rubricId}\` ${c.note ?? ""}`),
       "",
       "These changes improve technical GEO/AEO readiness. They do not guarantee traffic, rankings, or AI citations.",
@@ -483,7 +653,10 @@ export async function finalizeRun(
 }
 
 // ── 4. Teardown. Always called; never throws. ───────────────────────────────
-export async function teardownSandbox(input: FixSiteInput, sandboxId: string): Promise<void> {
+export async function teardownSandbox(
+  input: FixSiteInput,
+  sandboxId: string,
+): Promise<void> {
   try {
     const sandbox = await connectSandbox(sandboxId);
     await killSandbox(sandbox);

@@ -1,33 +1,33 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { Check, Loader2, Lock, Search } from "lucide-react";
-import type { GithubRepo, SavedRepository } from "@repo/types/github";
-import { useRepos, useSelectRepo } from "@/hooks/use-repos";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import * as React from "react"
+import { Check, Loader2, Lock, Search } from "lucide-react"
+import type { GithubRepo, SavedRepository } from "@repo/types/github"
+import { useRepos, useSelectRepo } from "@/hooks/use-repos"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 export function RepoPicker({
   onSelected,
 }: {
-  onSelected?: (repo: SavedRepository) => void;
+  onSelected?: (repo: SavedRepository) => void
 }) {
-  const [search, setSearch] = React.useState("");
-  const { data: repos, isLoading, isError, error } = useRepos(true);
-  const selectRepo = useSelectRepo();
-  const [savedId, setSavedId] = React.useState<number | null>(null);
+  const [search, setSearch] = React.useState("")
+  const { data: repos, isLoading, isError, error } = useRepos(true)
+  const selectRepo = useSelectRepo()
+  const [savedId, setSavedId] = React.useState<number | null>(null)
 
   const filtered = React.useMemo(() => {
-    const list = repos ?? [];
-    const q = search.trim().toLowerCase();
-    if (!q) return list;
+    const list = repos ?? []
+    const q = search.trim().toLowerCase()
+    if (!q) return list
     return list.filter(
       (r) =>
         r.fullName.toLowerCase().includes(q) ||
         (r.description ?? "").toLowerCase().includes(q)
-    );
-  }, [repos, search]);
+    )
+  }, [repos, search])
 
   function onPick(repo: GithubRepo) {
     selectRepo.mutate(
@@ -45,32 +45,36 @@ export function RepoPicker({
       },
       {
         onSuccess: (saved) => {
-          setSavedId(repo.id);
-          onSelected?.(saved);
+          setSavedId(repo.id)
+          onSelected?.(saved)
         },
       }
-    );
+    )
   }
 
   if (isLoading) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Loading your repositories…
+        Loading your repositories.
       </p>
-    );
+    )
   }
 
   if (isError) {
-    return <p className="text-sm text-destructive">{(error as Error).message}</p>;
+    return (
+      <p className="text-sm text-destructive">{(error as Error).message}</p>
+    )
   }
 
-  const pendingId = selectRepo.isPending ? selectRepo.variables?.githubRepoId : null;
+  const pendingId = selectRepo.isPending
+    ? selectRepo.variables?.githubRepoId
+    : null
 
   return (
     <div className="flex flex-col gap-3">
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search repositories"
           value={search}
@@ -79,13 +83,15 @@ export function RepoPicker({
         />
       </div>
 
-      <div className="max-h-96 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+      <div className="max-h-96 divide-y divide-border overflow-y-auto rounded-lg border border-border">
         {filtered.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">No repositories found.</p>
+          <p className="p-4 text-sm text-muted-foreground">
+            No repositories found.
+          </p>
         ) : (
           filtered.map((repo) => {
-            const isSaved = savedId === repo.id;
-            const isPending = pendingId === repo.id;
+            const isSaved = savedId === repo.id
+            const isPending = pendingId === repo.id
             return (
               <button
                 key={repo.id}
@@ -99,7 +105,9 @@ export function RepoPicker({
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{repo.fullName}</span>
+                    <span className="truncate font-medium">
+                      {repo.fullName}
+                    </span>
                     {repo.private ? (
                       <Lock className="size-3.5 shrink-0 text-muted-foreground" />
                     ) : null}
@@ -111,7 +119,9 @@ export function RepoPicker({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {repo.language ? <Badge variant="muted">{repo.language}</Badge> : null}
+                  {repo.language ? (
+                    <Badge variant="muted">{repo.language}</Badge>
+                  ) : null}
                   {isPending ? (
                     <Loader2 className="size-4 animate-spin text-muted-foreground" />
                   ) : isSaved ? (
@@ -122,14 +132,16 @@ export function RepoPicker({
                   ) : null}
                 </div>
               </button>
-            );
+            )
           })
         )}
       </div>
 
       {selectRepo.isError ? (
-        <p className="text-sm text-destructive">{(selectRepo.error as Error).message}</p>
+        <p className="text-sm text-destructive">
+          {(selectRepo.error as Error).message}
+        </p>
       ) : null}
     </div>
-  );
+  )
 }

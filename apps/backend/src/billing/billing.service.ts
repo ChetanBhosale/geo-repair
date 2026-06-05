@@ -1,7 +1,13 @@
 import { prisma } from "@repo/db";
 import type { Prisma } from "@repo/db/generated/prisma/client";
 import Secrets from "@repo/secrets/backend";
-import type { OrderSummary } from "@repo/types";
+import type {
+  BillingHistoryResponse,
+  BillingInvoice,
+  BillingInvoiceDetail,
+  BillingOrder,
+  OrderSummary,
+} from "@repo/types";
 
 import { normalizeWebsite } from "../lib/url";
 import {
@@ -33,7 +39,7 @@ type GatedOrder = Prisma.OrderGetPayload<{ include: { user: true } }>;
 export class BillingError extends Error {
   constructor(
     public readonly status: number,
-    message: string
+    message: string,
   ) {
     super(message);
     this.name = "BillingError";
@@ -80,7 +86,7 @@ function requireProductId(tier: FixTierConfig): string {
   if (!tier.productId) {
     throw new BillingError(
       500,
-      `Missing Dodo product id for ${tier.tier.toLowerCase()} tier.`
+      `Missing Dodo product id for ${tier.tier.toLowerCase()} tier.`,
     );
   }
 
@@ -114,6 +120,124 @@ function orderSummary(order: {
   };
 }
 
+function invoiceId(orderId: string): string {
+  return `INV-${orderId.slice(-8).toUpperCase()}`;
+}
+
+function invoiceDownloadPath(orderId: string): string {
+  return `/api/billing/invoices/${encodeURIComponent(orderId)}/download`;
+}
+
+function formatMoney(cents: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+  }).format(cents / 100);
+}
+
+function billingDescription(order: {
+  tier: FixTier;
+  sitemapPageCount: number;
+}): string {
+  const label = order.tier
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return `${label} one-time AI Search fix, up to ${order.sitemapPageCount} pages`;
+}
+
+function toBillingOrder(order: {
+  id: string;
+  status: OrderStatus;
+  tier: FixTier;
+  amountCents: number;
+  currency: string;
+  website: string;
+  repoFullName: string | null;
+  provider: "DODO";
+  providerPaymentId: string | null;
+  providerSessionId: string | null;
+  paidAt: Date | null;
+  failedAt: Date | null;
+  canceledAt: Date | null;
+  refundedAt: Date | null;
+  disputedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): BillingOrder {
+  return {
+    id: order.id,
+    status: order.status,
+    tier: order.tier,
+    amountCents: order.amountCents,
+    currency: order.currency,
+    website: order.website,
+    repoFullName: order.repoFullName,
+    provider: order.provider,
+    providerPaymentId: order.providerPaymentId,
+    providerSessionId: order.providerSessionId,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+    paidAt: order.paidAt?.toISOString() ?? null,
+    failedAt: order.failedAt?.toISOString() ?? null,
+    canceledAt: order.canceledAt?.toISOString() ?? null,
+    refundedAt: order.refundedAt?.toISOString() ?? null,
+    disputedAt: order.disputedAt?.toISOString() ?? null,
+  };
+}
+
+function toBillingInvoice(order: {
+  id: string;
+  status: OrderStatus;
+  tier: FixTier;
+  amountCents: number;
+  currency: string;
+  website: string;
+  repoFullName: string | null;
+  providerPaymentId: string | null;
+  sitemapPageCount: number;
+  paidAt: Date | null;
+  createdAt: Date;
+}): BillingInvoice {
+  return {
+    id: invoiceId(order.id),
+    orderId: order.id,
+    status: order.status,
+    amountCents: order.amountCents,
+    currency: order.currency,
+    description: billingDescription(order),
+    website: order.website,
+    repoFullName: order.repoFullName,
+    issuedAt: order.createdAt.toISOString(),
+    paidAt: order.paidAt?.toISOString() ?? null,
+    providerPaymentId: order.providerPaymentId,
+    downloadUrl: invoiceDownloadPath(order.id),
+  };
+}
+
+function orderSelect() {
+  return {
+    id: true,
+    status: true,
+    tier: true,
+    amountCents: true,
+    currency: true,
+    sitemapPageCount: true,
+    website: true,
+    repoFullName: true,
+    provider: true,
+    providerPaymentId: true,
+    providerSessionId: true,
+    paidAt: true,
+    failedAt: true,
+    canceledAt: true,
+    refundedAt: true,
+    disputedAt: true,
+    createdAt: true,
+    updatedAt: true,
+  } satisfies Prisma.OrderSelect;
+}
+
 function metadataForOrder(order: {
   id: string;
   tier: FixTier;
@@ -134,7 +258,9 @@ function metadataForOrder(order: {
   };
 }
 
-export async function getOrderById(orderId: string): Promise<OrderSummary | null> {
+export async function getOrderById(
+  orderId: string,
+): Promise<OrderSummary | null> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
@@ -150,6 +276,84 @@ export async function getOrderById(orderId: string): Promise<OrderSummary | null
   });
 
   return order ? orderSummary(order) : null;
+}
+
+export async function listBillingHistoryForUser(
+  userId: string,
+): Promise<BillingHistoryResponse> {
+  const orders = await prisma.order.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: orderSelect(),
+  });
+
+  return {
+    orders: orders.map(toBillingOrder),
+    invoices: orders.map(toBillingInvoice),
+  };
+}
+
+export async function getInvoiceForUser(
+  userId: string,
+  orderId: string,
+): Promise<BillingInvoiceDetail | null> {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, userId },
+    select: {
+      ...orderSelect(),
+      user: { select: { email: true } },
+    },
+  });
+
+  if (!order) return null;
+
+  return {
+    ...toBillingInvoice(order),
+    customerEmail: order.user?.email ?? null,
+    lineItems: [
+      {
+        label: billingDescription(order),
+        quantity: 1,
+        amountCents: order.amountCents,
+      },
+    ],
+  };
+}
+
+export function renderInvoiceMarkdown(invoice: BillingInvoiceDetail): string {
+  const lines = [
+    `# Invoice ${invoice.id}`,
+    "",
+    `Status: ${invoice.status.toLowerCase().replaceAll("_", " ")}`,
+    `Issued: ${invoice.issuedAt}`,
+    `Paid: ${invoice.paidAt ?? "Not paid"}`,
+    `Customer: ${invoice.customerEmail ?? "Not available"}`,
+    `Website: ${invoice.website}`,
+    `Repository: ${invoice.repoFullName ?? "Not selected"}`,
+    `Payment ID: ${invoice.providerPaymentId ?? "Not available"}`,
+    "",
+    "## Line items",
+    "",
+  ];
+
+  for (const item of invoice.lineItems) {
+    lines.push(
+      `- ${item.label} x ${item.quantity}: ${formatMoney(item.amountCents, invoice.currency)}`,
+    );
+  }
+
+  lines.push(
+    "",
+    `Total: ${formatMoney(invoice.amountCents, invoice.currency)}`,
+    "",
+    "Generated by geo.repair billing records.",
+  );
+
+  return `${lines.join("\n").trim()}\n`;
+}
+
+export function invoiceDownloadFilename(invoice: BillingInvoiceDetail): string {
+  return `${invoice.id.toLowerCase()}.md`;
 }
 
 export async function createFixCheckoutForOrder(input: {
@@ -176,7 +380,7 @@ async function createCheckoutForGatedOrder(order: GatedOrder) {
   if (!order.repoConfirmed || !order.feasibilityPassed) {
     throw new BillingError(
       409,
-      "Checkout is locked until repo confirmation and feasibility pass."
+      "Checkout is locked until repo confirmation and feasibility pass.",
     );
   }
 
@@ -224,7 +428,10 @@ export async function createDevFixtureOrder(input: {
   repoFullName?: string;
   sitemapPageCount?: number;
 }) {
-  if (!Secrets.ENABLE_DEV_BILLING_FIXTURES || Secrets.NODE_ENV === "production") {
+  if (
+    !Secrets.ENABLE_DEV_BILLING_FIXTURES ||
+    Secrets.NODE_ENV === "production"
+  ) {
     throw new BillingError(404, "Dev billing fixtures are disabled.");
   }
 
@@ -301,7 +508,7 @@ function assertMetadataMatchesOrder(
     amountCents: number;
     currency: string;
     providerProductId: string;
-  }
+  },
 ): void {
   const metadata = eventMetadata(payload);
   const expected: Record<string, string> = {
