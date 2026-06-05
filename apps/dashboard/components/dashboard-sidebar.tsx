@@ -260,53 +260,58 @@ function ProjectSwitcher({
     setOpen(false)
   }
 
-  return (
-    <div
-      className="relative grid gap-1 rounded-md bg-sidebar-accent p-3"
-      ref={switcherRef}
-    >
-      <p
-        className="text-xs font-medium text-muted-foreground"
-        id={`${id}-label`}
-      >
-        Active project
-      </p>
+  const dropdownId = `${id}-listbox`
 
+  return (
+    <div className="relative" ref={switcherRef}>
       {isLoading ? (
-        <p className="flex min-h-9 items-center gap-2 text-sm text-muted-foreground">
+        <p className="flex min-h-16 items-center gap-2 rounded-md bg-sidebar-accent p-3 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" aria-hidden />
           Loading projects
         </p>
       ) : isError ? (
-        <p className="text-sm text-destructive">Projects unavailable</p>
+        <p className="rounded-md bg-sidebar-accent p-3 text-sm text-destructive">
+          Projects unavailable
+        </p>
       ) : repos.length > 0 ? (
-        <div className="relative">
+        <>
           <button
+            aria-controls={dropdownId}
             aria-expanded={open}
             aria-haspopup="listbox"
-            aria-labelledby={`${id}-label ${id}`}
-            className="flex h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-md bg-sidebar px-2 text-left text-sm text-foreground transition-colors outline-none hover:bg-background focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="grid min-h-16 w-full cursor-pointer gap-1 rounded-md bg-sidebar-accent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isPending}
             id={id}
             onClick={() => setOpen((current) => !current)}
             type="button"
           >
-            <span className="min-w-0 truncate">
-              {selectedRepo?.fullName ?? "Choose project"}
+            <span className="text-xs font-medium text-muted-foreground">
+              Active project
             </span>
-            <ChevronDown
-              className={cn(
-                "size-4 shrink-0 text-muted-foreground transition-transform",
-                open && "rotate-180"
-              )}
-              aria-hidden
-            />
+            <span className="flex min-w-0 items-center justify-between gap-2 text-sm text-foreground">
+              <span className="min-w-0 truncate">
+                {selectedRepo?.fullName ?? "Choose project"}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-muted-foreground transition-transform",
+                  open && "rotate-180"
+                )}
+                aria-hidden
+              />
+            </span>
+            {selectedRepo ? (
+              <span className="truncate text-xs text-muted-foreground">
+                {selectedRepo.website ?? selectedRepo.defaultBranch}
+              </span>
+            ) : null}
           </button>
 
           {open ? (
             <div
-              aria-labelledby={`${id}-label`}
-              className="absolute top-full right-0 left-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md bg-sidebar-accent py-1"
+              aria-labelledby={id}
+              className="border-border absolute top-full right-0 left-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md border bg-background py-1 shadow-lg"
+              id={dropdownId}
               role="listbox"
             >
               {repos.map((repo) => {
@@ -338,9 +343,11 @@ function ProjectSwitcher({
               })}
             </div>
           ) : null}
-        </div>
+        </>
       ) : (
-        <p className="text-sm text-muted-foreground">No repository selected</p>
+        <p className="rounded-md bg-sidebar-accent p-3 text-sm text-muted-foreground">
+          No repository selected
+        </p>
       )}
     </div>
   )
