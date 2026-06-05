@@ -59,7 +59,7 @@ export function PromptInputTextarea({
   return (
     <textarea
       className={cn(
-        "min-h-24 w-full resize-y rounded-lg bg-background p-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
+        "min-h-24 w-full resize-y rounded-lg bg-primary p-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-focus/40",
         className
       )}
       name="message"

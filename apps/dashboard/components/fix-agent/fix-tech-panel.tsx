@@ -7,6 +7,8 @@ import {
   diffPayloadFromDetail,
   eventBody,
   eventPayload,
+  formatCostCents,
+  formatRunDuration,
   techTabs,
   type TechTab,
 } from "@/lib/fix-run-view"
@@ -53,7 +55,7 @@ function TechPanel({
 }) {
   if (!detail) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-secondary">
         Select a run to inspect technical detail.
       </p>
     )
@@ -67,19 +69,19 @@ function TechPanel({
         <div className="grid gap-3">
           <div className="rounded-lg p-3">
             <h3 className="text-sm font-semibold">Changed files</h3>
-            <pre className="mt-3 overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 overflow-auto rounded-md bg-secondary/30 p-3 text-xs leading-6">
               {nameStatus || "No changed files recorded."}
             </pre>
           </div>
           <div className="rounded-lg p-3">
             <h3 className="text-sm font-semibold">Diff stat</h3>
-            <pre className="mt-3 overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 overflow-auto rounded-md bg-secondary/30 p-3 text-xs leading-6">
               {stat || "No diff stat recorded."}
             </pre>
           </div>
           <div className="rounded-lg p-3">
             <h3 className="text-sm font-semibold">Patch preview</h3>
-            <pre className="mt-3 max-h-[420px] overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 max-h-[420px] overflow-auto rounded-md bg-secondary/30 p-3 text-xs leading-6">
               {patch || "No patch preview recorded."}
             </pre>
           </div>
@@ -89,12 +91,12 @@ function TechPanel({
 
     return (
       <div className="grid gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-secondary">
           The code diff appears here after the agent creates a commit. Until
           then, this tab shows the planned checks.
         </p>
         {detail.checks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No checks yet.</p>
+          <p className="text-sm text-secondary">No checks yet.</p>
         ) : null}
         {detail.checks.map((check) => (
           <div className="rounded-lg p-3" key={check.rubricId}>
@@ -104,7 +106,7 @@ function TechPanel({
                 {check.status.toLowerCase()}
               </Badge>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-secondary">
               {check.note ?? `${check.category} check, ${check.scope}`}
             </p>
           </div>
@@ -119,18 +121,83 @@ function TechPanel({
 
   if (activeTab === "logs") {
     return (
-      <pre className="overflow-auto rounded-lg bg-muted/30 p-4 text-xs leading-6">
+      <pre className="overflow-auto rounded-lg bg-secondary/30 p-4 text-xs leading-6">
         {JSON.stringify(detail.events, null, 2)}
       </pre>
     )
   }
 
+  if (activeTab === "cost") {
+    return <CostPanel detail={detail} />
+  }
+
   return <TerminalPanel detail={detail} events={detail.events} />
+}
+
+function CostPanel({ detail }: { detail: FixRunDetail }) {
+  const cogs = detail.cogs
+
+  if (!cogs) {
+    return (
+      <p className="text-sm text-secondary">
+        Internal cost data is only exposed in local development.
+      </p>
+    )
+  }
+
+  const rows = [
+    ["Token cost", formatCostCents(cogs.tokenCostCents)],
+    ["Sandbox cost", formatCostCents(cogs.sandboxCostCents)],
+    ["Image cost", formatCostCents(cogs.imageCostCents)],
+    ["Total", formatCostCents(cogs.totalCostCents)],
+  ] as const
+
+  const rawRows = [
+    ["Model", cogs.model ?? "pending"],
+    ["Input tokens", cogs.tokensIn.toLocaleString("en-US")],
+    ["Output tokens", cogs.tokensOut.toLocaleString("en-US")],
+    ["Sandbox time", formatRunDuration(cogs.sandboxSeconds)],
+    ["Generated images", cogs.imageCount.toLocaleString("en-US")],
+  ] as const
+
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-lg bg-secondary/30 p-4">
+        <h3 className="text-sm font-semibold">Estimated run cost</h3>
+        <div className="mt-3 grid gap-2">
+          {rows.map(([label, value]) => (
+            <div
+              className="flex items-center justify-between gap-4 text-sm"
+              key={label}
+            >
+              <span className="text-secondary">{label}</span>
+              <span className="font-mono">{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-secondary/30 p-4">
+        <h3 className="text-sm font-semibold">Raw usage</h3>
+        <div className="mt-3 grid gap-2">
+          {rawRows.map(([label, value]) => (
+            <div
+              className="flex items-center justify-between gap-4 text-sm"
+              key={label}
+            >
+              <span className="text-secondary">{label}</span>
+              <span className="break-all text-right font-mono">{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function EventList({ events }: { events: RunEventView[] }) {
   if (events.length === 0) {
-    return <p className="text-sm text-muted-foreground">No events yet.</p>
+    return <p className="text-sm text-secondary">No events yet.</p>
   }
 
   return (
@@ -140,10 +207,8 @@ export function EventList({ events }: { events: RunEventView[] }) {
           className="grid grid-cols-[52px_120px_minmax(0,1fr)] gap-3 py-2 text-sm"
           key={event.seq}
         >
-          <span className="font-mono text-xs text-muted-foreground">
-            #{event.seq}
-          </span>
-          <span className="truncate font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-xs text-secondary">#{event.seq}</span>
+          <span className="truncate font-mono text-xs text-secondary">
             {event.phase ?? "event"}
           </span>
           <span className="truncate">{event.type}</span>
@@ -173,17 +238,18 @@ export function TerminalPanel({
 
   return (
     <div className="grid gap-3">
-      <pre className="overflow-auto rounded-lg bg-muted/30 p-4 text-xs leading-6">
+      <pre className="overflow-auto rounded-lg bg-secondary/30 p-4 text-xs leading-6">
         {`run=${detail.id}
 state=${detail.state}
 sandbox=${detail.sandboxStatus}
 branch=${detail.branch ?? "pending"}
 pr=${detail.prUrl ?? "pending"}
-fixed=${detail.fixedChecks}/${detail.totalChecks}`}
+fixed=${detail.fixedChecks}/${detail.totalChecks}
+cost=${detail.cogs ? formatCostCents(detail.cogs.totalCostCents) : "hidden"}`}
       </pre>
 
       {commandEvents.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-secondary">
           Terminal commands will stream here when the agent emits tool-call
           events.
         </p>
@@ -202,12 +268,12 @@ fixed=${detail.fixedChecks}/${detail.totalChecks}`}
         return (
           <div className="rounded-lg p-3" key={event.seq}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="font-mono text-xs text-secondary">
                 #{event.seq}
               </span>
-              <Badge variant="muted">{event.type}</Badge>
+              <Badge variant="neutral">{event.type}</Badge>
             </div>
-            <pre className="mt-3 overflow-auto rounded-md bg-muted/30 p-3 text-xs leading-6">
+            <pre className="mt-3 overflow-auto rounded-md bg-secondary/30 p-3 text-xs leading-6">
               {command ? `$ ${command}` : eventBody(event)}
               {output ? `\n\n${output}` : ""}
             </pre>

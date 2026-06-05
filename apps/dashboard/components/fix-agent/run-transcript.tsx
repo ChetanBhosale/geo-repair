@@ -82,21 +82,21 @@ export function RunTranscript({
             ) : null}
 
             {detail?.intake ? (
-              <Message className="bg-muted/30" from="user">
+              <Message className="bg-secondary/30" from="user">
                 <MessageContent className="bg-transparent p-0">
                   <h3 className="text-sm font-medium">Clarification answers</h3>
                   <div className="grid gap-2">
                     {detail.intake.answers.map((answer) => (
                       <div
-                        className="rounded-md bg-background px-3 py-2 text-sm"
+                        className="rounded-md bg-primary px-3 py-2 text-sm"
                         key={answer.questionId}
                       >
                         <p className="font-medium">{answer.question}</p>
-                        <p className="mt-1 text-muted-foreground">
+                        <p className="mt-1 text-secondary">
                           {answer.answerLabel}
                         </p>
                         {answer.notes ? (
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className="mt-1 text-xs text-secondary">
                             Note: {answer.notes}
                           </p>
                         ) : null}
@@ -121,7 +121,7 @@ export function RunTranscript({
                 key={event.seq}
               >
                 <MessageContent className="bg-transparent p-0">
-                  <div className="flex items-center justify-between gap-2 font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                  <div className="flex items-center justify-between gap-2 font-mono text-xs tracking-wide text-secondary uppercase">
                     <span>#{event.seq}</span>
                     <span>{event.phase ?? event.type}</span>
                   </div>
@@ -132,7 +132,7 @@ export function RunTranscript({
             ))}
 
             {detail?.state === "PR_OPENED" || detail?.state === "COMPLETED" ? (
-              <Message className="bg-emerald-500/5" from="assistant">
+              <Message className="bg-success/5" from="assistant">
                 <MessageContent className="bg-transparent p-0">
                   <h3 className="text-sm font-medium">Refine this PR</h3>
                   <MessageResponse>
@@ -167,7 +167,7 @@ export function RunTranscript({
                       value={refinement}
                     />
                     <PromptInputFooter>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-secondary">
                         Scoped to this PR branch.
                       </p>
                       <PromptInputSubmit disabled variant="outline">

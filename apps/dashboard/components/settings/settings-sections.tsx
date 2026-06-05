@@ -112,7 +112,7 @@ export function BillingSummaryCard({
       </CardHeader>
       <CardContent className="grid gap-4">
         {isLoading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-secondary">
             <Loader2 className="size-4 animate-spin" />
             Loading billing history
           </p>
@@ -216,20 +216,18 @@ export function InvoicesCard({
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-secondary">
             No invoices are available yet.
           </p>
         )}
 
         {isLoading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-secondary">
             <Loader2 className="size-4 animate-spin" />
             Loading invoice
           </p>
         ) : null}
-        {error ? (
-          <p className="text-sm text-destructive">{error.message}</p>
-        ) : null}
+        {error ? <p className="text-sm text-danger">{error.message}</p> : null}
         {invoice ? <InvoiceDetail invoice={invoice} /> : null}
       </CardContent>
     </Card>
@@ -249,9 +247,7 @@ export function PaymentHistoryCard({ orders }: { orders: BillingOrder[] }) {
         {orders.length > 0 ? (
           orders.map((order) => <OrderRow key={order.id} order={order} />)
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No payment history yet.
-          </p>
+          <p className="text-sm text-secondary">No payment history yet.</p>
         )}
       </CardContent>
     </Card>
@@ -293,25 +289,21 @@ export function SavedProjectsCard({
       </CardHeader>
       <CardContent className="grid gap-2">
         {isLoading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-secondary">
             <Loader2 className="size-4 animate-spin" />
             Loading repositories
           </p>
         ) : null}
-        {error ? (
-          <p className="text-sm text-destructive">{error.message}</p>
-        ) : null}
+        {error ? <p className="text-sm text-danger">{error.message}</p> : null}
         {!isLoading && repositories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No saved repositories yet.
-          </p>
+          <p className="text-sm text-secondary">No saved repositories yet.</p>
         ) : null}
         {repositories.map((repo) => (
           <div className="grid gap-3 rounded-lg p-3" key={repo.id}>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{repo.fullName}</p>
-                <p className="truncate text-xs text-muted-foreground">
+                <p className="truncate text-xs text-secondary">
                   {repo.defaultBranch}
                 </p>
               </div>
@@ -349,7 +341,7 @@ function RepositoryWebsiteForm({ repo }: { repo: SavedRepository }) {
   return (
     <form className="grid gap-2 sm:grid-cols-[1fr_auto]" onSubmit={onSubmit}>
       <div className="relative min-w-0">
-        <Globe2 className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Globe2 className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-secondary" />
         <Input
           className="pl-8"
           disabled={isPending}
@@ -370,7 +362,7 @@ function RepositoryWebsiteForm({ repo }: { repo: SavedRepository }) {
       </Button>
       {updateWebsite.isError &&
       updateWebsite.variables?.repositoryId === repo.id ? (
-        <p className="text-sm text-destructive sm:col-span-2">
+        <p className="text-sm text-danger sm:col-span-2">
           {(updateWebsite.error as Error).message}
         </p>
       ) : null}
@@ -384,7 +376,7 @@ function InvoiceDetail({ invoice }: { invoice: BillingInvoiceDetail }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">{invoice.id}</p>
-          <p className="text-xs text-muted-foreground">{invoice.description}</p>
+          <p className="text-xs text-secondary">{invoice.description}</p>
         </div>
         <Badge variant={orderStatusVariant(invoice.status)}>
           {formatStatusLabel(invoice.status)}
@@ -408,7 +400,7 @@ function InvoiceDetail({ invoice }: { invoice: BillingInvoiceDetail }) {
       <div className="mt-4 grid gap-2">
         {invoice.lineItems.map((item) => (
           <div
-            className="flex items-center justify-between gap-3 rounded-md bg-muted/25 px-3 py-2 text-sm"
+            className="flex items-center justify-between gap-3 rounded-md bg-secondary/25 px-3 py-2 text-sm"
             key={item.label}
           >
             <span>{item.label}</span>
@@ -440,7 +432,7 @@ function InvoiceRow({
   return (
     <button
       className={`rounded-lg p-3 text-left transition-colors ${
-        isSelected ? "bg-muted/40" : "bg-background hover:bg-muted/25"
+        isSelected ? "bg-secondary/40" : "bg-primary hover:bg-secondary/25"
       }`}
       onClick={onSelect}
       type="button"
@@ -448,7 +440,7 @@ function InvoiceRow({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{invoice.id}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
+          <p className="mt-1 truncate text-xs text-secondary">
             {invoice.website}
           </p>
         </div>
@@ -457,9 +449,7 @@ function InvoiceRow({
         </Badge>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-        <span className="text-muted-foreground">
-          {formatDate(invoice.issuedAt)}
-        </span>
+        <span className="text-secondary">{formatDate(invoice.issuedAt)}</span>
         <span className="font-medium">
           {formatMoney(invoice.amountCents, invoice.currency)}
         </span>
@@ -474,7 +464,7 @@ function OrderRow({ order }: { order: BillingOrder }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{order.website}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
+          <p className="mt-1 truncate text-xs text-secondary">
             {order.repoFullName ?? "No repository selected"}
           </p>
         </div>
@@ -482,7 +472,7 @@ function OrderRow({ order }: { order: BillingOrder }) {
           {formatStatusLabel(order.status)}
         </Badge>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-secondary">
         <span className="inline-flex items-center gap-1">
           <CreditCard className="size-3.5" />
           {formatMoney(order.amountCents, order.currency)}
@@ -491,7 +481,7 @@ function OrderRow({ order }: { order: BillingOrder }) {
           <ReceiptText className="size-3.5" />
           {order.providerPaymentId ??
             order.providerSessionId ??
-            "No provider ID"}
+            "No payment reference"}
         </span>
       </div>
     </div>
@@ -500,8 +490,8 @@ function OrderRow({ order }: { order: BillingOrder }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-muted/25 p-4">
-      <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+    <div className="rounded-lg bg-secondary/25 p-4">
+      <p className="font-mono text-xs tracking-wide text-secondary uppercase">
         {label}
       </p>
       <p className="mt-2 text-sm font-medium">{value}</p>
@@ -512,7 +502,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 py-2">
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-secondary">{label}</span>
       <span className="truncate text-right font-mono text-xs">{value}</span>
     </div>
   )

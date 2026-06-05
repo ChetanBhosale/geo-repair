@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react"
 import type { FixRunSummary } from "@repo/types/fix"
-import { stateLabel, stateVariant } from "@/lib/fix-run-view"
+import { formatCostCents, stateLabel, stateVariant } from "@/lib/fix-run-view"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -36,22 +36,20 @@ export function RunHistory({
       </CardHeader>
       <CardContent className="grid gap-2">
         {isLoading ? (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-secondary">
             <Loader2 className="size-4 animate-spin" />
             Loading runs
           </p>
         ) : null}
-        {error ? (
-          <p className="text-sm text-destructive">{error.message}</p>
-        ) : null}
+        {error ? <p className="text-sm text-danger">{error.message}</p> : null}
         {!isLoading && runs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No fix runs yet.</p>
+          <p className="text-sm text-secondary">No fix runs yet.</p>
         ) : null}
         {runs.map((run) => (
           <button
             className={cn(
-              "rounded-lg p-3 text-left transition-colors hover:bg-muted",
-              selectedRunId === run.id && "bg-muted"
+              "rounded-lg p-3 text-left transition-colors hover:bg-secondary",
+              selectedRunId === run.id && "bg-secondary"
             )}
             key={run.id}
             onClick={() => onSelectRun(run.id)}
@@ -65,8 +63,9 @@ export function RunHistory({
                 {stateLabel(run.state)}
               </Badge>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-secondary">
               {run.fixedChecks}/{run.totalChecks} checks fixed
+              {run.cogs ? ` · ${formatCostCents(run.cogs.totalCostCents)}` : ""}
             </p>
           </button>
         ))}

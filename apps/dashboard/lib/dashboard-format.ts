@@ -7,7 +7,7 @@ export type DashboardBadgeVariant =
   | "pass"
   | "partial"
   | "fail"
-  | "muted"
+  | "neutral"
 
 export function formatMoney(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
@@ -33,13 +33,13 @@ export function reportStatusVariant(
 ): DashboardBadgeVariant {
   if (status === "READY") return "pass"
   if (status === "FAILED") return "fail"
-  return "muted"
+  return "neutral"
 }
 
 export function orderStatusVariant(status: OrderStatus): DashboardBadgeVariant {
   if (status === "PAID") return "pass"
   if (status === "FAILED" || status === "DISPUTED") return "fail"
-  if (status === "REFUNDED" || status === "CANCELED") return "muted"
+  if (status === "REFUNDED" || status === "CANCELED") return "neutral"
   return "partial"
 }
 
@@ -48,5 +48,5 @@ export function fixCheckStatusVariant(
 ): DashboardBadgeVariant {
   if (status === "FIXED") return "pass"
   if (status === "FAILED") return "fail"
-  return "muted"
+  return "neutral"
 }

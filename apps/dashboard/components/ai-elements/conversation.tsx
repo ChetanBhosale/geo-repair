@@ -60,10 +60,10 @@ export function ConversationEmptyState({
     >
       {children ?? (
         <>
-          {icon ? <div className="text-muted-foreground">{icon}</div> : null}
+          {icon ? <div className="text-secondary">{icon}</div> : null}
           <div className="space-y-1">
             <h3 className="text-sm font-medium">{title}</h3>
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="text-sm text-secondary">{description}</p>
           </div>
         </>
       )}
@@ -91,7 +91,7 @@ export function ConversationScrollButton({
     <button
       aria-label="Scroll to latest agent event"
       className={cn(
-        "absolute right-4 bottom-4 grid size-8 place-items-center rounded-full bg-background text-foreground",
+        "absolute right-4 bottom-4 grid size-8 place-items-center rounded-full bg-primary text-primary",
         className
       )}
       onClick={handleScrollToBottom}

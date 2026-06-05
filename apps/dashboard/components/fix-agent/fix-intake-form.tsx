@@ -61,15 +61,15 @@ export function FixIntakeForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <div className="grid gap-3 rounded-lg bg-muted/20 p-4">
+        <div className="grid gap-3 rounded-lg bg-secondary/20 p-4">
           <div className="flex items-center gap-2">
-            <CreditCard className="size-4 text-muted-foreground" />
+            <CreditCard className="size-4 text-secondary" />
             <h2 className="text-sm font-semibold">Paid order</h2>
           </div>
           {paidOrders.length > 0 ? (
             <>
               <select
-                className="h-9 rounded-lg bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-9 rounded-lg bg-primary px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-focus/50"
                 disabled={isPending}
                 onChange={(event) =>
                   onOrderChange(event.target.value.trim() || null)
@@ -87,26 +87,26 @@ export function FixIntakeForm({
                 ))}
               </select>
               {selectedOrder ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-secondary">
                   Order {selectedOrder.id} is paid and scoped to{" "}
                   {selectedOrder.repoFullName ?? selectedRepoFullName}.
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-secondary">
               Run a website scan, select this repository, and complete checkout
               before starting the fix agent.
             </p>
           )}
         </div>
 
-        <div className="grid gap-4 rounded-lg bg-muted/20 p-4">
+        <div className="grid gap-4 rounded-lg bg-secondary/20 p-4">
           <div>
             <h2 className="text-sm font-semibold">
               Agent clarification questions
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-secondary">
               These answers become hard constraints for what the agent may
               change or add.
             </p>
@@ -126,8 +126,8 @@ export function FixIntakeForm({
                       className={cn(
                         "rounded-lg p-3 text-left transition-colors",
                         selected
-                          ? "bg-background"
-                          : "bg-background/70 hover:bg-muted"
+                          ? "bg-primary"
+                          : "bg-primary/70 hover:bg-secondary"
                       )}
                       key={option.id}
                       onClick={() => onAnswerChange(question.id, option.id)}
@@ -136,7 +136,7 @@ export function FixIntakeForm({
                       <span className="block text-sm font-medium">
                         {option.label}
                       </span>
-                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      <span className="mt-1 block text-xs leading-5 text-secondary">
                         {option.description}
                       </span>
                     </button>
@@ -144,7 +144,7 @@ export function FixIntakeForm({
                 })}
               </div>
               <textarea
-                className="min-h-18 w-full resize-y rounded-lg bg-background px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="min-h-18 w-full resize-y rounded-lg bg-primary px-3 py-2 text-sm transition-colors outline-none placeholder:text-secondary focus-visible:ring-3 focus-visible:ring-focus/50"
                 onChange={(event) =>
                   onNoteChange(question.id, event.target.value)
                 }
@@ -177,7 +177,7 @@ export function FixIntakeForm({
           </Button>
         </form>
         {error ? (
-          <p className="mt-3 text-sm text-destructive">{error.message}</p>
+          <p className="mt-3 text-sm text-danger">{error.message}</p>
         ) : null}
       </CardContent>
     </Card>

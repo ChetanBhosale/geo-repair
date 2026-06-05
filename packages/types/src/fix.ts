@@ -22,12 +22,27 @@ export type FixCheckStatus =
   | "FLAGGED"
   | "FAILED";
 
-export type FixIntakeQuestionId =
-  | "visible_copy"
-  | "new_content"
-  | "claims"
-  | "visual_changes"
-  | "review_preference";
+export type FixIntakeQuestionId = string;
+
+export interface FixClarificationOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface FixClarificationQuestion {
+  id: FixIntakeQuestionId;
+  question: string;
+  notePlaceholder: string;
+  options: FixClarificationOption[];
+}
+
+export interface FixClarificationRequest {
+  version: 1;
+  generatedAt: string;
+  summary: string;
+  questions: FixClarificationQuestion[];
+}
 
 export interface FixIntakeAnswer {
   questionId: FixIntakeQuestionId;
@@ -65,6 +80,18 @@ export interface RunEventView {
   createdAt: string;
 }
 
+export interface FixRunCogs {
+  model: string | null;
+  tokensIn: number;
+  tokensOut: number;
+  sandboxSeconds: number;
+  imageCount: number;
+  tokenCostCents: number;
+  sandboxCostCents: number;
+  imageCostCents: number;
+  totalCostCents: number;
+}
+
 // Summary row for the centralized poll (GET /api/fix-runs).
 export interface FixRunSummary {
   id: string;
@@ -77,6 +104,7 @@ export interface FixRunSummary {
   pendingChecks: number;
   prUrl: string | null;
   error: string | null;
+  cogs: FixRunCogs | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,10 +124,13 @@ export interface StartFixRequest {
   website: string;
   repositoryId: string;
   orderId: string;
-  intake?: FixRunIntake;
 }
 
 export interface StartFixResponse {
   fixRunId: string;
   temporalWorkflowId: string;
+}
+
+export interface SubmitFixIntakeRequest {
+  intake: FixRunIntake;
 }

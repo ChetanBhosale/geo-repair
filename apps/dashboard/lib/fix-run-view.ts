@@ -1,13 +1,19 @@
 import type { FixRunDetail, FixRunState, RunEventView } from "@repo/types/fix"
 import type { DashboardBadgeVariant } from "@/lib/dashboard-format"
 
-export type TechTab = "diff" | "console" | "logs" | "terminal"
+const internalCostTab =
+  process.env.NODE_ENV !== "production"
+    ? [{ id: "cost" as const, label: "Cost" }]
+    : []
+
+export type TechTab = "diff" | "console" | "logs" | "terminal" | "cost"
 
 export const techTabs: Array<{ id: TechTab; label: string }> = [
   { id: "diff", label: "Diff" },
   { id: "console", label: "Console" },
   { id: "logs", label: "Logs" },
   { id: "terminal", label: "Terminal" },
+  ...internalCostTab,
 ]
 
 export const activeStates: FixRunState[] = [
@@ -60,12 +66,12 @@ export function eventBody(event: RunEventView) {
 
 export function eventStatus(event: RunEventView) {
   if (event.type.toLowerCase().includes("error")) {
-    return " bg-destructive/5"
+    return "bg-danger/5"
   }
   if (event.type.toLowerCase().includes("pr")) {
-    return " bg-emerald-500/5"
+    return "bg-success/5"
   }
-  return " bg-card"
+  return "bg-primary"
 }
 
 export function commandFromEvent(event: RunEventView) {
@@ -100,4 +106,19 @@ export function diffPayloadFromDetail(detail: FixRunDetail) {
         ? diffPayload.nameStatus
         : null,
   }
+}
+
+export function formatCostCents(cents: number) {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    style: "currency",
+  }).format(cents / 100)
+}
+
+export function formatRunDuration(seconds: number) {
+  if (seconds <= 0) return "0s"
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes === 0) return `${remainingSeconds}s`
+  return `${minutes}m ${remainingSeconds}s`
 }

@@ -33,9 +33,7 @@ export default function FixAgentPage() {
             eyebrow="Loading"
             title="Loading fix workspace"
             description="We are checking your session and project access."
-            action={
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            }
+            action={<Loader2 className="size-4 animate-spin text-secondary" />}
           />
         </DashboardShell>
       }

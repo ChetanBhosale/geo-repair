@@ -45,11 +45,9 @@ export function ReportGenerationCard({
       {error || notice ? (
         <CardContent>
           {error ? (
-            <p className="text-sm text-destructive">{error.message}</p>
+            <p className="text-sm text-danger">{error.message}</p>
           ) : null}
-          {notice ? (
-            <p className="text-sm text-muted-foreground">{notice}</p>
-          ) : null}
+          {notice ? <p className="text-sm text-secondary">{notice}</p> : null}
         </CardContent>
       ) : null}
     </Card>

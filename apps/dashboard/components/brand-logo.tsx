@@ -19,11 +19,11 @@ export function BrandLogo({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-foreground",
+        "inline-flex items-center gap-2 text-sm font-semibold tracking-tight text-primary",
         className
       )}
     >
-      <LogoMark className="size-5 text-primary" />
+      <LogoMark className="size-5 text-brand" />
       <span>GEO Repair</span>
     </span>
   )

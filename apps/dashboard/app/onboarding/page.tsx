@@ -79,7 +79,7 @@ function OnboardingFlow() {
   }, [router])
 
   return (
-    <main className="grid min-h-svh bg-background text-foreground lg:grid-cols-2">
+    <main className="grid min-h-svh bg-primary text-primary lg:grid-cols-2">
       <section className="relative hidden min-h-svh overflow-hidden bg-[#f6f5ef] lg:block">
         <HalftoneImage
           src="/images/onboarding/abstract.jpg"
@@ -116,7 +116,7 @@ function OnboardingFlow() {
               )}
             >
               <div>
-                <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+                <p className="font-mono text-xs tracking-wide text-secondary uppercase">
                   Step {displayedStep.number} of {STEP_ORDER.length}
                 </p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight">
@@ -159,7 +159,7 @@ function OnboardingProgress({ currentStep }: { currentStep: number }) {
             aria-hidden
             className={cn(
               "h-1.5 rounded-full transition-colors duration-200",
-              index + 1 <= currentStep ? "bg-primary" : "bg-muted"
+              index + 1 <= currentStep ? "bg-brand" : "bg-secondary"
             )}
             key={stepId}
           />
@@ -194,7 +194,7 @@ function OnboardingStepAction({
     return (
       <div className="grid gap-4">
         {authError ? (
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-danger">
             GitHub sign-in failed: {authError.replaceAll("_", " ")}
           </p>
         ) : null}
@@ -263,16 +263,14 @@ function RepoStep({
 
   if (repos.isError) {
     return (
-      <p className="text-sm text-destructive">
-        {(repos.error as Error).message}
-      </p>
+      <p className="text-sm text-danger">{(repos.error as Error).message}</p>
     )
   }
 
   return (
     <div className="grid gap-3">
       <div className="relative">
-        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-secondary" />
         <Input
           className="pl-8"
           onChange={(event) => setSearch(event.target.value)}
@@ -283,16 +281,14 @@ function RepoStep({
 
       <div className="max-h-80 overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">
-            No repositories found.
-          </p>
+          <p className="py-4 text-sm text-secondary">No repositories found.</p>
         ) : (
           filtered.map((repo) => {
             const isPending = pendingId === repo.id
 
             return (
               <button
-                className="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 py-3 text-left text-sm transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 py-3 text-left text-sm transition-colors hover:text-brand disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={selectRepo.isPending}
                 key={repo.id}
                 onClick={() => onPick(repo)}
@@ -302,19 +298,19 @@ function RepoStep({
                   <span className="flex min-w-0 items-center gap-2 font-medium">
                     <span className="truncate">{repo.fullName}</span>
                     {repo.private ? (
-                      <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+                      <Lock className="size-3.5 shrink-0 text-secondary" />
                     ) : null}
                   </span>
                   {repo.description ? (
-                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    <span className="mt-0.5 block truncate text-xs text-secondary">
                       {repo.description}
                     </span>
                   ) : null}
                 </span>
                 {isPending ? (
-                  <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                  <Loader2 className="size-4 shrink-0 animate-spin text-secondary" />
                 ) : repo.language ? (
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                  <span className="shrink-0 font-mono text-xs text-secondary">
                     {repo.language}
                   </span>
                 ) : null}
@@ -325,7 +321,7 @@ function RepoStep({
       </div>
 
       {selectRepo.isError ? (
-        <p className="text-sm text-destructive">
+        <p className="text-sm text-danger">
           {(selectRepo.error as Error).message}
         </p>
       ) : null}
@@ -391,9 +387,7 @@ function ScanStep({
           value={website}
         />
         {selectedRepo ? (
-          <p className="text-xs text-muted-foreground">
-            {selectedRepo.fullName}
-          </p>
+          <p className="text-xs text-secondary">{selectedRepo.fullName}</p>
         ) : null}
       </div>
 
@@ -409,7 +403,7 @@ function ScanStep({
       </div>
 
       {updateWebsite.error || audit.start.error ? (
-        <p className="text-sm text-destructive">
+        <p className="text-sm text-danger">
           {(updateWebsite.error ?? audit.start.error)?.message}
         </p>
       ) : null}
@@ -419,7 +413,7 @@ function ScanStep({
 
 function StatusLine({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex items-center gap-2 text-sm text-secondary">
       <Loader2 className="size-4 animate-spin" />
       {label}
     </div>
@@ -428,10 +422,10 @@ function StatusLine({ label }: { label: string }) {
 
 function OnboardingLoading() {
   return (
-    <main className="grid min-h-svh place-items-center bg-background p-6 text-foreground">
+    <main className="grid min-h-svh place-items-center bg-primary p-6 text-primary">
       <div className="grid justify-items-center gap-3">
         <BrandLogo />
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        <Loader2 className="size-5 animate-spin text-secondary" />
       </div>
     </main>
   )

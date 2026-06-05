@@ -63,7 +63,7 @@ function ReportListItem({
   return (
     <button
       className={`rounded-lg p-3 text-left transition-colors ${
-        isSelected ? "bg-muted/40" : "bg-background hover:bg-muted/25"
+        isSelected ? "bg-secondary/40" : "bg-primary hover:bg-secondary/25"
       }`}
       onClick={onSelect}
       type="button"
@@ -71,7 +71,7 @@ function ReportListItem({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{report.title}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
+          <p className="mt-1 truncate text-xs text-secondary">
             {TYPE_LABELS[report.type]} / {report.website ?? "No website"}
           </p>
         </div>
@@ -79,10 +79,10 @@ function ReportListItem({
           {report.status.toLowerCase()}
         </Badge>
       </div>
-      <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">
+      <p className="mt-3 line-clamp-2 text-xs text-secondary">
         {report.summary}
       </p>
-      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-3 flex items-center gap-2 text-xs text-secondary">
         <FileText className="size-3.5" />
         {formatDateTime(report.generatedAt)}
       </div>
