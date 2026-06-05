@@ -5,13 +5,15 @@ import { CheckoutReturnClient } from "./checkout-return-client"
 export const metadata = buildMetadata({
   title: "Checkout Return · GEO Repair",
   description:
-    "Check the payment status for a GEO Repair AI Search Fix order after Dodo checkout.",
+    "Check the payment status for a GEO Repair AI Search Fix order after checkout.",
   path: "/checkout/return",
   noIndex: true,
 })
 
 type PageProps = {
-  searchParams: Promise<{ order_id?: string }> | { order_id?: string }
+  searchParams:
+    | Promise<{ order_id?: string; payment_id?: string; status?: string }>
+    | { order_id?: string; payment_id?: string; status?: string }
 }
 
 export default async function CheckoutReturnPage({ searchParams }: PageProps) {
@@ -23,13 +25,17 @@ export default async function CheckoutReturnPage({ searchParams }: PageProps) {
       <PageHeader
         eyebrow="Checkout"
         title="Payment status"
-        description="This page reads your order state after Dodo checkout. Webhooks decide whether payment is complete."
+        description="This page reads your order state after checkout. Payment confirmation decides whether your fix can start."
       />
 
       <main className="border-t border-border py-16">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           {orderId ? (
-            <CheckoutReturnClient orderId={orderId} />
+            <CheckoutReturnClient
+              orderId={orderId}
+              paymentId={params.payment_id}
+              returnStatus={params.status}
+            />
           ) : (
             <div className="border border-border bg-card p-8 text-center">
               <p className="font-heading text-xl font-medium text-foreground">

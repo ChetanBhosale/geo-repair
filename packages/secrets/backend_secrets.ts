@@ -20,7 +20,9 @@ const BackendSecrets = {
   NODE_ENV: process.env.NODE_ENV || "development",
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
   WEB_URL:
-    process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:3001",
+    process.env.WEB_URL ||
+    (isProd ? process.env.FRONTEND_URL : undefined) ||
+    "http://localhost:3001",
   DASHBOARD_URL:
     process.env.DASHBOARD_URL ||
     process.env.FRONTEND_URL ||

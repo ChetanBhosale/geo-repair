@@ -34,12 +34,12 @@ function statusCopy(order: OrderSummary) {
     case "PENDING":
       return {
         title: "Payment pending",
-        body: "We are waiting for Dodo Payments to confirm the checkout by webhook.",
+        body: "We are waiting for payment confirmation.",
       }
     case "FAILED":
       return {
         title: "Payment failed",
-        body: "Dodo Payments reported that the payment failed. You can retry checkout from the order flow.",
+        body: "The payment failed. You can retry checkout from the order flow.",
       }
     case "CANCELED":
       return {
@@ -63,7 +63,15 @@ function dashboardFixUrl(orderId: string): string {
   return `${DASHBOARD_URL}/fix-agent?order_id=${encodeURIComponent(orderId)}`
 }
 
-export function CheckoutReturnClient({ orderId }: { orderId: string }) {
+export function CheckoutReturnClient({
+  orderId,
+  paymentId,
+  returnStatus,
+}: {
+  orderId: string
+  paymentId?: string
+  returnStatus?: string
+}) {
   const [loadState, setLoadState] = useState<LoadState>({
     state: "loading",
     order: null,
@@ -73,6 +81,43 @@ export function CheckoutReturnClient({ orderId }: { orderId: string }) {
   useEffect(() => {
     let active = true
     let timer: ReturnType<typeof setInterval> | null = null
+
+    async function reconcileReturnPayment() {
+      if (!paymentId || returnStatus !== "succeeded") {
+        return false
+      }
+
+      const response = await fetch(`/api/billing/orders/${orderId}/reconcile`, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          paymentId,
+          status: returnStatus,
+        }),
+      })
+      const data = (await response.json()) as {
+        order?: OrderSummary
+        error?: string
+      }
+
+      if (!active) return true
+
+      if (!response.ok || !data.order) {
+        setLoadState({
+          state: "error",
+          order: null,
+          error:
+            data.error ??
+            "Payment succeeded, but the order could not be verified.",
+        })
+        return true
+      }
+
+      setLoadState({ state: "ready", order: data.order, error: null })
+      return true
+    }
 
     async function load() {
       try {
@@ -115,14 +160,21 @@ export function CheckoutReturnClient({ orderId }: { orderId: string }) {
       }
     }
 
-    void load()
-    timer = setInterval(load, 3000)
+    async function loadInitialState() {
+      const handledReturnPayment = await reconcileReturnPayment()
+      if (!handledReturnPayment) {
+        await load()
+        timer = setInterval(load, 3000)
+      }
+    }
+
+    void loadInitialState()
 
     return () => {
       active = false
       if (timer) clearInterval(timer)
     }
-  }, [orderId])
+  }, [orderId, paymentId, returnStatus])
 
   const copy = useMemo(() => {
     if (loadState.state !== "ready") return null
@@ -195,7 +247,7 @@ export function CheckoutReturnClient({ orderId }: { orderId: string }) {
 
       <div className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs/relaxed text-muted-foreground">
-          Payment state is updated only by Dodo webhooks.
+          Payment status updates automatically.
         </p>
         {order.startFixUnlocked ? (
           <Button asChild>
