@@ -1,8 +1,8 @@
-// Unit tests for buildFixPlan: scan findings -> the agent's bounded, grouped task list.
+// Unit tests for buildFixPlan: checkup findings -> the agent's bounded, grouped task list.
 
 import { test, expect } from "bun:test";
 import { buildFixPlan } from "./fix-plan.ts";
-import type { FindingScope, RubricFinding, Tier } from "../scrape-site/scraper/types.ts";
+import type { FindingScope, RubricFinding, Tier } from "../checkup/crawler/types.ts";
 
 function finding(id: string, partial: Partial<RubricFinding> = {}): RubricFinding {
   const counts = partial.counts ?? { pass: 0, partial: 0, fail: 0, inconclusive: 0, notApplicable: 0 };

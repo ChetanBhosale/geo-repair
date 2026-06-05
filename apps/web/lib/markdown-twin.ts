@@ -20,7 +20,6 @@ import {
   FIX_TIERS_INTRO,
   FIX_TIERS,
   FIX_INCLUDES,
-  AUTOPILOT,
   PRICING_FOOTNOTE,
   PRICING_FAQ_INTRO,
   PRICING_FAQ,
@@ -178,10 +177,6 @@ function pricingTwin(): string {
     "**Every fix includes**",
     "",
     FIX_INCLUDES.map((f) => `- ${f}`).join("\n"),
-    "",
-    "## Step 3 · Keep it from sliding back (optional)",
-    "",
-    planMarkdown(AUTOPILOT),
     "",
     PRICING_FOOTNOTE,
     "",
@@ -341,7 +336,7 @@ async function blogPostTwin(slug: string): Promise<string | null> {
 
 const PRIVACY_BODY = `# Privacy Policy
 
-_Last updated June 3, 2026_
+_Last updated June 4, 2026_
 
 This Privacy Policy explains what GEO Repair collects, how we use it, and, just as importantly, what we never do with it. The short version: your code lives only inside an ephemeral sandbox for a single run, is never retained afterward, and is never used to train models.
 
@@ -356,11 +351,11 @@ This Privacy Policy explains what GEO Repair collects, how we use it, and, just 
 
 ### The free checkup
 
-The checkup fetches your public pages, the same way an AI crawler would, and respects your robots.txt. It never touches your repository. We store the URL you scanned and the resulting readiness score so you can revisit your report.
+The checkup fetches your public pages, the same way an AI crawler would, and respects your robots.txt. It never touches your repository. We store the URL you checked and the resulting readiness score so you can revisit your report.
 
 ### Account information
 
-If you create an account, we collect your email address and authentication details from your identity provider. If you subscribe, our payment processor handles your card details, and we never see or store full card numbers.
+If you create an account, we collect your email address and authentication details from your identity provider. If you buy an AI Search Fix, Dodo Payments handles your card details, and we never see or store full card numbers.
 
 ### Waitlist and contact forms
 
@@ -383,7 +378,7 @@ We use privacy-respecting product analytics to understand how the Service is use
 
 ## Service providers
 
-We use carefully selected service providers to operate the Service, including hosting, analytics, payments, authentication, repository access, and transactional email through Resend. These providers process information only as needed to provide their services to us. We do not sell personal information.
+We use carefully selected service providers to operate the Service, including hosting, analytics, payments through Dodo Payments, authentication, repository access, and transactional email through Resend. These providers process information only as needed to provide their services to us. We do not sell personal information.
 
 ## Data retention
 
@@ -406,7 +401,7 @@ Questions about your privacy? Email privacy@geo.repair, or read more on our [Sec
 
 const TERMS_BODY = `# Terms of Service
 
-_Last updated June 3, 2026_
+_Last updated June 4, 2026_
 
 These Terms of Service ("Terms") govern your access to and use of GEO Repair (the "Service"), including the free readiness checkup and the AI fix agent. By using the Service you agree to these Terms. If you do not agree, do not use the Service.
 
@@ -434,7 +429,7 @@ You agree not to use the Service to:
 
 ## Plans and billing
 
-The checkup is free. Paid plans, such as AI Search Autopilot, are billed in advance on a recurring basis and are month-to-month unless stated otherwise. You can cancel at any time; cancellation takes effect at the end of the current billing period.
+The checkup is free. The AI Search Fix is a one-time upfront payment processed by Dodo Payments after repository confirmation and feasibility review. There is no recurring plan right now.
 
 ## Communications
 

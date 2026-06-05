@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 // reads .env directly; everything else imports from here.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../apps/web/.env.local") });
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -43,6 +44,18 @@ const BackendSecrets = {
   // E2B (ephemeral execution sandbox).
   E2B_SANDBOX_API_KEY: process.env.E2B_SANDBOX_API_KEY,
   E2B_SANDBOX_ID: process.env.E2B_SANDBOX_ID,
+  // Dodo Payments. One-time AI Search Fix checkout only.
+  DODO_PAYMENTS_API_KEY: process.env.DODO_PAYMENTS_API_KEY,
+  DODO_PAYMENTS_WEBHOOK_KEY: process.env.DODO_PAYMENTS_WEBHOOK_KEY,
+  DODO_PAYMENTS_ENVIRONMENT:
+    process.env.DODO_PAYMENTS_ENVIRONMENT === "live_mode"
+      ? "live_mode"
+      : "test_mode",
+  DODO_PRODUCT_ID_STARTER: process.env.DODO_PRODUCT_ID_STARTER,
+  DODO_PRODUCT_ID_GROWTH: process.env.DODO_PRODUCT_ID_GROWTH,
+  DODO_PRODUCT_ID_SCALE: process.env.DODO_PRODUCT_ID_SCALE,
+  ENABLE_DEV_BILLING_FIXTURES:
+    process.env.ENABLE_DEV_BILLING_FIXTURES === "true",
 };
 
 export default BackendSecrets;

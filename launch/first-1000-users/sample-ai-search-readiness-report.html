@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sample AI Search Readiness Report</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --background: oklch(0.967 0 0);
+        --foreground: oklch(0.27 0 0);
+        --card: oklch(1 0 0);
+        --muted: oklch(0.935 0 0);
+        --muted-foreground: oklch(0.52 0 0);
+        --primary: oklch(0.52 0.12 163);
+        --primary-foreground: oklch(0.985 0 0);
+        --accent: oklch(0.95 0.02 163);
+        --accent-foreground: oklch(0.39 0.1 163);
+        --success: oklch(0.6 0.14 163);
+        --destructive: oklch(0.577 0.245 27.325);
+        --warning: oklch(0.705 0.16 70);
+        --border: oklch(0.905 0 0);
+        --blue: oklch(0.52 0.14 245);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      .page {
+        width: min(1180px, calc(100% - 32px));
+        margin: 24px auto;
+        border: 1px solid var(--border);
+        background: var(--card);
+      }
+
+      .frame {
+        position: relative;
+        border: 1px solid var(--border);
+        background: var(--card);
+      }
+
+      .frame::before {
+        content: "";
+        position: absolute;
+        inset: -4px;
+        pointer-events: none;
+        opacity: 0.5;
+        background:
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            left 0 top 3px / 7px 1px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            left 3px top 0 / 1px 7px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            right 0 top 3px / 7px 1px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            right 3px top 0 / 1px 7px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            left 0 bottom 3px / 7px 1px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            left 3px bottom 0 / 1px 7px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            right 0 bottom 3px / 7px 1px no-repeat,
+          linear-gradient(var(--muted-foreground), var(--muted-foreground))
+            right 3px bottom 0 / 1px 7px no-repeat;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border);
+        background: var(--background);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--primary);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid color-mix(in oklch, var(--primary), black 12%);
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .meta-line {
+        color: var(--muted-foreground);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 12px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        min-height: 360px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .hero-copy {
+        padding: 54px 58px 48px;
+        border-right: 1px solid var(--border);
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--primary);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 0;
+        font-size: 56px;
+        font-weight: 520;
+        letter-spacing: 0;
+        line-height: 0.98;
+      }
+
+      .subhead {
+        max-width: 670px;
+        margin: 22px 0 0;
+        color: var(--muted-foreground);
+        font-size: 17px;
+        line-height: 1.7;
+      }
+
+      .score-panel {
+        display: grid;
+        align-content: space-between;
+        gap: 24px;
+        padding: 30px;
+        background: var(--card);
+      }
+
+      .score-ring {
+        display: grid;
+        place-items: center;
+        width: 190px;
+        height: 190px;
+        margin: 10px auto 0;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, var(--card) 0 57%, transparent 58%),
+          conic-gradient(var(--warning) 0 62%, var(--muted) 62% 100%);
+      }
+
+      .score-ring strong {
+        display: block;
+        font-size: 58px;
+        font-weight: 560;
+        line-height: 1;
+        text-align: center;
+      }
+
+      .score-ring span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted-foreground);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .key-value {
+        display: grid;
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+      }
+
+      .key-value div {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 11px 12px;
+        background: var(--card);
+        font-size: 13px;
+      }
+
+      .key-value span {
+        color: var(--muted-foreground);
+      }
+
+      main {
+        padding: 34px;
+      }
+
+      .section-title {
+        margin: 0 0 14px;
+        font-size: 24px;
+        font-weight: 520;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        margin-bottom: 34px;
+        background: var(--border);
+        border: 1px solid var(--border);
+      }
+
+      .metric {
+        min-height: 118px;
+        padding: 18px;
+        background: var(--card);
+      }
+
+      .metric strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 30px;
+        font-weight: 560;
+      }
+
+      .metric span {
+        color: var(--muted-foreground);
+        font-size: 13px;
+      }
+
+      .findings {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        margin-bottom: 34px;
+        background: var(--border);
+        border: 1px solid var(--border);
+      }
+
+      .finding {
+        min-height: 230px;
+        padding: 22px;
+        background: var(--card);
+      }
+
+      .badge {
+        display: inline-flex;
+        margin-bottom: 18px;
+        padding: 5px 8px;
+        border: 1px solid currentColor;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .fail {
+        color: var(--destructive);
+      }
+
+      .partial {
+        color: var(--warning);
+      }
+
+      .pass {
+        color: var(--success);
+      }
+
+      .info {
+        color: var(--blue);
+      }
+
+      .finding h3 {
+        margin: 0 0 10px;
+        font-size: 18px;
+        font-weight: 540;
+      }
+
+      .finding p,
+      .panel p,
+      td,
+      li {
+        color: var(--muted-foreground);
+        font-size: 14px;
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 22px;
+        font-weight: 520;
+      }
+
+      .table-wrap {
+        overflow: hidden;
+        margin-top: 18px;
+        border: 1px solid var(--border);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--foreground);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 18px 24px;
+        border-top: 1px solid var(--border);
+        background: var(--background);
+        color: var(--muted-foreground);
+        font-size: 12px;
+      }
+
+      @media print {
+        body {
+          background: white;
+        }
+
+        .page {
+          width: 100%;
+          margin: 0;
+          border: 0;
+        }
+      }
+
+      @media (max-width: 920px) {
+        header,
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-copy {
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+          padding: 36px 24px;
+        }
+
+        h1 {
+          font-size: 40px;
+        }
+
+        .summary-grid,
+        .findings {
+          grid-template-columns: 1fr;
+        }
+
+        main {
+          padding: 24px;
+        }
+
+        .topbar,
+        footer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="page">
+      <div class="topbar">
+        <div class="brand">
+          <span class="brand-mark">GR</span>
+          GEO Repair
+        </div>
+        <div class="meta-line">Sample AI Search Readiness Report</div>
+      </div>
+
+      <header>
+        <div class="hero-copy">
+          <p class="eyebrow">Technical readiness audit</p>
+          <h1>Northstar Labs is readable, but not yet fix-ready for AI search.</h1>
+          <p class="subhead">
+            GEO Repair checked the public site the way AI crawlers and answer
+            engines inspect it: visible HTML, metadata, structured data,
+            answerability, crawl rules, and technical trust signals.
+          </p>
+        </div>
+
+        <aside class="score-panel" aria-label="Report score and metadata">
+          <div class="score-ring" aria-label="Readiness score 62 out of 100">
+            <div>
+              <strong>62</strong>
+              <span>out of 100</span>
+            </div>
+          </div>
+
+          <div class="key-value">
+            <div><span>Website</span><strong>northstarlabs.example</strong></div>
+            <div><span>Detected stack</span><strong>Next.js</strong></div>
+            <div><span>Pages sampled</span><strong>18</strong></div>
+            <div><span>Pricing tier</span><strong>Starter, $49</strong></div>
+            <div><span>Report date</span><strong>June 4, 2026</strong></div>
+          </div>
+        </aside>
+      </header>
+
+      <main>
+        <section class="summary-grid" aria-label="Report summary">
+          <div class="metric">
+            <strong>6</strong>
+            <span>Checks failed across crawl, structure, and content signals.</span>
+          </div>
+          <div class="metric">
+            <strong>8</strong>
+            <span>Checks already pass and should be preserved during the fix.</span>
+          </div>
+          <div class="metric">
+            <strong>4</strong>
+            <span>High-confidence gaps can be fixed in a pull request.</span>
+          </div>
+          <div class="metric">
+            <strong>88</strong>
+            <span>Sample after-fix score if recommended changes are merged.</span>
+          </div>
+        </section>
+
+        <h2 class="section-title">Highest-impact findings</h2>
+        <section class="findings" aria-label="Highest impact findings">
+          <div class="finding">
+            <span class="badge fail">Fail</span>
+            <h3>Structured data is incomplete</h3>
+            <p>
+              Product and guide pages have visible content, but no matching
+              Organization, WebSite, Article, or FAQPage JSON-LD where it would
+              help machines classify the page.
+            </p>
+          </div>
+          <div class="finding">
+            <span class="badge partial">Partial</span>
+            <h3>Pages answer late</h3>
+            <p>
+              Several pages explain the category, but the direct answer appears too
+              far down the page. AI answer engines prefer clear answer-first
+              paragraphs.
+            </p>
+          </div>
+          <div class="finding">
+            <span class="badge fail">Fail</span>
+            <h3>No llms.txt file</h3>
+            <p>
+              The site has a sitemap and robots file, but it does not publish an
+              llms.txt index that gives AI crawlers a concise map of important
+              public pages.
+            </p>
+          </div>
+        </section>
+
+        <section class="frame panel">
+          <h2>Recommended fix PR</h2>
+          <p>
+            GEO Repair would open a branch in the selected GitHub repository, edit
+            only the files needed for the failed checks, run the agreed
+            verification commands, and submit a pull request for review.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Area</th>
+                  <th>Fix</th>
+                  <th>Expected outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Structured data</td>
+                  <td>Add Organization, WebSite, Article, and FAQPage JSON-LD where valid.</td>
+                  <td>Cleaner machine classification and richer page context.</td>
+                </tr>
+                <tr>
+                  <td>Answerability</td>
+                  <td>Move direct answers into the opening sections of guide pages.</td>
+                  <td>Better extraction for ChatGPT, Perplexity, and AI Overviews.</td>
+                </tr>
+                <tr>
+                  <td>Crawler guidance</td>
+                  <td>Add llms.txt and confirm AI crawlers are not blocked.</td>
+                  <td>Clearer discovery path for important public pages.</td>
+                </tr>
+                <tr>
+                  <td>Source trust</td>
+                  <td>Add source links to factual claims on informational pages.</td>
+                  <td>Stronger evidence signals without inventing new claims.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="two-col">
+          <div class="frame panel">
+            <span class="badge info">Diagnostic only</span>
+            <h2>Off-site citation placement</h2>
+            <p>
+              For the query "best analytics tools for AI product teams", the
+              sample answer engines cited two third-party comparison pages and
+              one documentation page. Northstar Labs was absent from those
+              sources.
+            </p>
+            <p>
+              This is useful context, but it is not part of the score because a
+              GitHub PR cannot control third-party websites.
+            </p>
+          </div>
+          <div class="frame panel">
+            <span class="badge pass">Trust controls</span>
+            <h2>How the fix is handled</h2>
+            <ul>
+              <li>The free checkup uses public pages only.</li>
+              <li>Repository access is requested only after the customer approves a fix.</li>
+              <li>The fix runs in an ephemeral sandbox.</li>
+              <li>The PR is opened on a branch for review.</li>
+              <li>The sandbox and clone are destroyed when the run ends.</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>GEO Repair | AI Search Optimization report sample</span>
+        <span>Technical readiness only. No citation or traffic guarantees.</span>
+      </footer>
+    </article>
+  </body>
+</html>

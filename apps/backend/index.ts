@@ -4,9 +4,14 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import Secrets from "@repo/secrets/backend";
 import authRoutes from "./src/auth/auth.routes";
-import auditRoutes from "./src/audit/audit.routes";
 import githubRoutes from "./src/github/github.routes";
 import fixRoutes from "./src/fix/fix.routes";
+import checkupRoutes from "./src/checkup/checkup.routes";
+import {
+  billingRoutes,
+  devBillingRoutes,
+  dodoWebhookRoutes,
+} from "./src/billing/billing.routes";
 import { notFoundHandler, errorHandler } from "./src/middleware/error";
 import { authRateLimiter, globalRateLimiter } from "./src/middleware/rate-limit";
 
@@ -33,6 +38,12 @@ app.use(
   })
 );
 
+app.use(
+  "/api/webhooks/dodo",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  dodoWebhookRoutes
+);
+
 app.use(express.json({ limit: "64kb" }));
 app.use(cookieParser());
 app.use(globalRateLimiter);
@@ -43,7 +54,9 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/auth", authRateLimiter, authRoutes);
 app.use("/api/github", githubRoutes);
-app.use("/api", auditRoutes);
+app.use("/api", billingRoutes);
+app.use("/api", devBillingRoutes);
+app.use("/api", checkupRoutes);
 app.use("/api", fixRoutes);
 
 app.use(notFoundHandler);

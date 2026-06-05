@@ -14,7 +14,7 @@ where an AI agent runs in a sandbox and raises a build-passing PR.
 Three planes (do not collapse them):
 
 - **Control plane** — `apps/web` on Vercel. Marketing, free checkup, auth, dashboard,
-  Stripe, GitHub callbacks/webhooks, realtime read views. Server Actions + Route Handlers
+  Dodo Payments, GitHub callbacks/webhooks, realtime read views. Server Actions + Route Handlers
   only — **no long-running work here.**
 - **Job plane** — Trigger.dev (planned). Owns the run state machine, retries, concurrency.
 - **Execution plane** — E2B ephemeral sandbox (planned). One microVM per run: clone →
@@ -128,7 +128,7 @@ Never overstate; if a claim ever stops being enforceable, change the copy, not t
 - **Only the one repo you pick is touched.** Install is scoped to the single selected repo; no
   other repository is ever read, cloned, or modified.
 - **No confidential data leaves to third parties.** Your code and secrets are never shared with
-  any third party; model calls are inference-only and no secrets/DB/Stripe creds enter the sandbox.
+  any third party; model calls are inference-only and no secrets/DB/payment creds enter the sandbox.
 - **Zero data retention, no model training.** The AI providers we route through don't retain your
   data and **never** train on it.
 
@@ -136,7 +136,7 @@ Never overstate; if a claim ever stops being enforceable, change the copy, not t
 
 - Least-privilege everywhere. The GitHub App requests only `contents:write`,
   `pull_requests:write`, `metadata:read` — no org admin, Actions, or Secrets.
-- No DB/Stripe/platform credentials ever enter the execution sandbox; per-run short-lived
+- No DB/payment/platform credentials ever enter the execution sandbox; per-run short-lived
   tokens only, scrubbed from logs. See the Trust & Security section in `plan/plan.md`.
 - Validate at boundaries (user input, webhooks, external APIs). Don't introduce OWASP-top-10
   footguns (injection, XSS, SSRF in the crawler).

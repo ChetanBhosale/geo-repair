@@ -10,7 +10,7 @@ import {
 } from "@repo/sandbox";
 import Secrets from "@repo/secrets/backend";
 import type { FixSiteInput } from "../../shared";
-import { scrapeSite } from "../scrape-site/scraper";
+import { checkSite } from "../checkup/crawler";
 import { buildFixPlan } from "./fix-plan";
 import { resolveGitToken } from "./git-creds";
 import { loadHarnessPrompt, loadSkill } from "./skills";
@@ -51,8 +51,8 @@ export async function prepareRun(input: FixSiteInput): Promise<{
   await setState(input.fixRunId, "SCANNING");
   await logEvent(input.fixRunId, "scan_started", null, { website: input.website });
 
-  const report = await scrapeSite(input.website);
-  const plan = buildFixPlan(report.findings, { pagesScanned: report.crawl.pagesScraped });
+  const report = await checkSite(input.website);
+  const plan = buildFixPlan(report.findings, { pagesChecked: report.crawl.pagesChecked });
   const planTasks = [...plan.siteWide, ...plan.perPage];
 
   // Persist each task as a FixCheck (for the dashboard). The harness updates

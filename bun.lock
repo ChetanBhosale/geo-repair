@@ -28,6 +28,7 @@
         "@types/jsonwebtoken": "^9.0.9",
         "cookie-parser": "^1.4.7",
         "cors": "^2.8.6",
+        "dodopayments": "^2.35.0",
         "express": "^5.2.1",
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
@@ -82,6 +83,7 @@
         "@next/mdx": "^16.2.7",
         "@paper-design/shaders-react": "^0.0.76",
         "@phosphor-icons/react": "^2.1.10",
+        "@repo/types": "*",
         "@types/mdx": "^2.0.13",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
@@ -1219,6 +1221,8 @@
     "dockerfile-ast": ["dockerfile-ast@0.7.1", "", { "dependencies": { "vscode-languageserver-textdocument": "^1.0.8", "vscode-languageserver-types": "^3.17.3" } }, "sha512-oX/A4I0EhSkGqrFv0YuvPkBUSYp1XiY8O8zAKc8Djglx8ocz+JfOr8gP0ryRMC2myqvDLagmnZaU9ot1vG2ijw=="],
 
     "doctrine": ["doctrine@2.1.0", "", { "dependencies": { "esutils": "^2.0.2" } }, "sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw=="],
+
+    "dodopayments": ["dodopayments@2.35.0", "", { "dependencies": { "standardwebhooks": "^1.0.0" }, "bin": { "dodopayments": "bin/cli" } }, "sha512-dIt0izUTIiXtHvqEqHdt7HF1yJenxFnx1pGyHXUoiU8b30bZ38cJfIoe4Or39zjCeyvcxSgxbaw+5eu/F0eKWQ=="],
 
     "dompurify": ["dompurify@3.4.7", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-2jBxDJY4RR06tQNy4w5FlFH7kfxsQZlufd0sbv+chfHCxeJwrFw2baUDsSwvBISD4K4RDbd0PTfy3uNXsR6siA=="],
 

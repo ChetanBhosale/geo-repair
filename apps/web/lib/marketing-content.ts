@@ -6,8 +6,8 @@ import type { FaqItem, SectionIntro } from "./landing-content"
 
 // --- Pricing ---------------------------------------------------------------
 
-// A free/subscription plan card (free checkup, Autopilot). The one-time fix
-// uses its own page-count tier shape below (FixTier).
+// A vertical plan card for the free checkup. The one-time fix uses its own
+// page-count tier shape below (FixTier).
 export type PricingTier = {
   name: string
   price: string
@@ -22,9 +22,9 @@ export type PricingTier = {
 
 export const PRICING_HEADER: SectionIntro = {
   eyebrow: "Pricing",
-  title: "Free to scan. Pay once to fix.",
+  title: "Free to check. Pay once to fix.",
   description:
-    "Run the checkup for nothing. Pay a single one-time fee — sized to your site — only when you want the agent to ship the fixes. Keep your readiness from sliding back with optional Autopilot.",
+    "Run the checkup for nothing. Pay a single one-time fee, sized to your site, only when you want the agent to ship the fixes.",
 }
 
 // Step 1 — the free entry point.
@@ -32,9 +32,9 @@ export const PRICING_FREE: PricingTier = {
   name: "Free checkup",
   price: "$0",
   blurb:
-    "Scan any public site and get the full readiness picture — the same scoring our fix agent works from.",
+    "Check any public site and get the full readiness picture, the same scoring our fix agent works from.",
   features: [
-    "Scan any public website",
+    "Check any public website",
     "0–100 readiness score with per-category subscores",
     "All 23 checks across 7 categories",
     "Evidence and a fix hint for every issue",
@@ -60,7 +60,7 @@ export const FIX_TIERS_INTRO: SectionIntro = {
   eyebrow: "Pay once to fix",
   title: "A one-time fix, sized to your site",
   description:
-    "When you connect a repository, the agent opens the pull requests that close the gaps the checkup found. You pay once — the tier is set automatically by how many pages are in your sitemap, measured during the free checkup, and shown before you pay anything.",
+    "When you connect a repository, the agent opens the pull requests that close the gaps the checkup found. You pay once. The tier is set automatically by how many pages are in your sitemap, measured during the free checkup, and shown before you pay anything.",
 }
 
 export const FIX_TIERS: FixTier[] = [
@@ -98,32 +98,13 @@ export const FIX_TIERS: FixTier[] = [
 export const FIX_INCLUDES = [
   "The agent fixes every flagged check and opens one pull request",
   "Build- and type-checked in an ephemeral sandbox before the PR opens",
-  "You review and merge — nothing ships without you",
+  "You review and merge. Nothing ships without you",
   "Net-new content stays gated behind your approval",
   "Charged once, upfront, only after we confirm your stack is buildable",
 ]
 
-// Step 3 — optional subscription, after the fix is merged. This is the
-// loop-closer, not the thing that produces the first fix PR.
-export const AUTOPILOT: PricingTier = {
-  name: "AI Search Autopilot",
-  price: "$19",
-  cadence: "/mo",
-  blurb:
-    "After you've merged the fix, keep your readiness from sliding back. Autopilot re-checks on a schedule and opens improvement PRs when something regresses.",
-  features: [
-    "Continuous re-checks on a schedule",
-    "A readiness change-log over time",
-    "Regression-catching improvement PRs",
-    "Cancel anytime, month to month",
-  ],
-  cta: "Start with a free checkup",
-  href: "/#checkup",
-  note: "Optional — added after your first fix ships",
-}
-
 export const PRICING_FOOTNOTE =
-  "The fix is a single upfront charge sized to your sitemap; Autopilot is a separate, optional subscription. We never promise rankings or AI citations, only that your site is measurably more ready."
+  "The fix is a single upfront charge sized to your sitemap. We never promise rankings or AI citations, only that your site is measurably more ready."
 
 export const PRICING_FAQ_INTRO = {
   title: "Pricing questions",
@@ -134,7 +115,7 @@ export const PRICING_FAQ: FaqItem[] = [
   {
     question: "Is the checkup really free?",
     answer:
-      "Yes. The checkup scans your public pages and returns the full 0–100 score with every check, with no signup and no card. You only pay when you connect a repository and want the agent to open the fixing pull requests.",
+      "Yes. The checkup reads your public pages and returns the full 0–100 score with every check, with no signup and no card. You only pay when you connect a repository and want the agent to open the fixing pull requests.",
   },
   {
     question: "How much does the fix cost?",
@@ -142,14 +123,14 @@ export const PRICING_FAQ: FaqItem[] = [
       "The fix is a one-time fee based on how many pages are in your sitemap: $49 up to 25 pages, $149 up to 100, $399 up to 250, and custom pricing beyond that. We measure your page count automatically during the free checkup and show your exact price before you pay anything.",
   },
   {
-    question: "What's the difference between the fix and Autopilot?",
+    question: "When do I pay?",
     answer:
-      "The one-time fix opens the pull requests that close the gaps the checkup found — you pay once. AI Search Autopilot ($19/mo) is optional and comes afterward: it keeps watching, re-checks on a schedule, and opens improvement PRs if your readiness regresses.",
+      "You pay only after the free checkup, repository confirmation, and feasibility gate. The checkout amount is computed server-side from the sitemap page count, so the browser never decides the price.",
   },
   {
     question: "What if the fix can't be applied?",
     answer:
-      "Before charging, we confirm your stack is supported and buildable. If we can't produce a build-passing pull request, we open a direct support thread to make it right — we don't leave you with a charge and nothing to show.",
+      "Before charging, we confirm your stack is supported and buildable. If we can't produce a build-passing pull request, we open a direct support thread to make it right. We don't leave you with a charge and nothing to show.",
   },
   {
     question: "Do you guarantee more traffic or AI citations?",
@@ -157,9 +138,9 @@ export const PRICING_FAQ: FaqItem[] = [
       "No, and you should be wary of anyone who does. We measure and improve how ready your site is for AI search engines to read and cite it. Whether a model cites you is outside anyone's control. We fix the technical readiness, not the ranking.",
   },
   {
-    question: "Can I cancel anytime?",
+    question: "Is this recurring?",
     answer:
-      "The one-time fix is a single upfront charge — there's nothing to cancel. Autopilot is month-to-month with no contract, so you can cancel it anytime, and the free checkup stays available either way.",
+      "No. The AI Search Fix is a single upfront charge, so there is no recurring plan to cancel.",
   },
 ]
 
@@ -195,7 +176,7 @@ export const SECURITY_LIFECYCLE_INTRO: SectionIntro = {
 }
 
 export const SECURITY_ACCESS: AccessItem[] = [
-  { label: "The one public site you scan (free checkup)", allowed: true },
+  { label: "The one public site you check (free checkup)", allowed: true },
   { label: "The single repository you explicitly select", allowed: true },
   { label: "An ephemeral sandbox that's destroyed after the run", allowed: true },
   { label: "Your other repositories or your whole account", allowed: false },

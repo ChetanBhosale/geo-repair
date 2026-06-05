@@ -50,6 +50,24 @@ export type PageType =
   | "utility"
   | "generic";
 
+// Normalized audience segment / framework the site is built with. Drives the
+// fix agent's per-framework playbook. "unknown" when no signal; "other" when a
+// framework is detected but not one we special-case.
+export type WebsiteType =
+  | "nextjs"
+  | "react"
+  | "astro"
+  | "framer"
+  | "webflow"
+  | "wix"
+  | "wordpress"
+  | "shopify"
+  | "gatsby"
+  | "nuxt"
+  | "hugo"
+  | "other"
+  | "unknown";
+
 // Score for one pillar (0-100), plus the raw earned/applicable breakdown.
 export interface PillarScore {
   score: number;
@@ -65,15 +83,15 @@ export interface CategoryScore {
   applicable: number;
 }
 
-// How the crawler discovered candidate pages and which it chose to scrape.
+// How the crawler discovered candidate pages and which it chose to check.
 export interface CrawlInfo {
   source: "sitemap" | "sitemap-index" | "homepage-links" | "single";
   totalDiscovered: number;
-  pagesScraped: number;
+  pagesChecked: number;
   maxPages: number;
   // Per-section candidate counts, e.g. { "/": 1, "/blog": 412 }.
   sections: Record<string, number>;
-  scrapedUrls: string[];
+  checkedUrls: string[];
   // A capped sample of candidate URLs we deliberately skipped.
   skippedSample: string[];
 }
@@ -165,6 +183,8 @@ export interface SiteInfo {
   phones: string[];
   // Detected tech / framework hints (e.g. "Next.js", "WordPress", "Cloudflare").
   techStack: string[];
+  // Normalized audience segment derived from techStack. Hosting-only signals stay unknown.
+  websiteType: WebsiteType;
   // Distinct JSON-LD @types seen across scraped pages.
   schemaTypes: string[];
   pageTypes: Record<PageType, number>;

@@ -156,7 +156,7 @@ export const CHECKER_CONTENT: LandingContent = {
   ctaLabel: "Check my site",
   inputId: "checker-url",
   trustChips: [
-    "GEO + AEO in one scan",
+    "GEO + AEO in one checkup",
     "AI citation readiness score",
     "Free, no signup",
   ],

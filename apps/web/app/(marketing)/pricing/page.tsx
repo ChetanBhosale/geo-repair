@@ -9,7 +9,6 @@ import {
   FIX_TIERS_INTRO,
   FIX_TIERS,
   FIX_INCLUDES,
-  AUTOPILOT,
   PRICING_FOOTNOTE,
   PRICING_FAQ_INTRO,
   PRICING_FAQ,
@@ -26,14 +25,14 @@ import { CtaButton } from "@/components/analytics/cta-button"
 
 export const metadata = buildMetadata({
   title:
-    "Pricing · Free Checkup, One-Time Fix from $49, Optional $19/mo Autopilot · GEO Repair",
+    "Pricing · Free Checkup, One-Time AI Search Fix from $49 · GEO Repair",
   description:
-    "Run a free AI-search readiness checkup — no signup, no card. Fix it with a one-time fee sized to your sitemap (from $49). Keep it from regressing with optional $19/mo Autopilot.",
+    "Run a free AI-search readiness checkup, no signup, no card. Fix it with a one-time fee sized to your sitemap, starting at $49.",
   path: "/pricing",
 })
 
-// Shared vertical card for the free and Autopilot plans (the one-time fix uses
-// its own compact tier cards below).
+// Shared vertical card for the free checkup plan. The one-time fix uses its own
+// compact tier cards below.
 function PlanCard({
   tier,
   location,
@@ -216,15 +215,6 @@ export default function PricingPage() {
           </Link>
           .
         </p>
-      </Section>
-
-      {/* Step 3 — optional subscription, after the fix is merged. */}
-      <Section
-        eyebrow="Step 3 · Optional"
-        title="Keep it from sliding back"
-        description="Once your fix is merged, Autopilot watches for regressions and ships improvement PRs over time. Add it whenever you're ready."
-      >
-        <PlanCard tier={AUTOPILOT} location="pricing_autopilot" />
       </Section>
 
       <Faq
