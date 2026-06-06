@@ -999,7 +999,7 @@ function ghHeaders(token: string): Record<string, string> {
   };
 }
 
-async function githubLogin(token: string): Promise<string> {
+export async function githubLogin(token: string): Promise<string> {
   const res = await fetch("https://api.github.com/user", {
     headers: ghHeaders(token),
   });
@@ -1194,6 +1194,49 @@ async function pushAndOpenPr(opts: {
   return { prUrl: pr.htmlUrl!, prNumber: pr.number!, viaFork: true };
 }
 
+// Push an already-existing fix branch to wherever its PR lives (the base repo,
+// or the user's fork for a cross-fork PR). Used by chat follow-ups: the PR is a
+// view over the branch, so a force-push of new commits updates it in place. No
+// PR is created here.
+export async function pushFixBranch(opts: {
+  sandbox: Awaited<ReturnType<typeof connectSandbox>>;
+  token: string;
+  repoFullName: string;
+  cloneUrl: string;
+  branch: string;
+  viaFork: boolean;
+}): Promise<void> {
+  const { sandbox, token, repoFullName, cloneUrl, branch, viaFork } = opts;
+
+  if (!viaFork) {
+    const baseAuthUrl = cloneUrl.replace(
+      "https://",
+      `https://x-access-token:${token}@`,
+    );
+    const push = await runCommand(
+      sandbox,
+      `git push ${baseAuthUrl} ${branch} --force`,
+      { cwd: REPO_DIR, timeoutMs: 5 * 60 * 1000 },
+    );
+    if (push.exitCode !== 0) {
+      throw new Error(`push to base failed: ${push.stderr.slice(-300)}`);
+    }
+    return;
+  }
+
+  const login = await githubLogin(token);
+  const repoName = repoFullName.split("/")[1] ?? repoFullName;
+  const forkUrl = `https://x-access-token:${token}@github.com/${login}/${repoName}.git`;
+  const push = await runCommand(
+    sandbox,
+    `git push ${forkUrl} ${branch} --force`,
+    { cwd: REPO_DIR, timeoutMs: 5 * 60 * 1000 },
+  );
+  if (push.exitCode !== 0) {
+    throw new Error(`push to fork failed: ${push.stderr.slice(-300)}`);
+  }
+}
+
 // ── 3. Finalize: push the branch + open the PR if there's a commit. Records the
 //      outcome. NEVER throws — a push/PR failure becomes a recorded error, not a
 //      workflow crash. ─────────────────────────────────────────────────────────
@@ -1264,7 +1307,7 @@ export async function finalizeRun(
       onEvent: (type, payload) => logEvent(input.fixRunId, type, null, payload),
     });
 
-    await setPr(input.fixRunId, branch, prUrl, prNumber);
+    await setPr(input.fixRunId, branch, prUrl, prNumber, viaFork);
     await logEvent(input.fixRunId, "pr_strategy", null, { viaFork });
 
     // Backstop (one-shot, no fix attempt): confirm the PR actually merges at

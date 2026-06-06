@@ -11,6 +11,8 @@ import type {
 } from "@repo/types";
 
 import { normalizeWebsite } from "../lib/url";
+import { getTemporalClient } from "../temporal/client";
+import { CHAT_MESSAGE_LIMIT, FIX_ATTEMPT_LIMIT } from "./entitlements";
 import {
   createDodoCheckoutSession,
   retrieveDodoPayment,
@@ -159,6 +161,8 @@ function orderSummary(order: {
   website: string;
   repoFullName: string | null;
   checkoutUrl: string | null;
+  fixAttemptsUsed: number;
+  chatMessagesUsed: number;
 }): OrderSummary {
   return {
     id: order.id,
@@ -170,6 +174,10 @@ function orderSummary(order: {
     repoFullName: order.repoFullName,
     checkoutUrl: order.checkoutUrl,
     startFixUnlocked: order.status === "PAID",
+    fixAttemptsUsed: order.fixAttemptsUsed,
+    fixAttemptLimit: FIX_ATTEMPT_LIMIT,
+    chatMessagesUsed: order.chatMessagesUsed,
+    chatMessageLimit: CHAT_MESSAGE_LIMIT,
   };
 }
 
@@ -217,6 +225,8 @@ function toBillingOrder(order: {
   disputedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  fixAttemptsUsed: number;
+  chatMessagesUsed: number;
 }): BillingOrder {
   return {
     id: order.id,
@@ -236,6 +246,10 @@ function toBillingOrder(order: {
     canceledAt: order.canceledAt?.toISOString() ?? null,
     refundedAt: order.refundedAt?.toISOString() ?? null,
     disputedAt: order.disputedAt?.toISOString() ?? null,
+    fixAttemptsUsed: order.fixAttemptsUsed,
+    fixAttemptLimit: FIX_ATTEMPT_LIMIT,
+    chatMessagesUsed: order.chatMessagesUsed,
+    chatMessageLimit: CHAT_MESSAGE_LIMIT,
   };
 }
 
@@ -288,6 +302,8 @@ function orderSelect() {
     disputedAt: true,
     createdAt: true,
     updatedAt: true,
+    fixAttemptsUsed: true,
+    chatMessagesUsed: true,
   } satisfies Prisma.OrderSelect;
 }
 
@@ -354,6 +370,8 @@ export async function getOrderById(
       website: true,
       repoFullName: true,
       checkoutUrl: true,
+      fixAttemptsUsed: true,
+      chatMessagesUsed: true,
     },
   });
 
@@ -880,6 +898,32 @@ function statusUpdateForEvent(payload: DodoWebhookPayload) {
   }
 }
 
+// When an order is refunded or disputed, stop any fix run still in flight for it
+// so we don't keep spending sandbox/agent on a reversed payment. Best-effort:
+// cancel (not terminate) so the workflow's teardown still runs. New runs/messages
+// are already blocked because the order is no longer PAID.
+async function cancelActiveRunsForOrder(orderId: string): Promise<void> {
+  const active = await prisma.fixRun.findMany({
+    where: {
+      orderId,
+      state: { notIn: ["PR_OPENED", "COMPLETED", "FAILED"] },
+    },
+    select: { temporalWorkflowId: true },
+  });
+  if (!active.length) return;
+
+  const client = await getTemporalClient().catch(() => null);
+  if (!client) return;
+
+  for (const run of active) {
+    try {
+      await client.workflow.getHandle(run.temporalWorkflowId).cancel();
+    } catch {
+      // Already finished or not cancellable — nothing to do.
+    }
+  }
+}
+
 export async function processDodoWebhook(input: {
   rawBody: string;
   headers: DodoWebhookHeaders;
@@ -939,6 +983,13 @@ export async function processDodoWebhook(input: {
               order.providerCustomerId,
           },
         });
+      }
+
+      if (
+        payload.type.startsWith("refund.") ||
+        payload.type.startsWith("dispute.")
+      ) {
+        await cancelActiveRunsForOrder(order.id);
       }
 
       await prisma.paymentWebhookEvent.update({

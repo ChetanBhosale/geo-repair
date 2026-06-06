@@ -9,6 +9,7 @@ import {
 } from "./checkup-progress";
 import { TASK_QUEUES } from "./shared";
 import type { CheckupProgress, CheckupResult, RequestMeta } from "./shared";
+import type { SiteReport } from "./functions/checkup/crawler";
 import { checkupWorkflow } from "./functions/checkup/workflows";
 
 function checkupWorkflowId(website: string): string {
@@ -86,6 +87,35 @@ export type CheckupStatusResponse =
 export async function getCheckupStatus(
   workflowId: string,
 ): Promise<CheckupStatusResponse> {
+  // DB-first for completed runs: persisted data is the source of truth, so a
+  // finished run (including a cache reuse) resolves without depending on Temporal
+  // still retaining the workflow. Only in-progress runs need a live Temporal call.
+  const dbRun = await prisma.checkupRun.findUnique({
+    where: { workflowId },
+    select: { status: true, resultKey: true },
+  });
+  if (dbRun?.status === "completed" && dbRun.resultKey) {
+    const stored = await getCheckupReport(dbRun.resultKey);
+    if (stored) {
+      const report = stored.report as Partial<SiteReport> | null;
+      return {
+        status: "COMPLETED",
+        result: {
+          key: stored.key,
+          website: stored.website,
+          websiteType: (report?.siteInfo?.websiteType ??
+            stored.websiteType) as CheckupResult["websiteType"],
+          overall: typeof report?.overall === "number" ? report.overall : 0,
+          pagesChecked:
+            typeof report?.crawl?.pagesChecked === "number"
+              ? report.crawl.pagesChecked
+              : 0,
+        },
+        progress: await getCheckupProgress(workflowId),
+      };
+    }
+  }
+
   const client = await getTemporalClient();
   const handle = client.workflow.getHandle(workflowId);
 

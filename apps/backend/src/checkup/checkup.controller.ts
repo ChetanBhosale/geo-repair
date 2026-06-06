@@ -1,14 +1,44 @@
 import type { Request, Response } from "express";
+import { prisma } from "@repo/db";
 import {
-  getCheckupCount,
   getCheckupReport,
   getCheckupStatus,
-  MAX_CHECKUPS_PER_SITE,
   startCheckup,
 } from "../temporal";
+import { SCAN_CACHE_TTL_HOURS } from "../billing/entitlements";
+import {
+  consumeScanQuota,
+  getScanQuota,
+  refundScanQuota,
+  scanSubject,
+} from "./scan-quota";
 import { normalizeWebsite } from "../lib/url";
 
-// POST /api/checkups { url, singlePage? } -> { workflowId, website }
+// A recently completed scan of this site that can be reused instead of running
+// (and charging quota for) a fresh scan. Returns the cached run's workflowId so
+// the client's normal poll resolves immediately (getCheckupStatus is DB-first
+// for completed runs, so this works even after Temporal GCs the old workflow).
+async function freshCachedRun(
+  website: string,
+): Promise<{ workflowId: string } | null> {
+  const run = await prisma.checkupRun.findFirst({
+    where: { website, status: "completed", resultKey: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    select: { workflowId: true, resultKey: true, updatedAt: true },
+  });
+  if (!run?.resultKey) return null;
+
+  const ageMs = Date.now() - run.updatedAt.getTime();
+  if (ageMs > SCAN_CACHE_TTL_HOURS * 60 * 60 * 1000) return null;
+
+  const report = await prisma.checkupReport.findUnique({
+    where: { id: run.resultKey },
+    select: { id: true },
+  });
+  return report ? { workflowId: run.workflowId } : null;
+}
+
+// POST /api/checkups { url, singlePage? } -> { workflowId, website, cached? }
 export async function createCheckup(req: Request, res: Response) {
   const { url, singlePage } = req.body as {
     url?: string;
@@ -20,15 +50,29 @@ export async function createCheckup(req: Request, res: Response) {
     return res.status(400).json({ error: "A valid website url is required" });
   }
 
-  const count = await getCheckupCount(website);
-  if (count >= MAX_CHECKUPS_PER_SITE) {
+  // 1. Cache: a re-scan within the TTL reuses the existing report and costs no
+  //    quota.
+  const cached = await freshCachedRun(website);
+  if (cached) {
+    return res
+      .status(202)
+      .json({ workflowId: cached.workflowId, website, cached: true });
+  }
+
+  // 2. Quota: bounded per signed-in user, or per IP for anonymous visitors.
+  const subject = scanSubject(req);
+  const quota = await consumeScanQuota(subject);
+  if (!quota) {
     return res.status(429).json({
-      error: `You already checked ${website} more than ${MAX_CHECKUPS_PER_SITE} times. No more free checkups for this site.`,
-      website,
-      totalCheckupCount: count,
+      error:
+        subject.scope === "USER"
+          ? "You have used all your free scans for today. They reset at midnight UTC."
+          : "You have reached today's free scan limit. Sign in for more scans, or try again tomorrow.",
+      scope: subject.scope,
     });
   }
 
+  // 3. Start the scan; refund the quota if it fails to launch.
   const meta = {
     ip: req.ip,
     userAgent: req.get("user-agent") ?? undefined,
@@ -36,8 +80,22 @@ export async function createCheckup(req: Request, res: Response) {
     origin: req.get("origin") ?? undefined,
   };
 
-  const workflowId = await startCheckup(website, Boolean(singlePage), meta);
-  return res.status(202).json({ workflowId, website });
+  try {
+    const workflowId = await startCheckup(website, Boolean(singlePage), meta);
+    return res.status(202).json({ workflowId, website });
+  } catch (err) {
+    await refundScanQuota(subject);
+    return res.status(502).json({
+      error:
+        err instanceof Error ? err.message : "Failed to start the checkup.",
+    });
+  }
+}
+
+// GET /api/scan-quota -> the visitor's remaining free scans today.
+export async function getScanQuotaStatus(req: Request, res: Response) {
+  const quota = await getScanQuota(scanSubject(req));
+  return res.json(quota);
 }
 
 // GET /api/checkups/:workflowId/status -> lifecycle status + progress.

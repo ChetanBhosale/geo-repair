@@ -37,6 +37,8 @@ When you connect a repository, the agent opens the pull requests that close the 
 - Build- and type-checked in an ephemeral sandbox before the PR opens
 - You review and merge. Nothing ships without you
 - Net-new content stays gated behind your approval
+- Up to 3 fix attempts if a run needs a retry
+- 20 follow-up chat messages to refine the pull request with the agent
 - Charged once, upfront, only after we confirm your stack is buildable
 
 The fix is a single upfront charge sized to your sitemap. We never promise rankings or AI citations, only that your site is measurably more ready.

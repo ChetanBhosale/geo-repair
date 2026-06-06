@@ -15,6 +15,14 @@ workflow activities, providers, and persistence models.
 - Persistence: Prisma models in `packages/db/prisma/schema.prisma`.
 - Payments: Dodo one-time checkout, with webhooks as the payment source of
   truth and checkout-return reconciliation as a backup.
+- Entitlements: a paid `Order` grants a bounded number of fix-run attempts
+  (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`) and post-PR agent chat messages
+  (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`). Free scans are bounded per day
+  (per signed-in user, else per IP) via the `ScanUsage` table, with a 24h report
+  cache so a re-scan of the same site costs no quota. Limits live in
+  `@repo/types/entitlements` and are enforced in `apps/backend/src/temporal/fix.ts`
+  (attempts), `apps/backend/src/fix/fix.service.ts` (chat), and
+  `apps/backend/src/checkup/checkup.controller.ts` (scans).
 
 `plan/plan.md` still describes some future pieces. In these diagrams,
 implementation paths are shown as current; future branches are explicitly
@@ -256,6 +264,49 @@ sequenceDiagram
     Dashboard->>API: GET /api/reports
     API-->>Dashboard: Readiness delta report
   end
+```
+
+## Plan limits and agent chat
+
+Enforced limits (source of truth: `@repo/types/entitlements`):
+
+- **Fix-run attempts:** a paid `Order` allows up to `FIX_ATTEMPT_LIMIT` (3) runs.
+  `startFix` locks the order row (`SELECT ... FOR UPDATE`), returns an existing
+  non-FAILED run for re-entry (no new attempt), blocks once the cap is reached,
+  and otherwise creates the run + increments `Order.fixAttemptsUsed` atomically.
+  A failed workflow start refunds the attempt.
+- **Agent chat:** after the PR opens, `POST /api/fix/:id/messages` charges one of
+  `CHAT_MESSAGE_LIMIT` (20) messages per order, records a `user_message` event,
+  flips the run to `CHATTING`, and starts `fixChatWorkflow`. That workflow reopens
+  a sandbox on the run's existing fix branch, applies the request, and pushes to
+  the same branch (the PR updates in place), then returns the run to `PR_OPENED`.
+- **Free scans:** `POST /api/checkups` (now behind `optionalAuth`) serves a cached
+  report when one for the domain is < `SCAN_CACHE_TTL_HOURS` (24h) old (no quota
+  spent), else consumes one daily scan from `ScanUsage` (per user when signed in,
+  else per IP: `SCAN_LIMIT_USER_PER_DAY` 25 / `SCAN_LIMIT_ANON_PER_DAY` 5).
+  `getCheckupStatus` is DB-first for completed runs so a cache reuse resolves
+  without a live Temporal workflow.
+- **Refund/dispute:** the Dodo webhook cancels any in-flight `FixRun` for the
+  order so a reversed payment stops further sandbox/agent spend.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Dashboard
+  participant API as apps/backend
+  participant Temporal
+  participant E2B
+  participant GitHub
+
+  User->>Dashboard: Send follow-up message (PR open)
+  Dashboard->>API: POST /api/fix/:id/messages
+  API->>API: Lock order, check CHAT_MESSAGE_LIMIT, +1, log user_message
+  API->>Temporal: Start fixChatWorkflow (run -> CHATTING)
+  Temporal->>E2B: Reopen sandbox, fetch + checkout the PR branch
+  Temporal->>E2B: Agent applies the request, commits
+  Temporal->>GitHub: Push branch (same target) -> existing PR updates
+  Temporal->>API: run -> PR_OPENED
+  Dashboard->>API: Poll GET /api/fix/:id (transcript + state)
 ```
 
 ## Maintenance Rule

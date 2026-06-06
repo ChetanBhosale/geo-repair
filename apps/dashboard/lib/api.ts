@@ -15,7 +15,9 @@ import type {
   FixRunIntake,
   StartFixResponse,
   SubmitFixIntakeRequest,
+  SendFixMessageRequest,
 } from "@repo/types/fix"
+import type { ScanQuota } from "@repo/types/entitlements"
 import type {
   BillingHistoryResponse,
   BillingInvoiceDetail,
@@ -226,6 +228,22 @@ export function submitFixIntake(
     method: "POST",
     body: JSON.stringify(body),
   })
+}
+
+export function sendFixMessage(
+  id: string,
+  content: string
+): Promise<FixRunDetail> {
+  const body: SendFixMessageRequest = { content }
+
+  return request<FixRunDetail>(ENDPOINTS.fixMessages(id), {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
+export function getScanQuota(): Promise<ScanQuota> {
+  return request<ScanQuota>(ENDPOINTS.scanQuota)
 }
 
 // --- Reports ---

@@ -7,6 +7,7 @@ export type FixRunState =
   | "CLONING"
   | "WAITING_FOR_INPUT"
   | "FIXING"
+  | "CHATTING"
   | "VERIFYING"
   | "PUSHING"
   | "PR_OPENED"
@@ -98,6 +99,9 @@ export interface FixRunSummary {
   id: string;
   website: string;
   repoFullName: string;
+  // The paid order this run belongs to (lets the UI surface that order's
+  // attempt + chat-message usage alongside the run).
+  orderId: string | null;
   state: FixRunState;
   sandboxStatus: SandboxStatus;
   totalChecks: number;
@@ -134,4 +138,10 @@ export interface StartFixResponse {
 
 export interface SubmitFixIntakeRequest {
   intake: FixRunIntake;
+}
+
+// POST /api/fix/:fixRunId/messages — an open-ended follow-up to the agent after
+// the PR is open. The agent edits the same branch and updates the existing PR.
+export interface SendFixMessageRequest {
+  content: string;
 }

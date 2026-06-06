@@ -8,6 +8,7 @@ export const BACKEND_URL = (
 // Full backend endpoints. Add new paths here so URLs live in one place.
 export const ENDPOINTS = {
   audit: `${BACKEND_URL}/api/checkups`,
+  scanQuota: `${BACKEND_URL}/api/scan-quota`,
   temporalStatus: (temporalId: string) =>
     `${BACKEND_URL}/api/checkups/${encodeURIComponent(temporalId)}/status`,
   auditResult: (key: string) =>
@@ -31,6 +32,8 @@ export const ENDPOINTS = {
   fixRun: (id: string) => `${BACKEND_URL}/api/fix/${encodeURIComponent(id)}`,
   fixIntake: (id: string) =>
     `${BACKEND_URL}/api/fix/${encodeURIComponent(id)}/intake`,
+  fixMessages: (id: string) =>
+    `${BACKEND_URL}/api/fix/${encodeURIComponent(id)}/messages`,
 
   // Reports
   reports: `${BACKEND_URL}/api/reports`,

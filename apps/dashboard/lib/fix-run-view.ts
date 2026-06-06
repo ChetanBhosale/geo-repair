@@ -23,6 +23,7 @@ export const activeStates: FixRunState[] = [
   "CLONING",
   "WAITING_FOR_INPUT",
   "FIXING",
+  "CHATTING",
   "VERIFYING",
   "PUSHING",
 ]

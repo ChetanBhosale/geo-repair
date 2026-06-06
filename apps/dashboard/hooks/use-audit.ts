@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   createAudit,
   getTemporalStatus,
@@ -56,6 +56,7 @@ function writeStoredAudit(value: StoredAudit) {
 }
 
 export function useAudit() {
+  const queryClient = useQueryClient()
   const [initialStoredAudit] = React.useState(() => readStoredAudit())
   const [persistedResultKey, setPersistedResultKey] = React.useState(
     initialStoredAudit.resultKey
@@ -76,6 +77,8 @@ export function useAudit() {
         resultKey: null,
         url: data.website,
       })
+      // A scan may have consumed quota (cache hits don't) — refresh the count.
+      queryClient.invalidateQueries({ queryKey: ["scan-quota"] })
     },
   })
 

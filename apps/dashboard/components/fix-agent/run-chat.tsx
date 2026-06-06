@@ -21,7 +21,9 @@ import {
   Upload,
 } from "lucide-react"
 import type { FixRunDetail, FixRunIntake, FixRunSummary } from "@repo/types/fix"
-import { useSubmitFixIntake } from "@/hooks/use-fix"
+import { CHAT_MESSAGE_LIMIT } from "@repo/types/entitlements"
+import { useSubmitFixIntake, useSendFixMessage } from "@/hooks/use-fix"
+import { useBillingHistory } from "@/hooks/use-billing"
 import { buildIntake, latestClarificationRequest } from "@/lib/fix-intake"
 import {
   buildTranscript,
@@ -67,6 +69,11 @@ export function RunChat({
   const clarificationRequest = latestClarificationRequest(detail)
   const needsClarification = !!clarificationRequest && !detail?.intake
   const submitIntake = useSubmitFixIntake(selectedRun.id)
+  const billing = useBillingHistory()
+  const order =
+    billing.data?.orders.find((o) => o.id === selectedRun.orderId) ?? null
+  const messagesUsed = order?.chatMessagesUsed ?? 0
+  const messageLimit = order?.chatMessageLimit ?? CHAT_MESSAGE_LIMIT
 
   const items = detail
     ? buildTranscript(detail.events, { runActive: activeRun })
@@ -94,6 +101,17 @@ export function RunChat({
       return (
         <Message from="assistant" key={key}>
           <MessageContent className="my-4 p-0">
+            <MessageResponse className="text-primary">
+              {item.text}
+            </MessageResponse>
+          </MessageContent>
+        </Message>
+      )
+    }
+    if (item.kind === "user") {
+      return (
+        <Message from="user" key={key}>
+          <MessageContent className="bg-secondary">
             <MessageResponse className="text-primary">
               {item.text}
             </MessageResponse>
@@ -173,8 +191,11 @@ export function RunChat({
         </div>
       ) : null}
       <ChatComposer
+        messageLimit={messageLimit}
+        messagesUsed={messagesUsed}
         onNewRun={onNewRun}
         prUrl={selectedRun.prUrl}
+        runId={selectedRun.id}
         state={selectedRun.state}
       />
     </Card>
@@ -324,20 +345,27 @@ function IntakeAnswers({ intake }: { intake: FixRunIntake }) {
   )
 }
 
-// Sticky chat composer at the bottom of the pane. Enabled only once the run is
-// done (post-PR refinement); a failed run swaps it for a recovery CTA; disabled
-// with a stage-appropriate hint otherwise.
+// Sticky chat composer at the bottom of the pane. Once a PR is open the user can
+// message the agent for follow-up changes (bounded by the order's message
+// allowance); a failed run swaps it for a recovery CTA; otherwise it's disabled
+// with a stage-appropriate hint.
 function ChatComposer({
+  runId,
   state,
   prUrl,
   onNewRun,
+  messagesUsed,
+  messageLimit,
 }: {
+  runId: string
   state: FixRunSummary["state"]
   prUrl: string | null
   onNewRun: () => void
+  messagesUsed: number
+  messageLimit: number
 }) {
   const [text, setText] = React.useState("")
-  const [note, setNote] = React.useState<string | null>(null)
+  const send = useSendFixMessage(runId)
 
   if (state === "FAILED") {
     return (
@@ -355,24 +383,36 @@ function ChatComposer({
     )
   }
 
-  const enabled = state === "PR_OPENED" || state === "COMPLETED"
-  const placeholder = enabled
-    ? "Ask for a follow-up tweak to this PR…"
-    : state === "WAITING_FOR_INPUT"
-      ? "Answer the questions above to continue…"
-      : "The agent is working — chat opens when the run finishes…"
+  const hasPr = !!prUrl
+  const busy = state === "CHATTING"
+  const atCap = messagesUsed >= messageLimit
+  const remaining = Math.max(0, messageLimit - messagesUsed)
+  const canChat = hasPr && !busy && !atCap && !send.isPending
+
+  const placeholder = !hasPr
+    ? "Chat opens once the agent has opened a PR."
+    : busy
+      ? "The agent is working on your message…"
+      : atCap
+        ? "You've used all your follow-up messages for this order."
+        : state === "WAITING_FOR_INPUT"
+          ? "Answer the questions above to continue…"
+          : "Message the agent for a follow-up change…"
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!enabled || !text.trim()) return
-    setNote("Follow-up refinement is coming soon — it isn't wired up yet.")
+    if (!canChat || !text.trim()) return
+    send.mutate(text.trim(), { onSuccess: () => setText("") })
   }
 
   return (
     <div className="shrink-0 border-t border-secondary bg-primary p-3">
-      {enabled ? (
+      {hasPr ? (
         <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-          <Badge variant="neutral">Refine</Badge>
+          <Badge variant="neutral">Chat</Badge>
+          <span className="text-xs text-secondary">
+            {remaining} of {messageLimit} messages left
+          </span>
           <Button asChild className="h-auto p-0" size="xs" variant="link">
             <Link href="/reports">Generate reports</Link>
           </Button>
@@ -385,7 +425,9 @@ function ChatComposer({
           ) : null}
         </div>
       ) : null}
-      {note ? <p className="mb-2 px-1 text-xs text-secondary">{note}</p> : null}
+      {send.error ? (
+        <p className="mb-2 px-1 text-xs text-danger">{send.error.message}</p>
+      ) : null}
       <form
         className="flex items-end gap-2 rounded-xl bg-secondary/50 p-2 focus-within:ring-3 focus-within:ring-focus/30"
         onSubmit={onSubmit}
@@ -393,19 +435,29 @@ function ChatComposer({
         <textarea
           aria-label="Message the agent"
           className="max-h-32 min-h-8 w-full resize-none bg-transparent px-1 py-1.5 text-sm outline-none placeholder:text-secondary disabled:cursor-not-allowed"
-          disabled={!enabled}
+          disabled={!canChat}
           onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault()
+              onSubmit(event)
+            }
+          }}
           placeholder={placeholder}
           rows={1}
           value={text}
         />
         <Button
           aria-label="Send"
-          disabled={!enabled || !text.trim()}
+          disabled={!canChat || !text.trim()}
           size="icon-sm"
           type="submit"
         >
-          <ArrowUp className="size-4" />
+          {send.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <ArrowUp className="size-4" />
+          )}
         </Button>
       </form>
     </div>

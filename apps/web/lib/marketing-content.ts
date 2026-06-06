@@ -1,3 +1,7 @@
+import {
+  CHAT_MESSAGE_LIMIT,
+  FIX_ATTEMPT_LIMIT,
+} from "@repo/types/entitlements"
 import type { FaqItem, SectionIntro } from "./landing-content"
 
 // Structured copy for the pricing, security, and contact pages. Hoisted out of
@@ -100,6 +104,8 @@ export const FIX_INCLUDES = [
   "Build- and type-checked in an ephemeral sandbox before the PR opens",
   "You review and merge. Nothing ships without you",
   "Net-new content stays gated behind your approval",
+  `Up to ${FIX_ATTEMPT_LIMIT} fix attempts if a run needs a retry`,
+  `${CHAT_MESSAGE_LIMIT} follow-up chat messages to refine the pull request with the agent`,
   "Charged once, upfront, only after we confirm your stack is buildable",
 ]
 

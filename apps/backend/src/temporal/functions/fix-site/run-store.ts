@@ -104,10 +104,11 @@ export async function setPr(
   branch: string,
   prUrl: string,
   prNumber: number,
+  viaFork: boolean,
 ): Promise<void> {
   await prisma.fixRun.update({
     where: { id: fixRunId },
-    data: { branch, prUrl, prNumber, state: "PR_OPENED" },
+    data: { branch, prUrl, prNumber, prViaFork: viaFork, state: "PR_OPENED" },
   });
   await logEvent(fixRunId, "pr_opened", null, { prUrl, prNumber });
 }

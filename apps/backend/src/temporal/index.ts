@@ -1,6 +1,6 @@
 export { getTemporalClient } from "./client";
 export { temporalConnectionConfig } from "./connection";
-export { TASK_QUEUES, MAX_CHECKUPS_PER_SITE } from "./shared";
+export { TASK_QUEUES } from "./shared";
 export type {
   TaskQueue,
   CheckupInput,
@@ -33,6 +33,8 @@ export { startFix } from "./fix";
 
 export { checkupWorkflow } from "./functions/checkup/workflows";
 export { fixSiteWorkflow } from "./functions/fix-site/workflows";
+export { fixChatWorkflow } from "./functions/fix-chat/workflows";
 
 export { runCheckupWorker } from "./workers/checkup.worker";
 export { runFixSiteWorker } from "./workers/fix-site.worker";
+export { runFixChatWorker } from "./workers/fix-chat.worker";

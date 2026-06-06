@@ -5,12 +5,10 @@ import type { FixRunIntake } from "@repo/types/fix";
 export const TASK_QUEUES = {
   checkup: "checkup",
   fixSite: "fix-site",
+  fixChat: "fix-chat",
 } as const;
 
 export type TaskQueue = (typeof TASK_QUEUES)[keyof typeof TASK_QUEUES];
-
-// Free-checkup limit: refuse to re-check the same site more than this.
-export const MAX_CHECKUPS_PER_SITE = 5;
 
 export type CheckupRunStatus =
   | "queued"
@@ -124,4 +122,22 @@ export interface FixSiteResult {
   prNumber: number;
   fixedChecks: number;
   totalChecks: number;
+}
+
+// fix-chat: an open-ended follow-up turn after the PR is open. The agent reopens
+// a sandbox on the run's existing fix branch, applies the user's request, and
+// pushes to the same branch so the existing PR updates in place.
+export interface FixChatInput {
+  fixRunId: string;
+  userId: string;
+  // The user's message to the agent.
+  content: string;
+  website: string;
+  repoFullName: string;
+  cloneUrl: string;
+  defaultBranch: string;
+  // The existing fix branch the PR tracks (e.g. "geo-repair/fix-xxxxxxxx").
+  branch: string;
+  // Whether the PR was opened from a fork (push target for the follow-up).
+  prViaFork: boolean;
 }

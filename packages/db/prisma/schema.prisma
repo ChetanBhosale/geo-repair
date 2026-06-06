@@ -181,6 +181,29 @@ model CheckupRunEvent {
   @@map("checkupRunEvents")
 }
 
+// Per-day free-scan usage counters. Anonymous visitors are bounded per IP,
+// signed-in users per user id. One row per (scope, key, calendar day); the
+// 24h report cache means a re-scan of an already-scanned site never reaches
+// here. Replaces the old global per-domain lifetime cap.
+enum ScanUsageScope {
+  IP
+  USER
+}
+
+model ScanUsage {
+  id        String         @id @default(cuid())
+  scope     ScanUsageScope
+  key       String
+  day       DateTime       @db.Date
+  count     Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([scope, key, day])
+  @@index([day])
+  @@map("scan_usage")
+}
+
 model Order {
   id                     String               @id @default(cuid())
   kind                   OrderKind            @default(FIX)
@@ -209,10 +232,17 @@ model Order {
   canceledAt             DateTime?
   refundedAt             DateTime?
   disputedAt             DateTime?
+
+  // Entitlement counters: a paid order grants a bounded number of fix-run
+  // attempts and post-PR agent chat messages. See @repo/types entitlements.
+  fixAttemptsUsed        Int                  @default(0)
+  chatMessagesUsed       Int                  @default(0)
+
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
 
   webhookEvents          PaymentWebhookEvent[]
+  fixRuns                FixRun[]
 
   @@index([userId, status])
   @@index([checkupReportId])
@@ -287,6 +317,7 @@ enum FixRunState {
   CLONING
   WAITING_FOR_INPUT
   FIXING
+  CHATTING
   VERIFYING
   PUSHING
   PR_OPENED
@@ -320,6 +351,10 @@ model FixRun {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   repositoryId String
   repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  // The paid order this run was started against. Drives the per-order attempt
+  // and chat-message entitlement counters.
+  orderId      String?
+  order        Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
   website      String
   intake       Json?
 
@@ -335,6 +370,9 @@ model FixRun {
   branch String?
   prUrl  String?
   prNumber Int?
+  // How the PR was opened: false = same-repo push, true = via a fork. Chat
+  // follow-ups push to the same target so the existing PR updates in place.
+  prViaFork Boolean @default(false)
 
   // Check progress counters (denormalized for cheap polling).
   totalChecks   Int @default(0)
@@ -363,6 +401,7 @@ model FixRun {
 
   @@index([userId])
   @@index([repositoryId])
+  @@index([orderId])
   @@index([state])
   @@map("fix_runs")
 }

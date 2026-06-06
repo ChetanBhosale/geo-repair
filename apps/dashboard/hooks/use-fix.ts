@@ -2,7 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FixRunIntake, FixRunState } from "@repo/types/fix"
-import { startFix, getFixRuns, getFixRun, submitFixIntake } from "@/lib/api"
+import {
+  startFix,
+  getFixRuns,
+  getFixRun,
+  submitFixIntake,
+  sendFixMessage,
+} from "@/lib/api"
 
 const TERMINAL: FixRunState[] = ["PR_OPENED", "COMPLETED", "FAILED"]
 
@@ -19,7 +25,11 @@ export function useStartFix() {
       repositoryId: string
       orderId: string
     }) => startFix(website, repositoryId, orderId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fix-runs"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fix-runs"] })
+      // An attempt was consumed — refresh the order's usage.
+      qc.invalidateQueries({ queryKey: ["billing-history"] })
+    },
   })
 }
 
@@ -30,6 +40,20 @@ export function useSubmitFixIntake(runId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["fix-runs"] })
       qc.invalidateQueries({ queryKey: ["fix-run", runId] })
+    },
+  })
+}
+
+// Send an open-ended follow-up message to the agent after the PR is open.
+export function useSendFixMessage(runId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (content: string) => sendFixMessage(runId, content),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fix-runs"] })
+      qc.invalidateQueries({ queryKey: ["fix-run", runId] })
+      // A message was consumed — refresh the order's usage.
+      qc.invalidateQueries({ queryKey: ["billing-history"] })
     },
   })
 }

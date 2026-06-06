@@ -1,7 +1,13 @@
 import type { Request, Response } from "express";
 import type { FixRunIntake } from "@repo/types/fix";
 import { startFix } from "../temporal";
-import { listUserRuns, getRunDetail, submitRunIntake } from "./fix.service";
+import { EntitlementError } from "../billing/entitlements";
+import {
+  listUserRuns,
+  getRunDetail,
+  submitRunIntake,
+  sendFixMessage as sendRunMessage,
+} from "./fix.service";
 
 function normalizeWebsite(value: string): string | null {
   try {
@@ -114,6 +120,9 @@ export async function createFix(req: Request, res: Response) {
     });
     return res.status(202).json(result);
   } catch (err) {
+    if (err instanceof EntitlementError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     return res.status(400).json({
       error: err instanceof Error ? err.message : "Failed to start fix",
     });
@@ -186,9 +195,46 @@ export async function submitFixIntake(req: Request, res: Response) {
     }
     return res.json(detail);
   } catch (err) {
+    if (err instanceof EntitlementError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     console.error("Failed to submit fix intake", err);
     return res.status(400).json({
       error: apiErrorMessage(err, "Failed to submit clarification answers"),
+    });
+  }
+}
+
+// POST /api/fix/:fixRunId/messages { content } -> updated FixRunDetail.
+export async function sendFixMessage(req: Request, res: Response) {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  const fixRunId = req.params.fixRunId;
+  if (!fixRunId || typeof fixRunId !== "string") {
+    return res.status(400).json({ error: "fixRunId is required" });
+  }
+
+  const raw = (req.body as { content?: unknown }).content;
+  const content = typeof raw === "string" ? raw.trim().slice(0, 4000) : "";
+  if (!content) {
+    return res.status(400).json({ error: "A message is required" });
+  }
+
+  try {
+    const detail = await sendRunMessage(userId, fixRunId, content);
+    if (!detail) {
+      return res.status(404).json({ error: "Fix run not found" });
+    }
+    return res.json(detail);
+  } catch (err) {
+    if (err instanceof EntitlementError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    console.error("Failed to send fix message", err);
+    return res.status(400).json({
+      error: apiErrorMessage(err, "Failed to send message"),
     });
   }
 }

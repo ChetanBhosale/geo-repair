@@ -9,6 +9,7 @@ import type { SiteReport } from "@repo/types/scraper"
 import type { CheckupProgress } from "@/lib/api"
 import { useUser } from "@/hooks/use-auth"
 import { useAudit } from "@/hooks/use-audit"
+import { useScanQuota } from "@/hooks/use-scan-quota"
 import { useBillingHistory, useCreateFixCheckout } from "@/hooks/use-billing"
 import { useSavedRepos, useUpdateRepoWebsite } from "@/hooks/use-repos"
 import { AuditReport } from "@/components/audit-report"
@@ -60,6 +61,7 @@ export default function WebsiteScanPage() {
   const prefilledRepoId = React.useRef<string | null>(null)
   const audit = useAudit()
   const { isSignedIn } = useUser()
+  const scanQuota = useScanQuota(isSignedIn)
   const savedRepos = useSavedRepos(isSignedIn)
   const billing = useBillingHistory(isSignedIn)
   const updateWebsite = useUpdateRepoWebsite()
@@ -244,6 +246,13 @@ export default function WebsiteScanPage() {
                       : "Run scan"}
             </Button>
           </form>
+
+          {scanQuota.data ? (
+            <p className="text-xs text-secondary">
+              {scanQuota.data.remaining} of {scanQuota.data.limit} free scans
+              left today. Re-scanning the same site within 24 hours is free.
+            </p>
+          ) : null}
 
           {updateWebsite.error || audit.startError ? (
             <p className="text-sm text-danger">

@@ -96,6 +96,16 @@ export function NewRunDialog({
         </DialogHeader>
         {selectedRepo ? (
           <div className="px-1 pb-1">
+            {selectedOrder ? (
+              <p className="px-4 pt-2 text-xs text-secondary">
+                {Math.max(
+                  0,
+                  selectedOrder.fixAttemptLimit - selectedOrder.fixAttemptsUsed,
+                )}{" "}
+                of {selectedOrder.fixAttemptLimit} fix attempts left on this
+                order.
+              </p>
+            ) : null}
             <FixIntakeForm
               error={startFix.error ?? null}
               isPending={startFix.isPending}

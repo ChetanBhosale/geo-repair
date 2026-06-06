@@ -40,6 +40,11 @@ export const OrderSummarySchema = z.object({
   repoFullName: z.string().nullable(),
   checkoutUrl: z.string().url().nullable(),
   startFixUnlocked: z.boolean(),
+  // Entitlement usage for this order (see @repo/types/entitlements).
+  fixAttemptsUsed: z.number().int().nonnegative(),
+  fixAttemptLimit: z.number().int().positive(),
+  chatMessagesUsed: z.number().int().nonnegative(),
+  chatMessageLimit: z.number().int().positive(),
 });
 export type OrderSummary = z.infer<typeof OrderSummarySchema>;
 
@@ -79,6 +84,11 @@ export interface BillingOrder {
   canceledAt: string | null;
   refundedAt: string | null;
   disputedAt: string | null;
+  // Entitlement usage (see @repo/types/entitlements).
+  fixAttemptsUsed: number;
+  fixAttemptLimit: number;
+  chatMessagesUsed: number;
+  chatMessageLimit: number;
 }
 
 export interface BillingInvoiceLineItem {

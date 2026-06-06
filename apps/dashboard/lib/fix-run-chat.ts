@@ -40,6 +40,13 @@ export interface AssistantItem {
   pass: Pass
 }
 
+export interface UserMessageItem {
+  kind: "user"
+  seq: number
+  text: string
+  pass: Pass
+}
+
 export interface ToolItem {
   kind: "tool"
   seq: number
@@ -67,6 +74,7 @@ export interface SystemItem {
 export type TranscriptItem =
   | SeparatorItem
   | AssistantItem
+  | UserMessageItem
   | ToolItem
   | SystemItem
 
@@ -152,6 +160,13 @@ export function buildTranscript(
     if (type === "scan_progress") {
       const message = str(eventPayload(event).message).trim()
       if (scanItem && message) scanItem.substeps!.push(message)
+      continue
+    }
+
+    // The user's own follow-up chat messages (post-PR). ------------------
+    if (type === "user_message") {
+      const text = str(eventPayload(event).content).trim()
+      if (text) items.push({ kind: "user", seq: event.seq, text, pass })
       continue
     }
 
@@ -382,6 +397,29 @@ function systemMarker(
         tone: "danger",
       }
     }
+    case "chat_pushed":
+      return {
+        icon: "push",
+        label: "Pushed your follow-up change to the PR",
+        detail: null,
+        tone: "success",
+      }
+    case "chat_no_changes":
+      return {
+        icon: "done",
+        label: "No changes were needed for that request",
+        detail: null,
+        tone: "default",
+      }
+    case "chat_error": {
+      const error = str(payload.error)
+      return {
+        icon: "error",
+        label: "The agent hit an error on your follow-up",
+        detail: error || null,
+        tone: "danger",
+      }
+    }
     case "error": {
       const error = str(payload.error)
       return {
@@ -394,9 +432,10 @@ function systemMarker(
     default:
       // Everything else (state_changed, token_usage_recorded, pr_strategy,
       // fork_ready, sandbox_reconnected/killed, harness_finished, intake,
-      // clarification request, planning_agent_started/invalid, and the
-      // happy-path merge events base_merge_clean / base_merge_failed /
-      // pr_mergeable) is hidden — the chat never dumps raw event types.
+      // clarification request, planning_agent_started/invalid, the chat-turn
+      // start/finish bookkeeping, and the happy-path merge events
+      // base_merge_clean / base_merge_failed / pr_mergeable) is hidden — the
+      // chat never dumps raw event types.
       return null
   }
 }
