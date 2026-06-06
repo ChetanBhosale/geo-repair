@@ -215,3 +215,5 @@ Rule of thumb: if you are about to add a dependency or a module that a second ap
 plausibly import, create/extend a `@repo/*` package instead of installing it inside one app.
 When unsure, prefer a shared package for libraries/SDKs/types/flows, and app-local for UI and
 wiring that only makes sense in that app.
+
+keep [Todo.md](Todo.md) file always up to date.

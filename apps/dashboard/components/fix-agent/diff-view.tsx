@@ -38,7 +38,7 @@ export function DiffView({
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-medium">
           {diff.files.length} file{diff.files.length === 1 ? "" : "s"} changed
@@ -52,10 +52,10 @@ export function DiffView({
         {diff.truncated ? <Badge variant="partial">truncated</Badge> : null}
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid gap-3">
         {diff.files.map((file, index) => (
           <DiffFileRow
-            defaultOpen={index === 0}
+            defaultOpen
             file={file}
             key={`${file.path}-${index}`}
           />
@@ -102,7 +102,7 @@ function DiffFileRow({
     <div className="overflow-hidden rounded-lg bg-secondary/30">
       <button
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >

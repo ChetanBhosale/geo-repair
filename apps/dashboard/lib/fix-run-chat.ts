@@ -308,6 +308,37 @@ function systemMarker(
         tone: "default",
         artifact: "diff",
       }
+    case "merge_conflict_detected":
+      return {
+        icon: "info",
+        label: "Hit merge conflicts with the base branch — resolving",
+        detail: null,
+        tone: "default",
+      }
+    case "merge_conflict_resolved":
+      return {
+        icon: "done",
+        label: "Resolved the merge conflicts",
+        detail: null,
+        tone: "success",
+      }
+    case "merge_conflict_unresolved":
+      return {
+        icon: "error",
+        label: "Couldn't auto-resolve the merge conflicts",
+        detail: "the pull request will need a manual merge",
+        tone: "danger",
+      }
+    case "merge_conflict": {
+      const url = str(payload.prUrl)
+      return {
+        icon: "error",
+        label: "Pull request has merge conflicts",
+        detail: "the base branch changed — it needs a manual merge",
+        tone: "danger",
+        href: url || undefined,
+      }
+    }
     case "branch_pushed":
       return {
         icon: "push",
@@ -363,8 +394,9 @@ function systemMarker(
     default:
       // Everything else (state_changed, token_usage_recorded, pr_strategy,
       // fork_ready, sandbox_reconnected/killed, harness_finished, intake,
-      // clarification request, planning_agent_started/invalid) is hidden — the
-      // chat never dumps raw event types.
+      // clarification request, planning_agent_started/invalid, and the
+      // happy-path merge events base_merge_clean / base_merge_failed /
+      // pr_mergeable) is hidden — the chat never dumps raw event types.
       return null
   }
 }

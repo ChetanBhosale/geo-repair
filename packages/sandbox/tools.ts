@@ -63,9 +63,67 @@ export function sandboxTools(sandbox: Sandbox, opts: SandboxToolsOptions): Sandb
       },
     },
     {
+      name: "edit_file",
+      description:
+        "Make a SURGICAL edit to an existing file: replace an exact snippet (old_string) with " +
+        "new_string, leaving every other byte of the file unchanged. PREFER THIS over write_file " +
+        "for edits — it keeps diffs minimal and avoids reformatting untouched code. old_string " +
+        "must match the file EXACTLY (including whitespace and indentation) and must be unique; " +
+        "include a few surrounding lines for context if needed. Set replace_all to change every " +
+        "occurrence. Use write_file only to create a brand-new file.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+          old_string: {
+            type: "string",
+            description:
+              "Exact text to find, with enough surrounding context to be unique in the file.",
+          },
+          new_string: { type: "string", description: "Replacement text." },
+          replace_all: {
+            type: "boolean",
+            description: "Replace every occurrence of old_string (default false).",
+          },
+        },
+        required: ["path", "old_string", "new_string"],
+      },
+      execute: async (args) => {
+        const path = String(args.path ?? "");
+        const oldStr = String(args.old_string ?? "");
+        const newStr = String(args.new_string ?? "");
+        const replaceAll = args.replace_all === true;
+        if (!oldStr) {
+          return "Error: old_string must not be empty. Use write_file to create a new file.";
+        }
+        if (oldStr === newStr) {
+          return "Error: old_string and new_string are identical — nothing to change.";
+        }
+        try {
+          const raw = await sandbox.files.read(`${workdir}/${path}`);
+          const content = typeof raw === "string" ? raw : String(raw);
+          const count = content.split(oldStr).length - 1;
+          if (count === 0) {
+            return `Error: old_string not found in ${path}. Read the file and match the exact text, including indentation.`;
+          }
+          if (count > 1 && !replaceAll) {
+            return `Error: old_string appears ${count} times in ${path}. Add surrounding context to make it unique, or set replace_all=true.`;
+          }
+          // split/join avoids String.replace's special $-pattern handling.
+          const updated = content.split(oldStr).join(newStr);
+          await sandbox.files.write(`${workdir}/${path}`, updated);
+          return `Edited ${path} (${count} replacement${count === 1 ? "" : "s"}).`;
+        } catch (err) {
+          return `Error editing ${path}: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    },
+    {
       name: "write_file",
       description:
-        "Write (create or overwrite) a UTF-8 text file relative to the repo root. Creates parent dirs.",
+        "Create a new UTF-8 text file (or fully replace one) relative to the repo root. Creates " +
+        "parent dirs. For EDITS to an existing file, use edit_file instead — write_file rewrites " +
+        "the whole file and bloats the diff with reformatting.",
       parameters: {
         type: "object",
         properties: {

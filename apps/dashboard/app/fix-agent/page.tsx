@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ExternalLink, GitBranch, Loader2, Plus } from "lucide-react"
 import { ArtifactPanel } from "@/components/fix-agent/artifact-panel"
 import { NewRunDialog } from "@/components/fix-agent/new-run-dialog"
@@ -36,10 +37,30 @@ export default function FixAgentPage() {
 }
 
 function FixAgentWorkspace() {
-  const { isSignedIn } = useUser()
+  const { isSignedIn, isLoading: authLoading } = useUser()
   const savedRepos = useSavedRepos(isSignedIn)
   const runs = useFixRuns(isSignedIn)
-  const [selectedRunId, setSelectedRunId] = React.useState<string | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // Keep the selected run in the URL so a browser refresh restores it instead of
+  // snapping back to the first run.
+  const selectedRunId = searchParams.get("run")
+  const setSelectedRunId = React.useCallback(
+    (runId: string | null) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (runId) {
+        params.set("run", runId)
+      } else {
+        params.delete("run")
+      }
+      const query = params.toString()
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      })
+    },
+    [pathname, router, searchParams],
+  )
   const [newRunOpen, setNewRunOpen] = React.useState(false)
 
   const repositories = savedRepos.data ?? []
@@ -116,7 +137,16 @@ function FixAgentWorkspace() {
         selectedRepo={selectedRepo}
       />
 
-      {selectedRun ? (
+      {!selectedRun && (authLoading || runs.isLoading) ? (
+        <div className="p-4 lg:p-6">
+          <StatePanel
+            action={<Loader2 className="size-4 animate-spin text-secondary" />}
+            description="Restoring your fix runs."
+            eyebrow="Loading"
+            title="Loading runs"
+          />
+        </div>
+      ) : selectedRun ? (
         <ResizablePanes
           left={
             <RunChat

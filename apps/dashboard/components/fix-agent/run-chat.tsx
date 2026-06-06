@@ -93,8 +93,10 @@ export function RunChat({
     if (item.kind === "assistant") {
       return (
         <Message from="assistant" key={key}>
-          <MessageContent className="bg-secondary/30">
-            <MessageResponse>{item.text}</MessageResponse>
+          <MessageContent className="my-4 p-0">
+            <MessageResponse className="text-primary">
+              {item.text}
+            </MessageResponse>
           </MessageContent>
         </Message>
       )
@@ -141,8 +143,8 @@ export function RunChat({
                 questions dock above the chat input below. */}
             {clarificationRequest ? (
               <Message from="assistant">
-                <MessageContent className="bg-secondary/30">
-                  <MessageResponse>
+                <MessageContent className="bg-secondary">
+                  <MessageResponse className="text-primary">
                     {clarificationRequest.summary}
                   </MessageResponse>
                 </MessageContent>
@@ -163,7 +165,7 @@ export function RunChat({
             isPending={submitIntake.isPending}
             onSubmit={(answers, notes) =>
               submitIntake.mutate(
-                buildIntake(clarificationRequest, answers, notes),
+                buildIntake(clarificationRequest, answers, notes)
               )
             }
             request={clarificationRequest}
@@ -230,7 +232,7 @@ function SystemRow({
   const hasSubsteps = !!item.substeps?.length
 
   return (
-    <div className="px-1 text-xs">
+    <div className="px-2 py-0.5 text-xs">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {hasSubsteps ? (
           <button
@@ -247,7 +249,7 @@ function SystemRow({
             <ChevronRight
               className={cn(
                 "size-3 text-tertiary transition-transform",
-                open && "rotate-90",
+                open && "rotate-90"
               )}
             />
           </button>

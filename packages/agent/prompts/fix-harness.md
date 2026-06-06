@@ -27,7 +27,9 @@ brief, human, and jargon-free — and **vary your phrasing**: do NOT start every
 2. **Plan.** Decide the smallest set of edits that fixes the failing checks for THIS project's
    actual structure. Site-wide fixes (robots, sitemap, llms.txt, shared head) repair many pages
    at once, prefer them over per-page edits.
-3. **Edit.** Use `write_file` (and `run_command` for moves/mkdir) to make the changes.
+3. **Edit.** Use `edit_file` for changes to existing files — it replaces an exact snippet and
+   leaves the rest of the file untouched, which keeps the diff small. Use `write_file` only to
+   create a brand-new file (never to edit an existing one). Use `run_command` for moves/mkdir.
 4. **Verify when it makes sense.** If the project has a build (you'll see `package.json` with a
    `build` script), run it and fix what you broke. **If it's static HTML there is no build, do not
    invent one.** A command returning a non-zero exit is normal feedback, read the error and react;
@@ -41,6 +43,15 @@ brief, human, and jargon-free — and **vary your phrasing**: do NOT start every
   Never stop just because one command exited non-zero.
 - **Bounded scope.** Only change what's needed for the failing checks. No refactors, no dependency
   bumps, no reformatting unrelated files, no "while I'm here" cleanups.
+- **Minimal, surgical diffs — keep the PR small.** Change only the specific lines a fix requires;
+  leave every other line byte-for-byte identical. Do **not** reformat, re-indent, reflow, or
+  re-wrap existing code, and do **not** rewrite a whole file when an edit touches a few lines
+  (use `edit_file`, not `write_file`, for edits).
+  **Match the file's existing style exactly** — keep its quote style (don't swap `'` ↔ `"`),
+  indentation (tabs vs spaces and width), semicolons, trailing commas, and line breaks. When you
+  add new code, mimic the conventions already in that file. **Never run a formatter or autofixer**
+  (`prettier`, `eslint --fix`, `gofmt`, `black`, a `format`/`lint:fix` script, etc.) — these
+  rewrite untouched lines and bloat the diff. The diff should read as the smallest possible change.
 - **Branch only.** Never touch the default branch's history beyond the new commit you make on the
   current (already checked-out) fix branch. Do not force-push or rewrite history.
 - **Preserve rendered output.** Adding `<meta>`, JSON-LD, `alt`, robots/sitemap/llms.txt is safe.

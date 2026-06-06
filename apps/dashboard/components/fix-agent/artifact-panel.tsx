@@ -37,7 +37,7 @@ export function ArtifactPanel({
           </Button>
         ))}
       </div>
-      <CardContent className="min-h-0 flex-1 overflow-auto p-4">
+      <CardContent className="min-h-0 flex-1 overflow-auto p-5">
         <PanelBody
           activeTab={activeTab}
           detail={detail}
@@ -86,7 +86,7 @@ function ChecksPanel({ detail }: { detail: FixRunDetail }) {
   const flagged = detail.checks.filter((check) => check.status === "FLAGGED")
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-medium">
           {detail.fixedChecks}/{detail.totalChecks} fixed
@@ -105,9 +105,9 @@ function ChecksPanel({ detail }: { detail: FixRunDetail }) {
         </p>
       ) : null}
 
-      <div className="grid gap-2">
+      <div className="grid gap-3">
         {detail.checks.map((check) => (
-          <div className="rounded-lg bg-secondary/30 p-3" key={check.rubricId}>
+          <div className="rounded-lg bg-secondary/30 p-3.5" key={check.rubricId}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-mono text-sm">{check.rubricId}</span>
               <Badge variant={fixCheckStatusVariant(check.status)}>

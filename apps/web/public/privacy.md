@@ -6,7 +6,7 @@ source: https://geo.repair/privacy
 
 # Privacy Policy
 
-_Last updated June 4, 2026_
+_Last updated June 5, 2026_
 
 This Privacy Policy explains what GEO Repair collects, how we use it, and, just as importantly, what we never do with it. The short version: your code lives only inside an ephemeral sandbox for a single run, is never retained afterward, and is never used to train models.
 
@@ -25,11 +25,11 @@ The checkup fetches your public pages, the same way an AI crawler would, and res
 
 ### Account information
 
-If you create an account, we collect your email address and authentication details from your identity provider. If you buy an AI Search Fix, Dodo Payments handles your card details, and we never see or store full card numbers.
+If you create an account, we collect your email address and authentication details from your identity provider. If you buy an AI Search Fix, our payment processor handles your card details, and we never see or store full card numbers.
 
 ### Waitlist and contact forms
 
-If you join the waitlist or submit the contact form, we collect the information you provide, such as your email address, name, and message. We use Resend to send waitlist confirmations, contact acknowledgements, and internal contact-form notifications.
+If you join the waitlist or submit the contact form, we collect the information you provide, such as your email address, name, and message. Our email provider sends waitlist confirmations, contact acknowledgements, and internal contact-form notifications.
 
 ### Repository data during a fix run
 
@@ -48,7 +48,7 @@ We use privacy-respecting product analytics to understand how the Service is use
 
 ## Service providers
 
-We use carefully selected service providers to operate the Service, including hosting, analytics, payments through Dodo Payments, authentication, repository access, and transactional email through Resend. These providers process information only as needed to provide their services to us. We do not sell personal information.
+We use carefully selected service providers to operate the Service, including hosting, analytics, payments, authentication, repository access, and transactional email. These providers process information only as needed to provide their services to us. We do not sell personal information.
 
 ## Data retention
 

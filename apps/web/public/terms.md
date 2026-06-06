@@ -6,7 +6,7 @@ source: https://geo.repair/terms
 
 # Terms of Service
 
-_Last updated June 4, 2026_
+_Last updated June 5, 2026_
 
 These Terms of Service ("Terms") govern your access to and use of GEO Repair (the "Service"), including the free readiness checkup and the AI fix agent. By using the Service you agree to these Terms. If you do not agree, do not use the Service.
 
@@ -34,7 +34,7 @@ You agree not to use the Service to:
 
 ## Plans and billing
 
-The checkup is free. The AI Search Fix is a one-time upfront payment processed by Dodo Payments after repository confirmation and feasibility review. There is no recurring plan right now.
+The checkup is free. The AI Search Fix is a one-time upfront payment processed securely after repository confirmation and feasibility review. There is no recurring plan right now.
 
 ## Communications
 

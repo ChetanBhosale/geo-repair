@@ -32,7 +32,7 @@ export function ToolCall({
     <div className="text-xs">
       <button
         aria-expanded={open}
-        className="group flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-secondary/40"
+        className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-secondary/40"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
@@ -54,7 +54,7 @@ export function ToolCall({
       </button>
 
       {open ? (
-        <div className="mt-1 ml-5 grid gap-2">
+        <div className="mt-2 ml-5 grid gap-2">
           {hasArgs ? (
             <pre className="max-h-64 overflow-auto rounded-md bg-secondary/40 p-2.5 font-mono text-[11px] leading-5">
               {JSON.stringify(item.args, null, 2)}

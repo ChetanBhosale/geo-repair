@@ -718,6 +718,10 @@ export async function runHarness(
     const committed = commitCount > 0;
 
     if (committed) {
+      // Pull the latest base in and resolve any conflicts now — while the agent
+      // still has the repo and tools — so the PR opens cleanly.
+      await reconcileWithBase(sandbox, input, system, tools, onAgentEvent);
+
       await logEvent(
         input.fixRunId,
         "diff_summary",
@@ -826,6 +830,114 @@ async function continuationPrompt(
     ``,
     `Commit your progress with git add -A && git commit before you run out of budget.`,
   ].join("\n");
+}
+
+// Reconcile the fix branch with the latest base BEFORE we hand off to PR
+// creation, so the PR opens without conflicts. Pulls the current base in; if the
+// merge conflicts, hands the conflicted files back to the agent to resolve (it
+// has the repo + tools in-sandbox and can actually fix them, unlike a post-PR
+// flag). Best-effort: on any failure it restores a clean, pushable branch.
+async function reconcileWithBase(
+  sandbox: Awaited<ReturnType<typeof connectSandbox>>,
+  input: FixSiteInput,
+  system: string,
+  tools: AgentTool[],
+  onEvent: (log: AgentStepLog) => Promise<void>,
+): Promise<void> {
+  const base = input.defaultBranch;
+  const baseRef = shellQuote(`origin/${base}`);
+
+  // The clone is shallow (--depth 1); deepen it so git has the history to merge.
+  await runCommand(
+    sandbox,
+    `git fetch --unshallow origin ${shellQuote(base)} 2>/dev/null || git fetch origin ${shellQuote(base)}`,
+    { cwd: REPO_DIR, timeoutMs: 5 * 60 * 1000 },
+  );
+
+  const merge = await runCommand(sandbox, `git merge ${baseRef} --no-edit`, {
+    cwd: REPO_DIR,
+  });
+  if (merge.exitCode === 0) {
+    await logEvent(input.fixRunId, "base_merge_clean", null, {});
+    return;
+  }
+
+  const conflicted = await runCommand(
+    sandbox,
+    `git diff --name-only --diff-filter=U`,
+    { cwd: REPO_DIR },
+  );
+  const files = conflicted.stdout.trim();
+  if (!files) {
+    // Merge failed for a non-conflict reason — don't leave a half-merged tree.
+    await runCommand(sandbox, `git merge --abort`, { cwd: REPO_DIR });
+    await logEvent(input.fixRunId, "base_merge_failed", null, {
+      detail: merge.stderr.slice(-300),
+    });
+    return;
+  }
+
+  await logEvent(input.fixRunId, "merge_conflict_detected", null, {
+    files: files.split("\n"),
+  });
+
+  const user = [
+    `Repository: ${input.repoFullName}`,
+    `You just merged the latest \`${base}\` into your fix branch and hit MERGE CONFLICTS.`,
+    `Your only job now is to resolve them — do not start new fixes.`,
+    ``,
+    `## Conflicted files`,
+    files,
+    ``,
+    `## How to resolve`,
+    `1. In each file, reconcile the <<<<<<< / ======= / >>>>>>> markers. Keep the base branch's`,
+    `   changes AND preserve your GEO/AEO fixes — combine both sides; don't blindly pick one.`,
+    `2. Remove every conflict marker and make sure each file is still valid.`,
+    `3. Re-run the project's build/typecheck to confirm nothing is broken.`,
+    `4. Finish the merge: \`git add -A && git commit --no-edit\`.`,
+    ``,
+    `Touch nothing unrelated to these conflicts. When the merge is committed and the build passes, stop.`,
+  ].join("\n");
+
+  const result = await runAgent({
+    system,
+    user,
+    tools,
+    maxSteps: 40,
+    maxTokens: 8000,
+    forceFinalAfterSteps: 32,
+    keepToolsAfterFinal: true,
+    finalInstruction:
+      "Finish resolving the remaining conflicts now, then run `git add -A && git commit --no-edit` and stop.",
+    onEvent,
+  });
+  await addCogs(
+    input.fixRunId,
+    result.tokensIn,
+    result.tokensOut,
+    Secrets.LLM_MODEL,
+  );
+
+  const still = await runCommand(
+    sandbox,
+    `git diff --name-only --diff-filter=U`,
+    { cwd: REPO_DIR },
+  );
+  if (still.stdout.trim()) {
+    // Agent couldn't fully resolve — restore a clean, pushable branch.
+    await runCommand(sandbox, `git merge --abort`, { cwd: REPO_DIR });
+    await logEvent(input.fixRunId, "merge_conflict_unresolved", null, {
+      files: still.stdout.trim().split("\n"),
+    });
+    return;
+  }
+  // Conflicts cleared; if the agent staged but didn't commit, finalize the merge.
+  await runCommand(
+    sandbox,
+    `git -c core.editor=true commit --no-edit 2>/dev/null || true`,
+    { cwd: REPO_DIR },
+  );
+  await logEvent(input.fixRunId, "merge_conflict_resolved", null, {});
 }
 
 async function collectDiffSummary(
@@ -961,6 +1073,39 @@ async function createPr(
     message: j.message,
     status: res.status,
   };
+}
+
+// One-shot backstop, run once right after the PR opens. The in-sandbox reconcile
+// merges against base at the moment the agent finishes; if base advances between
+// then and PR open, that conflict is invisible to the sandbox (already torn
+// down). This is the only place that sees the PR's true mergeability at open
+// time. GitHub computes `mergeable` asynchronously (null = still computing), so
+// poll briefly. This NEVER tries to fix anything — it only records the truth.
+async function checkPrMergeable(
+  token: string,
+  repoFullName: string,
+  prNumber: number,
+): Promise<{ mergeable: boolean | null; mergeableState: string }> {
+  for (let i = 0; i < 10; i++) {
+    const res = await fetch(
+      `https://api.github.com/repos/${repoFullName}/pulls/${prNumber}`,
+      { headers: ghHeaders(token) },
+    );
+    if (res.ok) {
+      const j = (await res.json()) as {
+        mergeable?: boolean | null;
+        mergeable_state?: string;
+      };
+      if (j.mergeable !== null && j.mergeable !== undefined) {
+        return {
+          mergeable: j.mergeable,
+          mergeableState: j.mergeable_state ?? "unknown",
+        };
+      }
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return { mergeable: null, mergeableState: "unknown" };
 }
 
 async function pushAndOpenPr(opts: {
@@ -1121,6 +1266,22 @@ export async function finalizeRun(
 
     await setPr(input.fixRunId, branch, prUrl, prNumber);
     await logEvent(input.fixRunId, "pr_strategy", null, { viaFork });
+
+    // Backstop (one-shot, no fix attempt): confirm the PR actually merges at
+    // open time. Catches the case where base advanced after the sandbox's
+    // reconcile but before the PR opened — the only conflict the sandbox can't.
+    const { mergeable, mergeableState } = await checkPrMergeable(
+      token,
+      input.repoFullName,
+      prNumber,
+    );
+    await logEvent(
+      input.fixRunId,
+      mergeable === false ? "merge_conflict" : "pr_mergeable",
+      null,
+      { prUrl, prNumber, mergeable, mergeableState },
+    );
+
     return {
       ok: true,
       committed: true,
