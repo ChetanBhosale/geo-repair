@@ -60,15 +60,13 @@ export default function DashboardHomePage() {
   )
 
   return (
-    <DashboardShell eyebrow="Dashboard" title="Project command center">
+    <DashboardShell title="Project command center">
       {isSignedIn && savedRepos.isLoading ? (
         <StatePanel
           eyebrow="Loading"
           title="Loading repositories"
           description="We are checking which project should be active."
-          action={
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          }
+          action={<Loader2 className="size-4 animate-spin text-secondary" />}
         />
       ) : null}
 
@@ -115,7 +113,7 @@ export default function DashboardHomePage() {
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="muted">{selectedRepo.defaultBranch}</Badge>
+                  <Badge variant="neutral">{selectedRepo.defaultBranch}</Badge>
                   {activeRun ? (
                     <Badge>{formatState(activeRun.state)}</Badge>
                   ) : null}
@@ -213,12 +211,12 @@ function Metric({
   detail: string
 }) {
   return (
-    <div className="rounded-lg bg-muted/25 p-4">
-      <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+    <div className="rounded-lg bg-secondary/25 p-4">
+      <p className="font-mono text-xs tracking-wide text-secondary uppercase">
         {label}
       </p>
       <p className="mt-2 truncate text-lg font-semibold">{value}</p>
-      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      <p className="mt-1 truncate text-xs text-secondary">{detail}</p>
     </div>
   )
 }
@@ -256,13 +254,11 @@ function InsightCard({
 }) {
   return (
     <Link
-      className="rounded-lg bg-card p-5 transition-colors hover:bg-muted/50"
+      className="rounded-lg bg-primary p-5 transition-colors hover:bg-secondary/50"
       href={href}
     >
       <h2 className="font-semibold">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        {description}
-      </p>
+      <p className="mt-2 text-sm leading-6 text-secondary">{description}</p>
     </Link>
   )
 }

@@ -57,9 +57,7 @@ export default function ReportsPage() {
           eyebrow="Loading"
           title="Loading reports"
           description="We are checking stored scan, fix, and export artifacts."
-          action={
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          }
+          action={<Loader2 className="size-4 animate-spin text-secondary" />}
         />
       ) : null}
 

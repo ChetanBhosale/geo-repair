@@ -136,11 +136,25 @@ mock.module("./providers/dodo", () => ({
     checkoutUrl: "https://test.checkout.dodopayments.com/session/cks_test",
     paymentId: null,
   }),
+  retrieveDodoPayment: async () => ({
+    payment_id: "pay_1",
+    status: "succeeded",
+    checkout_session_id: "cks_1",
+    metadata: {},
+    total_amount: 4900,
+    currency: "USD",
+    product_cart: [{ product_id: "prod_starter", quantity: 1 }],
+    customer: { customer_id: "cus_1" },
+  }),
   unwrapDodoWebhook: (rawBody: string) => JSON.parse(rawBody),
 }));
 
-const { getFixTierForPageCount, processDodoWebhook } =
-  await import("./billing.service.ts");
+const {
+  BillingError,
+  getFixTierForPageCount,
+  getFixTierForSelection,
+  processDodoWebhook,
+} = await import("./billing.service.ts");
 
 beforeEach(() => {
   resetStore();
@@ -166,6 +180,16 @@ test("fix tier calculation matches the public price table", () => {
     tier: "ENTERPRISE_CUSTOM",
     amountCents: 0,
   });
+});
+
+test("selected fix tier can be higher but not lower than the scan tier", () => {
+  expect(getFixTierForSelection(25, "GROWTH")).toEqual({
+    tier: "GROWTH",
+    amountCents: 14900,
+    productId: "prod_growth",
+  });
+
+  expect(() => getFixTierForSelection(100, "STARTER")).toThrow(BillingError);
 });
 
 test("payment.succeeded marks the order paid and duplicate webhook ids are ignored", async () => {

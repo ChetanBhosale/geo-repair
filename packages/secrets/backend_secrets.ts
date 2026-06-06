@@ -20,7 +20,9 @@ const BackendSecrets = {
   NODE_ENV: process.env.NODE_ENV || "development",
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
   WEB_URL:
-    process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:3001",
+    process.env.WEB_URL ||
+    (isProd ? process.env.FRONTEND_URL : undefined) ||
+    "http://localhost:3001",
   DASHBOARD_URL:
     process.env.DASHBOARD_URL ||
     process.env.FRONTEND_URL ||
@@ -50,6 +52,17 @@ const BackendSecrets = {
   // E2B (ephemeral execution sandbox).
   E2B_SANDBOX_API_KEY: process.env.E2B_SANDBOX_API_KEY,
   E2B_SANDBOX_ID: process.env.E2B_SANDBOX_ID,
+
+  // Internal run COGS estimates. Values are cents, not dollars.
+  COGS_LLM_INPUT_CENTS_PER_MILLION_TOKENS:
+    process.env.COGS_LLM_INPUT_CENTS_PER_MILLION_TOKENS,
+  COGS_LLM_OUTPUT_CENTS_PER_MILLION_TOKENS:
+    process.env.COGS_LLM_OUTPUT_CENTS_PER_MILLION_TOKENS,
+  COGS_E2B_SANDBOX_CENTS_PER_HOUR:
+    process.env.COGS_E2B_SANDBOX_CENTS_PER_HOUR,
+  COGS_IMAGE_CENTS_PER_THUMBNAIL:
+    process.env.COGS_IMAGE_CENTS_PER_THUMBNAIL,
+
   // Dodo Payments. One-time AI Search Fix checkout only.
   DODO_PAYMENTS_API_KEY: process.env.DODO_PAYMENTS_API_KEY,
   DODO_PAYMENTS_WEBHOOK_KEY: process.env.DODO_PAYMENTS_WEBHOOK_KEY,

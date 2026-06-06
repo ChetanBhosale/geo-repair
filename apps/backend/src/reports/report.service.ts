@@ -575,46 +575,416 @@ export async function revokeReportShareLink(input: {
   });
 }
 
-export function renderReportMarkdown(report: ProjectReportDetail): string {
-  const lines = [
-    `# ${report.title}`,
-    "",
-    report.summary,
-    "",
-    `Website: ${report.website ?? "Not specified"}`,
-    `Repository: ${report.repoFullName ?? "Not specified"}`,
-    `Status: ${report.status.toLowerCase()}`,
-    `Generated: ${report.generatedAt}`,
-    "",
-  ];
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
-  if (report.content.metrics.length > 0) {
-    lines.push("## Metrics", "");
-    for (const metric of report.content.metrics) {
-      lines.push(
-        `- ${metric.label}: ${metric.value}${metric.detail ? ` (${metric.detail})` : ""}`,
-      );
-    }
-    lines.push("");
+function reportTypeLabel(type: ProjectReportDetail["type"]): string {
+  if (type === "SCAN") return "AI Search readiness report";
+  if (type === "FIX_SUMMARY") return "Fix summary report";
+  if (type === "BEFORE_AFTER") return "Before and after report";
+  return "Client report export";
+}
+
+function formatReportDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(new Date(value));
+}
+
+function safeExternalUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
   }
+}
 
-  for (const section of report.content.sections) {
-    lines.push(`## ${section.heading}`, "", section.body, "");
-    for (const item of section.items) {
-      lines.push(`- ${item}`);
-    }
-    lines.push("");
+function hostLabel(value: string | null): string {
+  if (!value) return "Not specified";
+
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return value;
   }
+}
 
-  if (report.content.links.length > 0) {
-    lines.push("## Links", "");
-    for (const link of report.content.links) {
-      lines.push(`- [${link.label}](${link.url})`);
-    }
-    lines.push("");
-  }
+function renderLogoSvg(): string {
+  return `<svg class="brand-mark" aria-hidden="true" fill="currentColor" viewBox="0 0 491 492" xmlns="http://www.w3.org/2000/svg">
+    <path d="M233.46 0.529372C275.545 -2.73113 323.87 9.34336 360.745 29.2084C419.08 60.4394 462.355 113.872 480.79 177.421L424.85 177.542C418.555 160.775 409.91 144.99 399.165 130.661C365.91 86.4364 320.79 62.1964 266.64 54.4749L266.795 138.564C252.525 138.666 238.055 138.49 223.766 138.433L223.822 54.6314C189.536 57.2304 151.586 74.5309 125 95.9164C85.2106 127.702 59.7936 174.087 54.4156 224.728C81.9791 224.223 110.34 224.47 137.937 224.437L137.94 267.406L54.2286 267.316C65.8211 358.541 132.76 424.881 223.795 437.076L223.782 353.321H266.79L266.765 437.096C268.675 436.896 270.86 436.521 272.785 436.241C304.38 431.946 337.225 417.671 362.235 398.151C405.5 364.381 429.345 321.231 436.445 267.356L352.64 267.331L352.695 224.376L489.785 224.37C490.535 240.131 491.12 249.541 489.925 265.491C485.775 318.551 464.34 368.791 428.91 408.506C385.72 457.441 324.775 487.106 259.62 490.911C194.748 494.836 131.002 472.666 82.5646 429.336C33.7881 386.286 4.24058 325.531 0.496577 260.581C-3.70242 194.912 18.8636 130.342 63.0521 81.5854C107.272 32.0369 167.477 4.35937 233.46 0.529372Z" />
+    <path d="M241.291 200.017C266.621 197.857 288.906 216.642 291.061 241.97C293.216 267.3 274.426 289.585 249.096 291.735C223.772 293.89 201.496 275.105 199.34 249.78C197.185 224.455 215.965 202.176 241.291 200.017Z" />
+  </svg>`;
+}
 
-  return `${lines.join("\n").trim()}\n`;
+export function renderReportHtml(report: ProjectReportDetail): string {
+  const metrics = report.content.metrics
+    .map(
+      (metric) => `
+        <section class="metric">
+          <p>${escapeHtml(metric.label)}</p>
+          <strong>${escapeHtml(metric.value)}</strong>
+          ${
+            metric.detail
+              ? `<span>${escapeHtml(metric.detail)}</span>`
+              : "<span>No extra detail recorded</span>"
+          }
+        </section>`,
+    )
+    .join("");
+
+  const sections = report.content.sections
+    .map(
+      (section, index) => `
+        <section class="section-block">
+          <div class="section-kicker">Section ${index + 1}</div>
+          <h2>${escapeHtml(section.heading)}</h2>
+          <p>${escapeHtml(section.body)}</p>
+          ${
+            section.items.length > 0
+              ? `<ul>${section.items
+                  .map((item) => `<li>${escapeHtml(item)}</li>`)
+                  .join("")}</ul>`
+              : '<div class="empty-note">No line items recorded for this section.</div>'
+          }
+        </section>`,
+    )
+    .join("");
+
+  const links = report.content.links
+    .map((link) => {
+      const href = safeExternalUrl(link.url);
+      if (!href) return "";
+
+      return `<a href="${escapeHtml(href)}">${escapeHtml(link.label)}</a>`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(report.title)} | GEO Repair</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #ffffff;
+        --ink: #171717;
+        --muted: #5f6362;
+        --line: #d8dedb;
+        --soft: #f5f7f6;
+        --brand: #16825d;
+        --brand-soft: #eaf6f0;
+        --warning: #8a5b12;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      @page {
+        size: A4;
+        margin: 18mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #eef2f0;
+        color: var(--ink);
+      }
+
+      .page {
+        width: min(1040px, calc(100vw - 32px));
+        margin: 32px auto;
+        background: var(--paper);
+        border: 1px solid var(--line);
+      }
+
+      header {
+        padding: 40px;
+        border-bottom: 1px solid var(--line);
+        background: linear-gradient(180deg, #ffffff 0%, #f7faf8 100%);
+      }
+
+      .brand-row,
+      .meta-grid,
+      .metrics,
+      .trust-grid,
+      footer {
+        display: grid;
+        gap: 16px;
+      }
+
+      .brand-row {
+        grid-template-columns: 1fr auto;
+        align-items: start;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+      }
+
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        color: var(--brand);
+      }
+
+      .eyebrow,
+      .section-kicker,
+      .meta span,
+      .metric p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .status {
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 780px;
+        margin: 32px 0 12px;
+        font-size: 44px;
+        line-height: 1.04;
+      }
+
+      .summary {
+        max-width: 760px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.65;
+      }
+
+      .meta-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 32px;
+      }
+
+      .meta,
+      .metric,
+      .trust {
+        border: 1px solid var(--line);
+        background: var(--soft);
+        padding: 16px;
+      }
+
+      .meta strong,
+      .metric strong {
+        display: block;
+        margin-top: 8px;
+        overflow-wrap: anywhere;
+      }
+
+      main {
+        padding: 32px 40px 40px;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .metric strong {
+        color: var(--brand);
+        font-size: 28px;
+        line-height: 1;
+      }
+
+      .metric span,
+      .empty-note {
+        display: block;
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .section-block {
+        margin-top: 28px;
+        padding-top: 28px;
+        border-top: 1px solid var(--line);
+      }
+
+      h2 {
+        margin: 8px 0 8px;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+
+      .section-block p {
+        max-width: 780px;
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      ul {
+        display: grid;
+        gap: 10px;
+        margin: 18px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      li {
+        border-left: 4px solid var(--brand);
+        background: var(--soft);
+        padding: 12px 14px;
+        line-height: 1.5;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .links a {
+        border: 1px solid var(--line);
+        color: var(--brand);
+        padding: 10px 12px;
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      .trust-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 32px;
+      }
+
+      .trust h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+
+      .trust p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      footer {
+        grid-template-columns: 1fr auto;
+        padding: 24px 40px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          width: 100%;
+          margin: 0;
+          border-left: 0;
+          border-right: 0;
+        }
+
+        header,
+        main,
+        footer {
+          padding-left: 20px;
+          padding-right: 20px;
+        }
+
+        .brand-row,
+        .meta-grid,
+        .metrics,
+        .trust-grid,
+        footer {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 32px;
+        }
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .page {
+          width: auto;
+          margin: 0;
+          border: 0;
+        }
+
+        a {
+          color: var(--ink);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="page">
+      <header>
+        <div class="brand-row">
+          <div class="brand">${renderLogoSvg()} GEO Repair</div>
+          <div class="status">${escapeHtml(report.status.toLowerCase())}</div>
+        </div>
+        <p class="eyebrow">${escapeHtml(reportTypeLabel(report.type))}</p>
+        <h1>${escapeHtml(report.title)}</h1>
+        <p class="summary">${escapeHtml(report.summary)}</p>
+        <div class="meta-grid">
+          <div class="meta"><span>Website</span><strong>${escapeHtml(hostLabel(report.website))}</strong></div>
+          <div class="meta"><span>Repository</span><strong>${escapeHtml(report.repoFullName ?? "Not specified")}</strong></div>
+          <div class="meta"><span>Generated</span><strong>${escapeHtml(formatReportDate(report.generatedAt))}</strong></div>
+          <div class="meta"><span>Source</span><strong>${escapeHtml(report.content.generatedFrom)}</strong></div>
+        </div>
+      </header>
+      <main>
+        <section class="metrics">${metrics}</section>
+        ${sections}
+        ${links ? `<nav class="links" aria-label="Report links">${links}</nav>` : ""}
+        <section class="trust-grid">
+          <div class="trust">
+            <h3>What this report means</h3>
+            <p>This measures technical AI Search readiness from stored scan, run, and PR data. It does not promise rankings, traffic, or citations.</p>
+          </div>
+          <div class="trust">
+            <h3>What is kept private</h3>
+            <p>Reports avoid raw source code, secrets, full terminal logs, and private repository file contents.</p>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <span>Prepared by GEO Repair for ${escapeHtml(hostLabel(report.website))}</span>
+        <span>${escapeHtml(report.id)}</span>
+      </footer>
+    </article>
+  </body>
+</html>`;
 }
 
 export function reportDownloadFilename(report: ProjectReportDetail): string {
@@ -622,5 +992,5 @@ export function reportDownloadFilename(report: ProjectReportDetail): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return `${base || "report"}-${report.id}.md`;
+  return `${base || "report"}-${report.id}.html`;
 }

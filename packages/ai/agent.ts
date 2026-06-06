@@ -30,6 +30,13 @@ export interface RunAgentOptions {
   tools: AgentTool[];
   model?: string;
   maxSteps?: number;
+  forceFinalAfterSteps?: number;
+  finalInstruction?: string;
+  // By default forceFinalAfterSteps strips tools to force a text-only answer
+  // (used by the planner to return JSON). Set this to inject the final
+  // instruction as a *nudge* while keeping tools available — needed by the fix
+  // harness, which still has to run `git commit` after being told to wrap up.
+  keepToolsAfterFinal?: boolean;
   temperature?: number;
   maxTokens?: number;
   // Called on every assistant message, tool call, and tool result — for logging.
@@ -73,12 +80,29 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
   let tokensIn = 0;
   let tokensOut = 0;
   let finalText = "";
+  let finalInstructionInjected = false;
 
   for (let step = 1; step <= maxSteps; step++) {
+    if (
+      !finalInstructionInjected &&
+      opts.forceFinalAfterSteps &&
+      step > opts.forceFinalAfterSteps
+    ) {
+      messages.push({
+        role: "user",
+        content:
+          opts.finalInstruction ??
+          "Stop using tools and return the final answer now.",
+      });
+      finalInstructionInjected = true;
+    }
+
+    const activeTools =
+      finalInstructionInjected && !opts.keepToolsAfterFinal ? [] : opts.tools;
     const res = await client.chat.completions.create({
       model,
       messages,
-      tools: toOpenAiTools(opts.tools),
+      ...(activeTools.length ? { tools: toOpenAiTools(activeTools) } : {}),
       temperature: opts.temperature,
       max_tokens: opts.maxTokens,
     });

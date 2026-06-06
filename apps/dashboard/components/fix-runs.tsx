@@ -18,6 +18,7 @@ const ACTIVE_STATES: FixRunState[] = [
   "QUEUED",
   "SCANNING",
   "CLONING",
+  "WAITING_FOR_INPUT",
   "FIXING",
   "VERIFYING",
   "PUSHING",
@@ -37,7 +38,7 @@ function checkBadge(status: FixCheckStatus) {
   if (status === "FIXED") return "pass" as const
   if (status === "FAILED") return "fail" as const
   if (status === "FIXING") return "default" as const
-  return "muted" as const
+  return "neutral" as const
 }
 
 export function FixRuns() {
@@ -46,7 +47,7 @@ export function FixRuns() {
 
   if (isLoading) {
     return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <p className="flex items-center gap-2 text-sm text-secondary">
         <Loader2 className="size-4 animate-spin" />
         Loading runs.
       </p>
@@ -54,7 +55,7 @@ export function FixRuns() {
   }
 
   if (!runs || runs.length === 0) {
-    return <p className="text-sm text-muted-foreground">No fix runs yet.</p>
+    return <p className="text-sm text-secondary">No fix runs yet.</p>
   }
 
   return (
@@ -67,7 +68,7 @@ export function FixRuns() {
             <button
               type="button"
               onClick={() => setOpenId(isOpen ? null : run.id)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-secondary"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -81,7 +82,7 @@ export function FixRuns() {
                     {stateLabel(run.state)}
                   </Badge>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                <p className="mt-0.5 truncate text-xs text-secondary">
                   {run.website} · {run.fixedChecks}/{run.totalChecks} checks
                   fixed
                 </p>
@@ -93,7 +94,7 @@ export function FixRuns() {
                     target="_blank"
                     rel="noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                    className="inline-flex items-center gap-1 text-sm text-brand hover:underline"
                   >
                     View PR <ExternalLink className="size-3" />
                   </a>
@@ -121,7 +122,7 @@ function RunDetail({ id }: { id: string }) {
   if (isLoading || !detail) {
     return (
       <div className="px-4 py-3">
-        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        <Loader2 className="size-4 animate-spin text-secondary" />
       </div>
     )
   }
@@ -129,7 +130,7 @@ function RunDetail({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-4 px-4 py-4">
       {detail.error ? (
-        <p className="flex items-center gap-2 text-sm text-destructive">
+        <p className="flex items-center gap-2 text-sm text-danger">
           <XCircle className="size-4" />
           {detail.error}
         </p>
@@ -137,14 +138,12 @@ function RunDetail({ id }: { id: string }) {
 
       {/* Checks */}
       <div>
-        <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <h4 className="mb-2 text-xs font-medium tracking-wide text-secondary uppercase">
           Checks ({detail.fixedChecks}/{detail.totalChecks} fixed)
         </h4>
         <div className="flex flex-col rounded-md">
           {detail.checks.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">
-              No checks yet.
-            </p>
+            <p className="px-3 py-2 text-sm text-secondary">No checks yet.</p>
           ) : (
             detail.checks.map((c) => (
               <div
@@ -154,17 +153,13 @@ function RunDetail({ id }: { id: string }) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     {c.fixed ? (
-                      <CheckCircle2 className="size-3.5 text-emerald-500" />
+                      <CheckCircle2 className="size-3.5 text-success" />
                     ) : null}
                     <span className="font-mono text-sm">{c.rubricId}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {c.scope}
-                    </span>
+                    <span className="text-xs text-secondary">{c.scope}</span>
                   </div>
                   {c.note ? (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {c.note}
-                    </p>
+                    <p className="mt-0.5 text-xs text-secondary">{c.note}</p>
                   ) : null}
                 </div>
                 <Badge variant={checkBadge(c.status)}>
@@ -178,18 +173,18 @@ function RunDetail({ id }: { id: string }) {
 
       {/* Event log */}
       <div>
-        <h4 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <h4 className="mb-2 text-xs font-medium tracking-wide text-secondary uppercase">
           Activity log
         </h4>
-        <div className="max-h-64 overflow-y-auto rounded-md bg-muted/30 p-2 font-mono text-xs">
+        <div className="max-h-64 overflow-y-auto rounded-md bg-secondary/30 p-2 font-mono text-xs">
           {detail.events.length === 0 ? (
-            <p className="text-muted-foreground">No events yet.</p>
+            <p className="text-secondary">No events yet.</p>
           ) : (
             detail.events.map((e) => (
               <div key={e.seq} className="py-0.5">
-                <span className="text-muted-foreground">#{e.seq}</span> {e.type}
+                <span className="text-secondary">#{e.seq}</span> {e.type}
                 {e.phase ? (
-                  <span className="text-muted-foreground"> ({e.phase})</span>
+                  <span className="text-secondary"> ({e.phase})</span>
                 ) : null}
               </div>
             ))

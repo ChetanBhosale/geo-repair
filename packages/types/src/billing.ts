@@ -24,6 +24,7 @@ export const CreateFixCheckoutRequestSchema = z.object({
   orderId: z.string().optional(),
   repositoryId: z.string().optional(),
   checkupReportKey: z.string().optional(),
+  selectedTier: FixTierSchema.optional(),
 });
 export type CreateFixCheckoutRequest = z.infer<
   typeof CreateFixCheckoutRequestSchema
@@ -45,6 +46,19 @@ export type OrderSummary = z.infer<typeof OrderSummarySchema>;
 export interface CreateFixCheckoutResponse {
   order: OrderSummary;
   checkoutUrl: string | null;
+}
+
+export const ReconcileFixCheckoutRequestSchema = z.object({
+  orderId: z.string(),
+  paymentId: z.string(),
+  status: z.string().optional(),
+});
+export type ReconcileFixCheckoutRequest = z.infer<
+  typeof ReconcileFixCheckoutRequestSchema
+>;
+
+export interface ReconcileFixCheckoutResponse {
+  order: OrderSummary;
 }
 
 export interface BillingOrder {

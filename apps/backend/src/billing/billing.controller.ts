@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 
 import {
   CreateFixCheckoutRequestSchema,
+  ReconcileFixCheckoutRequestSchema,
   type CreateFixCheckoutRequest,
 } from "@repo/types/billing";
 
@@ -15,6 +16,7 @@ import {
   invoiceDownloadFilename,
   listBillingHistoryForUser,
   processDodoWebhook,
+  reconcileFixCheckoutReturn,
   renderInvoiceMarkdown,
 } from "./billing.service";
 import type { DodoWebhookHeaders } from "./providers/dodo";
@@ -67,6 +69,7 @@ export async function createFixCheckout(req: Request, res: Response) {
       userId: req.userId!,
       repositoryId,
       checkupReportKey,
+      selectedTier: body.selectedTier,
     });
 
     return res.status(201).json(result);
@@ -88,6 +91,24 @@ export async function getOrderStatus(req: Request, res: Response) {
     }
 
     return res.json({ order });
+  } catch (err) {
+    return sendBillingError(res, err);
+  }
+}
+
+export async function reconcileCheckoutReturn(req: Request, res: Response) {
+  try {
+    const parsed = ReconcileFixCheckoutRequestSchema.safeParse({
+      ...req.body,
+      orderId: req.params.id,
+    });
+
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid reconcile request." });
+    }
+
+    const result = await reconcileFixCheckoutReturn(parsed.data);
+    return res.json(result);
   } catch (err) {
     return sendBillingError(res, err);
   }

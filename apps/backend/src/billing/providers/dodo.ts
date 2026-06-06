@@ -83,6 +83,10 @@ export async function createDodoCheckoutSession(input: DodoCheckoutInput) {
   };
 }
 
+export async function retrieveDodoPayment(paymentId: string) {
+  return dodoClient().payments.retrieve(paymentId);
+}
+
 export function unwrapDodoWebhook(
   rawBody: string,
   headers: DodoWebhookHeaders,

@@ -54,7 +54,7 @@ export function RepoPicker({
 
   if (isLoading) {
     return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <p className="flex items-center gap-2 text-sm text-secondary">
         <Loader2 className="size-4 animate-spin" />
         Loading your repositories.
       </p>
@@ -62,9 +62,7 @@ export function RepoPicker({
   }
 
   if (isError) {
-    return (
-      <p className="text-sm text-destructive">{(error as Error).message}</p>
-    )
+    return <p className="text-sm text-danger">{(error as Error).message}</p>
   }
 
   const pendingId = selectRepo.isPending
@@ -74,7 +72,7 @@ export function RepoPicker({
   return (
     <div className="flex flex-col gap-3">
       <div className="relative">
-        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-secondary" />
         <Input
           placeholder="Search repositories"
           value={search}
@@ -85,9 +83,7 @@ export function RepoPicker({
 
       <div className="max-h-96 overflow-y-auto rounded-lg">
         {filtered.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            No repositories found.
-          </p>
+          <p className="p-4 text-sm text-secondary">No repositories found.</p>
         ) : (
           filtered.map((repo) => {
             const isSaved = savedId === repo.id
@@ -99,8 +95,8 @@ export function RepoPicker({
                 onClick={() => onPick(repo)}
                 disabled={selectRepo.isPending}
                 className={cn(
-                  "flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted disabled:opacity-60",
-                  isSaved && "bg-muted"
+                  "flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary disabled:opacity-60",
+                  isSaved && "bg-secondary"
                 )}
               >
                 <div className="min-w-0">
@@ -109,21 +105,21 @@ export function RepoPicker({
                       {repo.fullName}
                     </span>
                     {repo.private ? (
-                      <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+                      <Lock className="size-3.5 shrink-0 text-secondary" />
                     ) : null}
                   </div>
                   {repo.description ? (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    <p className="mt-0.5 truncate text-xs text-secondary">
                       {repo.description}
                     </p>
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {repo.language ? (
-                    <Badge variant="muted">{repo.language}</Badge>
+                    <Badge variant="neutral">{repo.language}</Badge>
                   ) : null}
                   {isPending ? (
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    <Loader2 className="size-4 animate-spin text-secondary" />
                   ) : isSaved ? (
                     <Badge variant="pass">
                       <Check className="size-3" />
@@ -138,7 +134,7 @@ export function RepoPicker({
       </div>
 
       {selectRepo.isError ? (
-        <p className="text-sm text-destructive">
+        <p className="text-sm text-danger">
           {(selectRepo.error as Error).message}
         </p>
       ) : null}

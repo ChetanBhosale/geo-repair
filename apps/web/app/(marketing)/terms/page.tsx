@@ -12,7 +12,7 @@ export const metadata = buildMetadata({
   path: "/terms",
 })
 
-const LAST_UPDATED = "June 4, 2026"
+const LAST_UPDATED = "June 5, 2026"
 
 export default function TermsPage() {
   return (
@@ -98,8 +98,8 @@ export default function TermsPage() {
             <h2>Plans and billing</h2>
             <p>
               The checkup is free. The AI Search Fix is a one-time upfront
-              payment processed by Dodo Payments after repository confirmation
-              and feasibility review. There is no recurring plan right now.
+              payment processed securely after repository confirmation and
+              feasibility review. There is no recurring plan right now.
             </p>
 
             <h2>Communications</h2>

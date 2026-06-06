@@ -63,7 +63,12 @@ type RunFindArgs =
     }
   | {
       where: { workflowId: string };
-      include: { events: { orderBy: { sequence: "desc" }; take: number } };
+      include: {
+        events: {
+          orderBy: [{ sequence: "desc" }, { createdAt: "desc" }];
+          take: number;
+        };
+      };
     };
 
 type EventCreateArgs = {
@@ -76,6 +81,35 @@ type EventCreateArgs = {
     pageUrl?: string | null;
     metadata?: unknown;
   };
+};
+
+type EventFindFirstArgs = {
+  where: { runId: string };
+  orderBy: { sequence: "desc" };
+  select: { sequence: true };
+};
+
+type MockTx = {
+  $queryRaw(
+    strings: TemplateStringsArray,
+    workflowId: string,
+  ): Promise<{ id: string }[]>;
+  checkupRun: {
+    create(args: RunCreateArgs): Promise<RunRow>;
+    update(args: RunUpdateArgs): Promise<RunRow>;
+    findUnique(args: RunFindArgs): Promise<unknown>;
+  };
+  checkupRunEvent: {
+    findFirst(args: EventFindFirstArgs): Promise<{ sequence: number } | null>;
+    create(args: EventCreateArgs): Promise<EventRow>;
+  };
+};
+
+type MockPrisma = MockTx & {
+  $transaction<T>(
+    fn: (tx: MockTx) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number },
+  ): Promise<T>;
 };
 
 const runs = new Map<string, RunRow>();
@@ -104,7 +138,22 @@ function createEvent(runId: string, event: EventCreate): EventRow {
   };
 }
 
-const prisma = {
+const prisma: MockPrisma = {
+  async $transaction<T>(
+    fn: (tx: MockTx) => Promise<T>,
+    _options?: { maxWait?: number; timeout?: number },
+  ): Promise<T> {
+    return fn(prisma);
+  },
+
+  async $queryRaw(
+    _strings: TemplateStringsArray,
+    workflowId: string,
+  ): Promise<{ id: string }[]> {
+    const run = runs.get(workflowId);
+    return run ? [{ id: run.id }] : [];
+  },
+
   checkupRun: {
     async create(args: RunCreateArgs): Promise<RunRow> {
       const run: RunRow = {
@@ -174,6 +223,16 @@ const prisma = {
   },
 
   checkupRunEvent: {
+    async findFirst(
+      args: EventFindFirstArgs,
+    ): Promise<{ sequence: number } | null> {
+      const runEvents = events.get(args.where.runId) ?? [];
+      const lastEvent = [...runEvents].sort(
+        (a, b) => b.sequence - a.sequence,
+      )[0];
+      return lastEvent ? { sequence: lastEvent.sequence } : null;
+    },
+
     async create(args: EventCreateArgs): Promise<EventRow> {
       const event = createEvent(args.data.runId, args.data);
       const runEvents = events.get(args.data.runId);

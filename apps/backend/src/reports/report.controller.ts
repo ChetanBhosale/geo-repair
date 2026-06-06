@@ -8,7 +8,7 @@ import {
   getReportForUser,
   getSharedReport,
   listReportsForUser,
-  renderReportMarkdown,
+  renderReportHtml,
   reportDownloadFilename,
   revokeReportShareLink,
 } from "./report.service";
@@ -106,12 +106,13 @@ export async function downloadReport(req: Request, res: Response) {
       return res.status(404).json({ error: "Report not found." });
     }
 
-    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${reportDownloadFilename(report)}"`,
     );
-    return res.send(renderReportMarkdown(report));
+    return res.send(renderReportHtml(report));
   } catch (err) {
     return sendReportError(res, err);
   }
@@ -180,12 +181,13 @@ export async function downloadPublicSharedReport(req: Request, res: Response) {
       return res.status(404).json({ error: "Shared report not found." });
     }
 
-    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${reportDownloadFilename(report)}"`,
     );
-    return res.send(renderReportMarkdown(report));
+    return res.send(renderReportHtml(report));
   } catch (err) {
     return sendReportError(res, err);
   }

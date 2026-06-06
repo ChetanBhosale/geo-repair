@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import {
   Check,
   ChevronDown,
+  CreditCard,
   FileText,
   Gauge,
   LifeBuoy,
@@ -17,12 +18,16 @@ import {
   X,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import type { BillingOrder, OrderStatus } from "@repo/types/billing"
 import type { SavedRepository } from "@repo/types/github"
-import { BrandLogo } from "@/components/brand-logo"
+import { BrandLogo, LogoMark } from "@/components/brand-logo"
 import { GithubIcon } from "@/components/icons/github-icon"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { loginWithGithub } from "@/hooks/use-auth"
+import { useBillingHistory } from "@/hooks/use-billing"
 import { useSavedRepos, useSelectRepo } from "@/hooks/use-repos"
+import { formatStatusLabel, orderStatusVariant } from "@/lib/dashboard-format"
 import { navItems, sidebarUtilityItems } from "@/lib/navigation"
 import { cn } from "@/lib/utils"
 
@@ -41,6 +46,12 @@ const utilityIcons: Record<UtilityLabel, LucideIcon> = {
   "Contact support": LifeBuoy,
   "Submit feedback": MessageSquareText,
 }
+
+const activeCheckoutStatuses = new Set<OrderStatus>([
+  "PENDING",
+  "CHECKOUT_CREATED",
+  "PROCESSING",
+])
 
 function toSelectPayload(repo: SavedRepository) {
   return {
@@ -61,13 +72,18 @@ export function DashboardSidebar({
   isSignedIn,
   mobileOpen,
   onMobileOpenChange,
+  collapsed = false,
 }: {
   isSignedIn: boolean
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
+  // When collapsed, the persistent desktop rail shrinks to an icons-only strip
+  // (the page wants more width); the full sidebar is still on the mobile sheet.
+  collapsed?: boolean
 }) {
   const pathname = usePathname()
   const savedRepos = useSavedRepos(isSignedIn)
+  const billingHistory = useBillingHistory(isSignedIn)
   const selectRepo = useSelectRepo()
   const repos = savedRepos.data ?? []
   const selectedRepo = repos.find((repo) => repo.selected) ?? repos[0] ?? null
@@ -81,6 +97,13 @@ export function DashboardSidebar({
     reposError: savedRepos.isError,
     reposErrorMessage:
       savedRepos.error instanceof Error ? savedRepos.error.message : null,
+    billingOrders: billingHistory.data?.orders ?? [],
+    billingLoading: billingHistory.isLoading,
+    billingError: billingHistory.isError,
+    billingErrorMessage:
+      billingHistory.error instanceof Error
+        ? billingHistory.error.message
+        : null,
     selectPending: selectRepo.isPending,
     onReconnectGithub() {
       loginWithGithub(currentDashboardPath(pathname))
@@ -92,20 +115,24 @@ export function DashboardSidebar({
 
   return (
     <>
-      <aside className="hidden bg-sidebar text-sidebar-foreground lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
-        <SidebarContent idPrefix="desktop" {...contentProps} />
-      </aside>
+      {collapsed ? (
+        <CollapsedRail pathname={pathname} />
+      ) : (
+        <aside className="hidden bg-primary text-primary lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
+          <SidebarContent idPrefix="desktop" {...contentProps} />
+        </aside>
+      )}
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             aria-label="Close navigation"
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-primary/80 backdrop-blur-sm"
             onClick={() => onMobileOpenChange(false)}
             type="button"
           />
           <aside
-            className="relative flex h-full w-[min(82vw,20rem)] flex-col bg-sidebar text-sidebar-foreground"
+            className="relative flex h-full w-[min(82vw,20rem)] flex-col bg-primary text-primary"
             id="dashboard-sidebar-mobile"
           >
             <SidebarContent
@@ -120,6 +147,65 @@ export function DashboardSidebar({
   )
 }
 
+// Icons-only desktop rail used on focused workspaces (e.g. the fix agent).
+function CollapsedRail({ pathname }: { pathname: string }) {
+  return (
+    <aside className="hidden bg-primary text-primary lg:sticky lg:top-0 lg:flex lg:h-svh lg:w-16 lg:flex-col lg:items-center lg:gap-1 lg:border-r lg:border-secondary lg:py-4">
+      <Link
+        aria-label="GEO Repair home"
+        className="mb-2 grid size-9 place-items-center text-brand"
+        href="/"
+      >
+        <LogoMark className="size-5" />
+      </Link>
+
+      <nav aria-label="Dashboard navigation" className="grid gap-1">
+        {navItems.map((item) => {
+          const Icon = navIcons[item.label]
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href)
+
+          return (
+            <Link
+              aria-current={active ? "page" : undefined}
+              aria-label={item.label}
+              className={cn(
+                "grid size-9 place-items-center rounded-md text-secondary transition-colors hover:bg-secondary hover:text-primary",
+                active && "bg-secondary text-primary",
+              )}
+              href={item.href}
+              key={item.href}
+              title={item.label}
+            >
+              <Icon aria-hidden className="size-4" />
+            </Link>
+          )
+        })}
+      </nav>
+
+      <div className="mt-auto grid gap-1">
+        {sidebarUtilityItems.map((item) => {
+          const Icon = utilityIcons[item.label]
+
+          return (
+            <a
+              aria-label={item.label}
+              className="grid size-9 place-items-center rounded-md text-secondary transition-colors hover:bg-secondary hover:text-primary"
+              href={item.href}
+              key={item.href}
+              title={item.label}
+            >
+              <Icon aria-hidden className="size-4" />
+            </a>
+          )
+        })}
+      </div>
+    </aside>
+  )
+}
+
 function SidebarContent({
   idPrefix,
   isSignedIn,
@@ -129,6 +215,10 @@ function SidebarContent({
   reposLoading,
   reposError,
   reposErrorMessage,
+  billingOrders,
+  billingLoading,
+  billingError,
+  billingErrorMessage,
   selectPending,
   onReconnectGithub,
   onSelectRepo,
@@ -142,6 +232,10 @@ function SidebarContent({
   reposLoading: boolean
   reposError: boolean
   reposErrorMessage: string | null
+  billingOrders: BillingOrder[]
+  billingLoading: boolean
+  billingError: boolean
+  billingErrorMessage: string | null
   selectPending: boolean
   onReconnectGithub: () => void
   onSelectRepo: (repo: SavedRepository) => void
@@ -200,8 +294,8 @@ function SidebarContent({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                active && "bg-sidebar-accent text-sidebar-accent-foreground"
+                "flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-secondary transition-colors hover:bg-secondary hover:text-primary",
+                active && "bg-secondary text-primary"
               )}
               onClick={onClose}
             >
@@ -213,6 +307,16 @@ function SidebarContent({
       </nav>
 
       <div className="mt-auto grid gap-2">
+        {isSignedIn ? (
+          <AccountPlanStatus
+            orders={billingOrders}
+            isLoading={billingLoading}
+            isError={billingError}
+            errorMessage={billingErrorMessage}
+            onClose={onClose}
+          />
+        ) : null}
+
         {sidebarUtilityItems.map((item) => {
           const Icon = utilityIcons[item.label]
 
@@ -220,7 +324,7 @@ function SidebarContent({
             <a
               key={item.href}
               href={item.href}
-              className="flex min-h-9 items-center gap-2 rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              className="flex min-h-9 items-center gap-2 rounded-md px-3 text-sm text-secondary transition-colors hover:bg-secondary hover:text-primary"
               onClick={onClose}
             >
               <Icon className="size-4" aria-hidden />
@@ -231,6 +335,130 @@ function SidebarContent({
       </div>
     </div>
   )
+}
+
+function AccountPlanStatus({
+  orders,
+  isLoading,
+  isError,
+  errorMessage,
+  onClose,
+}: {
+  orders: BillingOrder[]
+  isLoading: boolean
+  isError: boolean
+  errorMessage: string | null
+  onClose?: () => void
+}) {
+  const state = getAccountPlanState({
+    orders,
+    isLoading,
+    isError,
+    errorMessage,
+  })
+
+  return (
+    <Link
+      aria-label={`Account plan: ${state.title}`}
+      className="grid gap-2 rounded-md bg-secondary p-3 text-left transition-colors hover:bg-tertiary"
+      href="/settings"
+      onClick={onClose}
+    >
+      <span className="flex min-w-0 items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 text-xs font-medium text-secondary">
+          {state.loading ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+          ) : (
+            <CreditCard className="size-3.5 shrink-0" aria-hidden />
+          )}
+          <span className="truncate">{state.title}</span>
+        </span>
+        <Badge className="shrink-0" variant={state.variant}>
+          {state.badge}
+        </Badge>
+      </span>
+      {/* <span className="truncate text-sm font-medium text-primary">
+        {state.title}
+      </span>
+      <span className="max-h-8 overflow-hidden text-xs text-secondary">
+        {state.description}
+      </span> */}
+    </Link>
+  )
+}
+
+function getAccountPlanState({
+  orders,
+  isLoading,
+  isError,
+  errorMessage,
+}: {
+  orders: BillingOrder[]
+  isLoading: boolean
+  isError: boolean
+  errorMessage: string | null
+}): {
+  title: string
+  badge: string
+  description: string
+  variant: React.ComponentProps<typeof Badge>["variant"]
+  loading?: boolean
+} {
+  if (isLoading) {
+    return {
+      title: "Loading account",
+      badge: "Checking",
+      description: "Reading billing status.",
+      variant: "neutral",
+      loading: true,
+    }
+  }
+
+  if (isError) {
+    return {
+      title: "Plan unavailable",
+      badge: "Error",
+      description: errorMessage ?? "Billing status could not be loaded.",
+      variant: "fail",
+    }
+  }
+
+  const paidOrder = orders.find((order) => order.status === "PAID")
+  if (paidOrder) {
+    return {
+      title: `${formatFixTier(paidOrder.tier)} paid fix`,
+      badge: "Paid",
+      description: paidOrder.repoFullName ?? paidOrder.website,
+      variant: "pass",
+    }
+  }
+
+  const activeCheckoutOrder = orders.find((order) =>
+    activeCheckoutStatuses.has(order.status)
+  )
+  if (activeCheckoutOrder) {
+    return {
+      title: `${formatFixTier(activeCheckoutOrder.tier)} checkout`,
+      badge: formatStatusLabel(activeCheckoutOrder.status),
+      description: activeCheckoutOrder.website,
+      variant: orderStatusVariant(activeCheckoutOrder.status),
+    }
+  }
+
+  return {
+    title: "Free account",
+    badge: "Free",
+    description: "No paid fix purchased yet.",
+    variant: "neutral",
+  }
+}
+
+function formatFixTier(tier: BillingOrder["tier"]) {
+  if (tier === "ENTERPRISE_CUSTOM") {
+    return "Custom"
+  }
+
+  return tier.charAt(0) + tier.slice(1).toLowerCase()
 }
 
 function ProjectSwitcher({
@@ -282,17 +510,17 @@ function ProjectSwitcher({
   return (
     <div className="relative" ref={switcherRef}>
       {isLoading ? (
-        <p className="flex min-h-16 items-center gap-2 rounded-md bg-sidebar-accent p-3 text-sm text-muted-foreground">
+        <p className="flex min-h-16 items-center gap-2 rounded-md bg-secondary p-3 text-sm text-secondary">
           <Loader2 className="size-4 animate-spin" aria-hidden />
           Loading projects
         </p>
       ) : isError ? (
-        <div className="grid gap-2 rounded-md bg-sidebar-accent p-3">
+        <div className="grid gap-2 rounded-md bg-secondary p-3">
           <div className="grid gap-1">
-            <p className="text-sm font-medium text-destructive">
+            <p className="text-sm font-medium text-danger">
               Project sync failed
             </p>
-            <p className="max-h-10 overflow-hidden text-xs text-muted-foreground">
+            <p className="max-h-10 overflow-hidden text-xs text-secondary">
               {errorMessage ?? "Reconnect GitHub and try again."}
             </p>
           </div>
@@ -315,30 +543,35 @@ function ProjectSwitcher({
             aria-controls={dropdownId}
             aria-expanded={open}
             aria-haspopup="listbox"
-            className="grid min-h-16 w-full cursor-pointer gap-1 rounded-md bg-sidebar-accent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="grid min-h-16 w-full cursor-pointer gap-1 rounded-md bg-secondary p-3 text-left transition-colors outline-none hover:bg-secondary focus-visible:ring-1 focus-visible:ring-focus/50 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isPending}
             id={id}
             onClick={() => setOpen((current) => !current)}
             type="button"
           >
-            <span className="text-xs font-medium text-muted-foreground">
+            {/* <span className="text-xs font-medium text-secondary">
               Active project
-            </span>
-            <span className="flex min-w-0 items-center justify-between gap-2 text-sm text-foreground">
+            </span> */}
+            <span className="flex min-w-0 items-center justify-between gap-2 text-sm text-primary">
               <span className="min-w-0 truncate">
                 {selectedRepo?.fullName ?? "Choose project"}
               </span>
               <ChevronDown
                 className={cn(
-                  "size-4 shrink-0 text-muted-foreground transition-transform",
+                  "size-4 shrink-0 text-secondary transition-transform",
                   open && "rotate-180"
                 )}
                 aria-hidden
               />
             </span>
             {selectedRepo ? (
-              <span className="truncate text-xs text-muted-foreground">
-                {selectedRepo.website ?? selectedRepo.defaultBranch}
+              <span>
+                <span className="truncate text-xs text-secondary">
+                  {selectedRepo.website ?? selectedRepo.defaultBranch}
+                </span>
+                {/* <Badge className="shrink-0" variant={state.variant}>
+                  {state.badge}
+                </Badge> */}
               </span>
             ) : null}
           </button>
@@ -346,7 +579,7 @@ function ProjectSwitcher({
           {open ? (
             <div
               aria-labelledby={id}
-              className="border-border absolute top-full right-0 left-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md border bg-background py-1 shadow-lg"
+              className="absolute top-full right-0 left-0 z-50 mt-2 max-h-64 overflow-y-auto rounded-md bg-tertiary py-1"
               id={dropdownId}
               role="listbox"
             >
@@ -356,7 +589,7 @@ function ProjectSwitcher({
                 return (
                   <button
                     aria-selected={selected}
-                    className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={isPending}
                     key={repo.id}
                     onClick={() => onSelect(repo)}
@@ -367,12 +600,12 @@ function ProjectSwitcher({
                       <span className="block truncate font-medium">
                         {repo.fullName}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block truncate text-xs text-secondary">
                         {repo.website ?? repo.defaultBranch}
                       </span>
                     </span>
                     {selected ? (
-                      <Check className="size-4 shrink-0 text-primary" />
+                      <Check className="size-4 shrink-0 text-brand" />
                     ) : null}
                   </button>
                 )
@@ -381,7 +614,7 @@ function ProjectSwitcher({
           ) : null}
         </>
       ) : (
-        <p className="rounded-md bg-sidebar-accent p-3 text-sm text-muted-foreground">
+        <p className="rounded-md bg-secondary p-3 text-sm text-secondary">
           No repository selected
         </p>
       )}

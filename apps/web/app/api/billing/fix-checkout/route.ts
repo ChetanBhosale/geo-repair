@@ -11,7 +11,10 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 })
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 }
+    )
   }
 
   const parsed = CreateFixCheckoutRequestSchema.safeParse(body)
@@ -25,6 +28,7 @@ export async function POST(request: Request) {
   const orderId = parsed.data.orderId?.trim()
   const repositoryId = parsed.data.repositoryId?.trim()
   const checkupReportKey = parsed.data.checkupReportKey?.trim()
+  const selectedTier = parsed.data.selectedTier
 
   if (!orderId && (!repositoryId || !checkupReportKey)) {
     return NextResponse.json(
@@ -36,6 +40,11 @@ export async function POST(request: Request) {
   return proxyBackendJson(request, "/api/billing/fix-checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderId, repositoryId, checkupReportKey }),
+    body: JSON.stringify({
+      orderId,
+      repositoryId,
+      checkupReportKey,
+      selectedTier,
+    }),
   })
 }

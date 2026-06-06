@@ -2,28 +2,31 @@
 
 import * as React from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Loader2, LogOut, PanelLeft } from "lucide-react"
+import { Loader2, PanelLeft } from "lucide-react"
 import type { ReactNode } from "react"
 import { BrandLogo } from "@/components/brand-logo"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
-import { useLogout, useUser } from "@/hooks/use-auth"
+import { useUser } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 export function DashboardShell({
   children,
-  eyebrow,
   title,
   actions,
+  fullBleed = false,
 }: {
   children: ReactNode
-  eyebrow: string
+  eyebrow?: ReactNode
   title: string
   actions?: ReactNode
+  // Collapse the desktop rail and drop the centered max-width + padding so the
+  // page can use the full viewport (used by the fix-agent workspace).
+  fullBleed?: boolean
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const { isSignedIn, isLoading } = useUser()
-  const logout = useLogout()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
 
   React.useEffect(() => {
@@ -48,19 +51,24 @@ export function DashboardShell({
   }
 
   return (
-    <div className="grid min-h-svh bg-muted/30 text-foreground lg:grid-cols-[260px_minmax(0,1fr)]">
+    <div
+      className={cn(
+        "grid min-h-svh bg-secondary/30 text-primary",
+        fullBleed
+          ? "lg:grid-cols-[64px_minmax(0,1fr)]"
+          : "lg:grid-cols-[260px_minmax(0,1fr)]",
+      )}
+    >
       <DashboardSidebar
+        collapsed={fullBleed}
         isSignedIn={isSignedIn}
         mobileOpen={sidebarOpen}
         onMobileOpenChange={setSidebarOpen}
       />
 
-      <div className="min-w-0">
-        <header className="sticky top-0 z-20 flex min-h-18 items-center justify-between gap-4 bg-muted/30 px-4 py-3 lg:px-6">
+      <div className={cn("min-w-0", fullBleed && "flex h-svh flex-col")}>
+        <header className="sticky top-0 z-20 flex min-h-18 items-center justify-between gap-4 border-b border-secondary bg-primary/85 px-4 py-3 backdrop-blur-md lg:px-6">
           <div className="min-w-0">
-            <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-              {eyebrow}
-            </p>
             <h1 className="truncate text-xl font-semibold tracking-tight">
               {title}
             </h1>
@@ -68,16 +76,6 @@ export function DashboardShell({
 
           <div className="flex items-center gap-2">
             {actions}
-
-            <Button
-              aria-label="Sign out"
-              disabled={logout.isPending}
-              onClick={() => logout.mutate()}
-              size="icon"
-              variant="ghost"
-            >
-              <LogOut className="size-4" />
-            </Button>
 
             <Button
               aria-label="Navigation"
@@ -94,9 +92,13 @@ export function DashboardShell({
           </div>
         </header>
 
-        <main className="mx-auto grid w-full max-w-7xl gap-5 p-4 lg:p-6">
-          {children}
-        </main>
+        {fullBleed ? (
+          <main className="min-h-0 flex-1">{children}</main>
+        ) : (
+          <main className="mx-auto grid w-full max-w-7xl gap-5 p-4 lg:p-6">
+            {children}
+          </main>
+        )}
       </div>
     </div>
   )
@@ -104,11 +106,11 @@ export function DashboardShell({
 
 function DashboardLoading({ title }: { title: string }) {
   return (
-    <div className="grid min-h-svh place-items-center bg-background p-6 text-foreground">
+    <div className="grid min-h-svh place-items-center bg-primary p-6 text-primary">
       <div className="grid justify-items-center gap-3 text-center">
         <BrandLogo />
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">{title}</p>
+        <Loader2 className="size-5 animate-spin text-secondary" />
+        <p className="text-sm text-secondary">{title}</p>
       </div>
     </div>
   )

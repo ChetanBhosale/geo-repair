@@ -29,6 +29,8 @@ export const ENDPOINTS = {
   fix: `${BACKEND_URL}/api/fix`,
   fixRuns: `${BACKEND_URL}/api/fix-runs`,
   fixRun: (id: string) => `${BACKEND_URL}/api/fix/${encodeURIComponent(id)}`,
+  fixIntake: (id: string) =>
+    `${BACKEND_URL}/api/fix/${encodeURIComponent(id)}/intake`,
 
   // Reports
   reports: `${BACKEND_URL}/api/reports`,

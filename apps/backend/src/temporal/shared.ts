@@ -115,7 +115,7 @@ export interface FixSiteInput {
   defaultBranch: string;
   // The user who owns this run (to resolve their GitHub token).
   userId: string;
-  // Structured pre-run clarification answers collected by the dashboard.
+  // Structured clarification answers requested by the fix workflow.
   intake?: FixRunIntake;
 }
 

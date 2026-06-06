@@ -1,13 +1,9 @@
 "use client"
 
 import type * as React from "react"
-import { CreditCard, Loader2, Play } from "lucide-react"
+import { CreditCard, Loader2, MessagesSquare, Play } from "lucide-react"
 import type { BillingOrder } from "@repo/types/billing"
-import type { FixIntakeQuestionId } from "@repo/types/fix"
-import type { IntakeAnswers, IntakeNotes } from "@/lib/fix-intake"
-import { intakeQuestions } from "@/lib/fix-intake"
 import { formatMoney } from "@/lib/dashboard-format"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -20,11 +16,7 @@ import { Input } from "@/components/ui/input"
 
 export function FixIntakeForm({
   error,
-  intakeAnswers,
-  intakeNotes,
   isPending,
-  onAnswerChange,
-  onNoteChange,
   onSubmit,
   onWebsiteChange,
   paidOrders,
@@ -35,11 +27,7 @@ export function FixIntakeForm({
   websiteDisabled,
 }: {
   error: Error | null
-  intakeAnswers: IntakeAnswers
-  intakeNotes: IntakeNotes
   isPending: boolean
-  onAnswerChange: (questionId: FixIntakeQuestionId, answerId: string) => void
-  onNoteChange: (questionId: FixIntakeQuestionId, note: string) => void
   onOrderChange: (orderId: string | null) => void
   onSubmit: (event: React.FormEvent) => void
   onWebsiteChange: (website: string) => void
@@ -61,15 +49,15 @@ export function FixIntakeForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <div className="grid gap-3 rounded-lg bg-muted/20 p-4">
+        <div className="grid gap-3 rounded-lg bg-secondary/20 p-4">
           <div className="flex items-center gap-2">
-            <CreditCard className="size-4 text-muted-foreground" />
+            <CreditCard className="size-4 text-secondary" />
             <h2 className="text-sm font-semibold">Paid order</h2>
           </div>
           {paidOrders.length > 0 ? (
             <>
               <select
-                className="h-9 rounded-lg bg-background px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-9 rounded-lg bg-primary px-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-focus/50"
                 disabled={isPending}
                 onChange={(event) =>
                   onOrderChange(event.target.value.trim() || null)
@@ -87,72 +75,32 @@ export function FixIntakeForm({
                 ))}
               </select>
               {selectedOrder ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-secondary">
                   Order {selectedOrder.id} is paid and scoped to{" "}
                   {selectedOrder.repoFullName ?? selectedRepoFullName}.
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-secondary">
               Run a website scan, select this repository, and complete checkout
               before starting the fix agent.
             </p>
           )}
         </div>
 
-        <div className="grid gap-4 rounded-lg bg-muted/20 p-4">
-          <div>
+        <div className="grid gap-2 rounded-lg bg-secondary/20 p-4">
+          <div className="flex items-center gap-2">
+            <MessagesSquare className="size-4 text-secondary" />
             <h2 className="text-sm font-semibold">
-              Agent clarification questions
+              Clarification happens after planning
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              These answers become hard constraints for what the agent may
-              change or add.
-            </p>
           </div>
-
-          {intakeQuestions.map((question) => (
-            <fieldset className="grid gap-3 pt-4 first:pt-0" key={question.id}>
-              <legend className="text-sm font-medium">
-                {question.question}
-              </legend>
-              <div className="grid gap-2 md:grid-cols-3">
-                {question.options.map((option) => {
-                  const selected = intakeAnswers[question.id] === option.id
-
-                  return (
-                    <button
-                      className={cn(
-                        "rounded-lg p-3 text-left transition-colors",
-                        selected
-                          ? "bg-background"
-                          : "bg-background/70 hover:bg-muted"
-                      )}
-                      key={option.id}
-                      onClick={() => onAnswerChange(question.id, option.id)}
-                      type="button"
-                    >
-                      <span className="block text-sm font-medium">
-                        {option.label}
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                        {option.description}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-              <textarea
-                className="min-h-18 w-full resize-y rounded-lg bg-background px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                onChange={(event) =>
-                  onNoteChange(question.id, event.target.value)
-                }
-                placeholder={question.notePlaceholder}
-                value={intakeNotes[question.id] ?? ""}
-              />
-            </fieldset>
-          ))}
+          <p className="text-sm text-secondary">
+            After the scan builds a fix plan, the agent asks only the
+            clarification questions required by those failed checks. The
+            sandbox starts after you submit those answers.
+          </p>
         </div>
 
         <form className="flex flex-col gap-2 sm:flex-row" onSubmit={onSubmit}>
@@ -177,7 +125,7 @@ export function FixIntakeForm({
           </Button>
         </form>
         {error ? (
-          <p className="mt-3 text-sm text-destructive">{error.message}</p>
+          <p className="mt-3 text-sm text-danger">{error.message}</p>
         ) : null}
       </CardContent>
     </Card>

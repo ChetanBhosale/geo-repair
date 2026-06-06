@@ -13,6 +13,7 @@ import type {
 import { normalizeWebsite } from "../lib/url";
 import {
   createDodoCheckoutSession,
+  retrieveDodoPayment,
   type DodoWebhookHeaders,
   type DodoWebhookPayload,
   unwrapDodoWebhook,
@@ -36,6 +37,13 @@ type FixTierConfig = {
 };
 
 type GatedOrder = Prisma.OrderGetPayload<{ include: { user: true } }>;
+
+const FIX_TIER_RANK: Record<FixTier, number> = {
+  STARTER: 0,
+  GROWTH: 1,
+  SCALE: 2,
+  ENTERPRISE_CUSTOM: 3,
+};
 
 export class BillingError extends Error {
   constructor(
@@ -77,6 +85,50 @@ export function getFixTierForPageCount(pageCount: number): FixTierConfig {
   }
 
   return { tier: "ENTERPRISE_CUSTOM", amountCents: 0 };
+}
+
+export function getFixTierByName(tier: FixTier): FixTierConfig {
+  switch (tier) {
+    case "STARTER":
+      return {
+        tier: "STARTER",
+        amountCents: 4900,
+        productId: Secrets.DODO_PRODUCT_ID_STARTER,
+      };
+    case "GROWTH":
+      return {
+        tier: "GROWTH",
+        amountCents: 14900,
+        productId: Secrets.DODO_PRODUCT_ID_GROWTH,
+      };
+    case "SCALE":
+      return {
+        tier: "SCALE",
+        amountCents: 39900,
+        productId: Secrets.DODO_PRODUCT_ID_SCALE,
+      };
+    case "ENTERPRISE_CUSTOM":
+      return { tier: "ENTERPRISE_CUSTOM", amountCents: 0 };
+  }
+}
+
+export function getFixTierForSelection(
+  sitemapPageCount: number,
+  selectedTier?: FixTier,
+): FixTierConfig {
+  const applicableTier = getFixTierForPageCount(sitemapPageCount);
+  const requestedTier = selectedTier
+    ? getFixTierByName(selectedTier)
+    : applicableTier;
+
+  if (FIX_TIER_RANK[requestedTier.tier] < FIX_TIER_RANK[applicableTier.tier]) {
+    throw new BillingError(
+      400,
+      "Selected tier cannot be lower than the tier required by the scan.",
+    );
+  }
+
+  return requestedTier;
 }
 
 function requireProductId(tier: FixTierConfig): string {
@@ -410,6 +462,7 @@ export async function createFixCheckoutForSelection(input: {
   userId: string;
   repositoryId: string;
   checkupReportKey: string;
+  selectedTier?: FixTier;
 }) {
   const [repo, report] = await Promise.all([
     prisma.repository.findFirst({
@@ -427,12 +480,16 @@ export async function createFixCheckoutForSelection(input: {
     throw new BillingError(404, "Checkup report not found.");
   }
 
+  const sitemapPageCount = pageCountForReport(report.reportData);
+  const tier = getFixTierForSelection(sitemapPageCount, input.selectedTier);
+
   const existing = await prisma.order.findFirst({
     where: {
       userId: input.userId,
       checkupReportId: report.id,
       repoFullName: repo.fullName,
       website: report.website,
+      tier: tier.tier,
       status: { in: ["PENDING", "CHECKOUT_CREATED", "PROCESSING", "PAID"] },
     },
     include: { user: true },
@@ -443,8 +500,6 @@ export async function createFixCheckoutForSelection(input: {
     return createCheckoutForGatedOrder(existing);
   }
 
-  const sitemapPageCount = pageCountForReport(report.reportData);
-  const tier = getFixTierForPageCount(sitemapPageCount);
   const productId = requireProductId(tier);
 
   const order = await prisma.order.create({
@@ -477,6 +532,147 @@ export async function getPaidFixOrderForUser(input: {
       status: "PAID",
     },
   });
+}
+
+function assertDodoPaymentMatchesOrder(
+  payment: Awaited<ReturnType<typeof retrieveDodoPayment>>,
+  order: GatedOrder,
+): void {
+  if (payment.status !== "succeeded") {
+    throw new BillingError(409, "Dodo payment is not marked succeeded.");
+  }
+
+  if (
+    payment.payment_id !== order.providerPaymentId &&
+    order.providerPaymentId
+  ) {
+    throw new BillingError(409, "Dodo payment id does not match this order.");
+  }
+
+  if (
+    payment.checkout_session_id &&
+    order.providerSessionId &&
+    payment.checkout_session_id !== order.providerSessionId
+  ) {
+    throw new BillingError(
+      409,
+      "Dodo checkout session does not match this order.",
+    );
+  }
+
+  if (payment.metadata.order_id && payment.metadata.order_id !== order.id) {
+    throw new BillingError(409, "Dodo payment metadata order mismatch.");
+  }
+
+  if (
+    payment.metadata.provider_product_id &&
+    payment.metadata.provider_product_id !== order.providerProductId
+  ) {
+    throw new BillingError(409, "Dodo payment product metadata mismatch.");
+  }
+
+  if (
+    payment.metadata.amount_cents &&
+    payment.metadata.amount_cents !== String(order.amountCents)
+  ) {
+    throw new BillingError(409, "Dodo payment amount metadata mismatch.");
+  }
+
+  if (
+    payment.metadata.currency &&
+    payment.metadata.currency.toUpperCase() !== order.currency.toUpperCase()
+  ) {
+    throw new BillingError(409, "Dodo payment currency metadata mismatch.");
+  }
+
+  if (
+    payment.currency.toUpperCase() === order.currency.toUpperCase() &&
+    payment.total_amount !== order.amountCents
+  ) {
+    throw new BillingError(409, "Dodo payment amount does not match order.");
+  }
+
+  const productIds = payment.product_cart?.map((item) => item.product_id) ?? [];
+  if (productIds.length > 0 && !productIds.includes(order.providerProductId)) {
+    throw new BillingError(409, "Dodo payment product does not match order.");
+  }
+}
+
+export async function reconcileFixCheckoutReturn(input: {
+  orderId: string;
+  paymentId: string;
+  status?: string;
+}) {
+  if (input.status && input.status !== "succeeded") {
+    throw new BillingError(409, "Checkout return is not a succeeded payment.");
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: input.orderId },
+    include: { user: true },
+  });
+
+  if (!order) {
+    throw new BillingError(404, "Order not found.");
+  }
+
+  const existingPaymentOrder = await prisma.order.findUnique({
+    where: { providerPaymentId: input.paymentId },
+    select: { id: true },
+  });
+
+  if (existingPaymentOrder && existingPaymentOrder.id !== order.id) {
+    throw new BillingError(
+      409,
+      "Dodo payment is already linked to another order.",
+    );
+  }
+
+  if (order.status === "PAID") {
+    return { order: orderSummary(order) };
+  }
+
+  const payment = await retrieveDodoPayment(input.paymentId);
+  assertDodoPaymentMatchesOrder(payment, order);
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      status: "PAID",
+      paidAt: new Date(),
+      providerPaymentId: payment.payment_id,
+      providerSessionId: payment.checkout_session_id ?? order.providerSessionId,
+      providerCustomerId:
+        payment.customer.customer_id ?? order.providerCustomerId,
+    },
+  });
+
+  await prisma.paymentWebhookEvent.upsert({
+    where: {
+      provider_providerEventId: {
+        provider: "DODO",
+        providerEventId: `return:${payment.payment_id}`,
+      },
+    },
+    create: {
+      provider: "DODO",
+      providerEventId: `return:${payment.payment_id}`,
+      eventType: "payment.return_reconciled",
+      processingStatus: "PROCESSED",
+      providerPaymentId: payment.payment_id,
+      orderId: order.id,
+      rawPayload: payment as unknown as Prisma.InputJsonValue,
+      processedAt: new Date(),
+    },
+    update: {
+      processingStatus: "PROCESSED",
+      orderId: order.id,
+      rawPayload: payment as unknown as Prisma.InputJsonValue,
+      processedAt: new Date(),
+    },
+  });
+
+  return { order: orderSummary(updated) };
 }
 
 async function createCheckoutForGatedOrder(order: GatedOrder) {

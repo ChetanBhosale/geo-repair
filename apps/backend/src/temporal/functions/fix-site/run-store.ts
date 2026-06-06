@@ -4,11 +4,10 @@ import type {
   SandboxStatus,
   FixCheckStatus,
 } from "@repo/types/fix";
+import { imageCostCents, sandboxCostCents, tokenCostCents } from "./cogs";
 
 // DB helpers for a fix run: state transitions, per-check updates, and the
 // append-only event log. Kept separate so the activities stay readable.
-
-let seqCache: Record<string, number> = {};
 
 // Append a transcript event (and console.log it for now).
 export async function logEvent(
@@ -17,17 +16,12 @@ export async function logEvent(
   phase: string | null,
   payload?: Record<string, unknown>,
 ): Promise<void> {
-  // Next seq per run. We read max once then increment in-memory; safe because a
-  // single activity writes events serially.
-  if (seqCache[fixRunId] === undefined) {
-    const last = await prisma.runEvent.findFirst({
-      where: { fixRunId },
-      orderBy: { seq: "desc" },
-      select: { seq: true },
-    });
-    seqCache[fixRunId] = last?.seq ?? 0;
-  }
-  const seq = ++seqCache[fixRunId]!;
+  const last = await prisma.runEvent.findFirst({
+    where: { fixRunId },
+    orderBy: { seq: "desc" },
+    select: { seq: true },
+  });
+  const seq = (last?.seq ?? 0) + 1;
 
   console.log(
     `[fix-run ${fixRunId}] #${seq} ${type}${phase ? ` (${phase})` : ""}`,
@@ -71,6 +65,7 @@ export async function setError(fixRunId: string, error: string): Promise<void> {
     where: { id: fixRunId },
     data: { state: "FAILED", error },
   });
+  await logEvent(fixRunId, "state_changed", "FAILED");
   await logEvent(fixRunId, "error", null, { error });
 }
 
@@ -125,14 +120,95 @@ export async function addCogs(
 ): Promise<void> {
   const run = await prisma.fixRun.findUnique({
     where: { id: fixRunId },
-    select: { tokensIn: true, tokensOut: true },
+    select: { tokensIn: true, tokensOut: true, imageCount: true },
   });
+  const nextTokensIn = (run?.tokensIn ?? 0) + tokensIn;
+  const nextTokensOut = (run?.tokensOut ?? 0) + tokensOut;
+  const nextTokenCostCents = tokenCostCents(nextTokensIn, nextTokensOut);
+  const nextImageCostCents = imageCostCents(run?.imageCount ?? 0);
+
   await prisma.fixRun.update({
     where: { id: fixRunId },
     data: {
       model,
-      tokensIn: (run?.tokensIn ?? 0) + tokensIn,
-      tokensOut: (run?.tokensOut ?? 0) + tokensOut,
+      tokensIn: nextTokensIn,
+      tokensOut: nextTokensOut,
+      tokenCostCents: nextTokenCostCents,
+      imageCostCents: nextImageCostCents,
     },
   });
+  await logEvent(fixRunId, "token_usage_recorded", null, {
+    model,
+    tokensIn,
+    tokensOut,
+    totalTokensIn: nextTokensIn,
+    totalTokensOut: nextTokensOut,
+    tokenCostCents: nextTokenCostCents,
+  });
+}
+
+export async function recordSandboxCogs(
+  fixRunId: string,
+  sandboxId: string,
+): Promise<{
+  sandboxSeconds: number;
+  sandboxCostCents: number;
+} | null> {
+  const run = await prisma.fixRun.findUnique({
+    where: { id: fixRunId },
+    select: {
+      createdAt: true,
+      sandboxSeconds: true,
+      tokensIn: true,
+      tokensOut: true,
+      imageCount: true,
+    },
+  });
+  if (!run) return null;
+
+  const sandboxStartEvents = await prisma.runEvent.findMany({
+    where: {
+      fixRunId,
+      type: { in: ["sandbox_created", "sandbox_reconnected"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { createdAt: true, payload: true },
+  });
+  const startedAt =
+    sandboxStartEvents.find((event) => eventHasSandboxId(event, sandboxId))
+      ?.createdAt ?? run.createdAt;
+  const sessionSandboxSeconds = Math.max(
+    0,
+    Math.ceil((Date.now() - startedAt.getTime()) / 1000),
+  );
+  const nextSandboxSeconds = (run.sandboxSeconds ?? 0) + sessionSandboxSeconds;
+  const nextSandboxCostCents = sandboxCostCents(nextSandboxSeconds);
+
+  await prisma.fixRun.update({
+    where: { id: fixRunId },
+    data: {
+      sandboxSeconds: nextSandboxSeconds,
+      tokenCostCents: tokenCostCents(run.tokensIn ?? 0, run.tokensOut ?? 0),
+      sandboxCostCents: nextSandboxCostCents,
+      imageCostCents: imageCostCents(run.imageCount),
+    },
+  });
+
+  return {
+    sandboxSeconds: sessionSandboxSeconds,
+    sandboxCostCents: nextSandboxCostCents,
+  };
+}
+
+function eventHasSandboxId(
+  event: { payload?: unknown },
+  sandboxId: string,
+): boolean {
+  return (
+    !!event.payload &&
+    typeof event.payload === "object" &&
+    !Array.isArray(event.payload) &&
+    (event.payload as { sandboxId?: unknown }).sandboxId === sandboxId
+  );
 }

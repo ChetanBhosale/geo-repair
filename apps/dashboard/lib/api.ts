@@ -14,6 +14,7 @@ import type {
   FixRunDetail,
   FixRunIntake,
   StartFixResponse,
+  SubmitFixIntakeRequest,
 } from "@repo/types/fix"
 import type {
   BillingHistoryResponse,
@@ -198,12 +199,11 @@ export async function updateRepoWebsite(
 export function startFix(
   website: string,
   repositoryId: string,
-  orderId: string,
-  intake?: FixRunIntake
+  orderId: string
 ): Promise<StartFixResponse> {
   return request<StartFixResponse>(ENDPOINTS.fix, {
     method: "POST",
-    body: JSON.stringify({ website, repositoryId, orderId, intake }),
+    body: JSON.stringify({ website, repositoryId, orderId }),
   })
 }
 
@@ -214,6 +214,18 @@ export async function getFixRuns(): Promise<FixRunSummary[]> {
 
 export function getFixRun(id: string): Promise<FixRunDetail> {
   return request<FixRunDetail>(ENDPOINTS.fixRun(id))
+}
+
+export function submitFixIntake(
+  id: string,
+  intake: FixRunIntake
+): Promise<FixRunDetail> {
+  const body: SubmitFixIntakeRequest = { intake }
+
+  return request<FixRunDetail>(ENDPOINTS.fixIntake(id), {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
 }
 
 // --- Reports ---

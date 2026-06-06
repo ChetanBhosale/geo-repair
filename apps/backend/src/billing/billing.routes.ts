@@ -9,6 +9,7 @@ import {
   getInvoice,
   getOrderStatus,
   handleDodoWebhook,
+  reconcileCheckoutReturn,
 } from "./billing.controller";
 
 export const billingRoutes = Router();
@@ -21,6 +22,7 @@ billingRoutes.get(
 );
 billingRoutes.get("/billing/invoices/:orderId", requireAuth, getInvoice);
 billingRoutes.get("/billing/orders/:id", getOrderStatus);
+billingRoutes.post("/billing/orders/:id/reconcile", reconcileCheckoutReturn);
 
 export const devBillingRoutes = Router();
 devBillingRoutes.post("/dev/billing/fixture-order", createDevFixtureCheckout);
