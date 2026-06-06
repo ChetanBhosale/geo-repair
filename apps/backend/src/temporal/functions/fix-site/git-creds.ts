@@ -11,7 +11,9 @@ export async function resolveGitToken(userId: string): Promise<string> {
   });
   const token = account?.accessToken ?? Secrets.GITHUB_PERSONAL_ACCESS_TOKEN;
   if (!token) {
-    throw new Error("No GitHub token available (no OAuth token and no PAT configured)");
+    throw new Error(
+      "No GitHub token available (no OAuth token and no PAT configured)",
+    );
   }
   return token;
 }

@@ -6,13 +6,16 @@
 
 import type { PageModel, PageType } from "./types.ts";
 
-const ARTICLE_TYPES = /^(blogposting|article|newsarticle|techarticle|scholarlyarticle|report)$/i;
+const ARTICLE_TYPES =
+  /^(blogposting|article|newsarticle|techarticle|scholarlyarticle|report)$/i;
 const PRODUCT_TYPES = /^(product|offer|aggregateoffer|softwareapplication)$/i;
 const LISTING_TYPES = /^(blog|collectionpage|itemlist|searchresultspage)$/i;
 
 // URL-section signals for page types that carry no useful answer/definition content.
-const LEGAL_SEG = /^(privacy|privacy-policy|terms|terms-of-service|tos|legal|cookie|cookies|gdpr|dpa|opt-in|opt-out|disclaimer|eula|acceptable-use|refund|return-policy|compliance)$/;
-const UTILITY_SEG = /^(contact|contact-us|login|signin|sign-in|signup|sign-up|register|account|cart|checkout|search|careers|jobs|press|status|sitemap|404|thank-you|thanks|subscribe|unsubscribe|book|demo|get-started|support|help)$/;
+const LEGAL_SEG =
+  /^(privacy|privacy-policy|terms|terms-of-service|tos|legal|cookie|cookies|gdpr|dpa|opt-in|opt-out|disclaimer|eula|acceptable-use|refund|return-policy|compliance)$/;
+const UTILITY_SEG =
+  /^(contact|contact-us|login|signin|sign-in|signup|sign-up|register|account|cart|checkout|search|careers|jobs|press|status|sitemap|404|thank-you|thanks|subscribe|unsubscribe|book|demo|get-started|support|help)$/;
 
 function jsonLdTypeMatches(page: PageModel, re: RegExp): boolean {
   return page.jsonLd.some((b) => b.valid && b.types.some((t) => re.test(t)));
@@ -20,7 +23,9 @@ function jsonLdTypeMatches(page: PageModel, re: RegExp): boolean {
 
 function section(url: string): string {
   try {
-    return new URL(url).pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? "";
+    return (
+      new URL(url).pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? ""
+    );
   } catch {
     return "";
   }
@@ -56,7 +61,11 @@ export function classifyPage(page: PageModel): PageType {
   }
 
   // 2) Article: explicit schema, og:type, or article meta (overrides a legal/utility URL guess).
-  if (jsonLdTypeMatches(page, ARTICLE_TYPES) || ogType === "article" || hasArticleMeta) {
+  if (
+    jsonLdTypeMatches(page, ARTICLE_TYPES) ||
+    ogType === "article" ||
+    hasArticleMeta
+  ) {
     return "article";
   }
 
@@ -71,7 +80,10 @@ export function classifyPage(page: PageModel): PageType {
   // 4) Listing/collection: explicit schema, or a section index page (depth 1 under a known hub
   //    that also has many internal links).
   if (jsonLdTypeMatches(page, LISTING_TYPES)) return "listing";
-  const listingHub = /^(blog|posts|articles|news|glossary|customer-stories|case-studies|resources)$/.test(seg);
+  const listingHub =
+    /^(blog|posts|articles|news|glossary|customer-stories|case-studies|resources)$/.test(
+      seg,
+    );
   if (listingHub && d <= 1 && page.anchors.length >= 15) return "listing";
 
   // 5) An item deep inside a content hub with a single H1 + a date reads as an article.

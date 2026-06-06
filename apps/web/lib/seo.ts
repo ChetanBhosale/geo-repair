@@ -114,3 +114,16 @@ export function faqJsonLd(items: { question: string; answer: string }[]) {
     })),
   }
 }
+
+export function definedTermsJsonLd(terms: { name: string; definition: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "DefinedTermSet",
+    name: "GEO & AEO Glossary",
+    hasDefinedTerm: terms.map((term) => ({
+      "@type": "DefinedTerm",
+      name: term.name,
+      description: term.definition,
+    })),
+  }
+}

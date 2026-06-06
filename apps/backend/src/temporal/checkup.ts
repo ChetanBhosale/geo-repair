@@ -36,7 +36,7 @@ export async function getCheckupCount(website: string): Promise<number> {
 export async function startCheckup(
   website: string,
   singlePage = false,
-  meta?: RequestMeta
+  meta?: RequestMeta,
 ): Promise<string> {
   const client = await getTemporalClient();
   const workflowId = checkupWorkflowId(website);
@@ -84,7 +84,7 @@ export type CheckupStatusResponse =
 
 // Returns the checkup's status, progress, and result once completed.
 export async function getCheckupStatus(
-  workflowId: string
+  workflowId: string,
 ): Promise<CheckupStatusResponse> {
   const client = await getTemporalClient();
   const handle = client.workflow.getHandle(workflowId);
@@ -95,7 +95,10 @@ export async function getCheckupStatus(
 
     switch (status) {
       case "RUNNING":
-        return { status: "RUNNING", progress: await getCheckupProgress(workflowId) };
+        return {
+          status: "RUNNING",
+          progress: await getCheckupProgress(workflowId),
+        };
       case "COMPLETED": {
         const result = (await handle.result()) as CheckupResult;
         return {
@@ -122,13 +125,20 @@ export async function getCheckupStatus(
           error,
         });
         return {
-          status: normalized as "FAILED" | "TERMINATED" | "CANCELED" | "TIMED_OUT",
+          status: normalized as
+            | "FAILED"
+            | "TERMINATED"
+            | "CANCELED"
+            | "TIMED_OUT",
           error,
           progress: await getCheckupProgress(workflowId),
         };
       }
       default:
-        return { status: "PENDING", progress: await getCheckupProgress(workflowId) };
+        return {
+          status: "PENDING",
+          progress: await getCheckupProgress(workflowId),
+        };
     }
   } catch (err) {
     if (err instanceof WorkflowNotFoundError) {

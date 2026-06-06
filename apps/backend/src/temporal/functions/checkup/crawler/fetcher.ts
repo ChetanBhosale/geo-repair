@@ -149,7 +149,8 @@ export function detectBlock(res: RawFetch): string | null {
     return `HTTP ${res.status}`;
   }
   const h = res.headers;
-  if (h["cf-mitigated"] || h["cf-chl-bypass"]) return "Cloudflare challenge headers";
+  if (h["cf-mitigated"] || h["cf-chl-bypass"])
+    return "Cloudflare challenge headers";
   const lower = res.body.slice(0, 4000).toLowerCase();
   for (const marker of BLOCK_MARKERS) {
     if (lower.includes(marker)) return `challenge marker: "${marker}"`;
@@ -168,7 +169,10 @@ function originOf(finalUrl: string): string {
   }
 }
 
-function parseRobots(content: string, origin: string): Omit<RobotsInfo, "fetched" | "status"> {
+function parseRobots(
+  content: string,
+  origin: string,
+): Omit<RobotsInfo, "fetched" | "status"> {
   const lines = content.split(/\r?\n/);
   const sitemaps: string[] = [];
   // Track disallow rules grouped by user-agent.
@@ -278,7 +282,10 @@ export async function fetchDomainFiles(
   const isIndex = isXml && /<sitemapindex[\s>]/i.test(sitemapRes.body);
   const sitemapLocs = isXml
     ? (sitemapRes.body.match(/<loc>\s*([^<\s]+)\s*<\/loc>/gi) ?? []).map((s) =>
-        s.replace(/<\/?loc>/gi, "").trim().replace(/&amp;/g, "&"),
+        s
+          .replace(/<\/?loc>/gi, "")
+          .trim()
+          .replace(/&amp;/g, "&"),
       )
     : [];
   const sitemap: SitemapInfo = {

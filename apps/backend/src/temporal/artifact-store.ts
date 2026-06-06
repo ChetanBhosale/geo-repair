@@ -14,7 +14,10 @@ function pathForKey(key: string): string {
   return path.join(ARTIFACT_DIR, `${safe}.json`);
 }
 
-export async function putArtifact(key: string, value: unknown): Promise<ArtifactRef> {
+export async function putArtifact(
+  key: string,
+  value: unknown,
+): Promise<ArtifactRef> {
   const json = JSON.stringify(value);
   await mkdir(ARTIFACT_DIR, { recursive: true });
   await writeFile(pathForKey(key), json, "utf8");

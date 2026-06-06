@@ -3,7 +3,11 @@
 // and the page-sample cap.
 
 import { test, expect } from "bun:test";
-import { aggregateSite, deriveWebsiteType, type ScoredPage } from "./aggregate.ts";
+import {
+  aggregateSite,
+  deriveWebsiteType,
+  type ScoredPage,
+} from "./aggregate.ts";
 import {
   CATEGORIES,
   PILLARS,
@@ -21,7 +25,8 @@ import {
 
 function pillarScores(): Record<Pillar, PillarScore> {
   const out = {} as Record<Pillar, PillarScore>;
-  for (const p of PILLARS) out[p] = { score: 50, earned: 1, applicable: 2, checks: 2 };
+  for (const p of PILLARS)
+    out[p] = { score: 50, earned: 1, applicable: 2, checks: 2 };
   return out;
 }
 
@@ -31,7 +36,11 @@ function categoryScores(): Record<Category, CategoryScore> {
   return out;
 }
 
-function check(id: string, status: Status, opts: Partial<CheckResult> = {}): CheckResult {
+function check(
+  id: string,
+  status: Status,
+  opts: Partial<CheckResult> = {},
+): CheckResult {
   return {
     id,
     category: opts.category ?? "Metadata",
@@ -61,7 +70,15 @@ function scoredPage(
     durationMs: 1,
     rubricVersion: "v1",
     pageType: "generic",
-    fetch: { requestedUrl: url, finalUrl: url, status: blocked ? 403 : 200, ok: !blocked, blocked, blockReason: blocked ? "blocked" : null, tier: "static" },
+    fetch: {
+      requestedUrl: url,
+      finalUrl: url,
+      status: blocked ? 403 : 200,
+      ok: !blocked,
+      blocked,
+      blockReason: blocked ? "blocked" : null,
+      tier: "static",
+    },
     overall: 50,
     pillars: pillarScores(),
     categories: categoryScores(),
@@ -72,7 +89,11 @@ function scoredPage(
   return { report, page };
 }
 
-function pageModel(url: string, rawHtml: string, headers: Record<string, string> = {}): PageModel {
+function pageModel(
+  url: string,
+  rawHtml: string,
+  headers: Record<string, string> = {},
+): PageModel {
   return {
     requestedUrl: url,
     finalUrl: url,
@@ -113,9 +134,31 @@ function pageModel(url: string, rawHtml: string, headers: Record<string, string>
 const domain: DomainFiles = {
   origin: "https://example.com",
   sitemapUrl: "https://example.com/sitemap.xml",
-  robots: { fetched: true, status: 200, content: "", sitemaps: [], blocksGooglebot: false, aiCrawlerRules: [] },
-  sitemap: { fetched: true, status: 200, ok: true, isXml: true, isIndex: false, urlCount: 3, referencedInRobots: true, urls: [] },
-  llmsTxt: { fetched: false, status: 404, ok: false, nonEmpty: false, hasLinks: false },
+  robots: {
+    fetched: true,
+    status: 200,
+    content: "",
+    sitemaps: [],
+    blocksGooglebot: false,
+    aiCrawlerRules: [],
+  },
+  sitemap: {
+    fetched: true,
+    status: 200,
+    ok: true,
+    isXml: true,
+    isIndex: false,
+    urlCount: 3,
+    referencedInRobots: true,
+    urls: [],
+  },
+  llmsTxt: {
+    fetched: false,
+    status: 404,
+    ok: false,
+    nonEmpty: false,
+    hasLinks: false,
+  },
 };
 
 const crawl: CrawlInfo = {
@@ -129,14 +172,30 @@ const crawl: CrawlInfo = {
 };
 
 function aggregate(pages: ScoredPage[]) {
-  return aggregateSite("https://example.com", domain, Date.now(), "v1", crawl, pages);
+  return aggregateSite(
+    "https://example.com",
+    domain,
+    Date.now(),
+    "v1",
+    crawl,
+    pages,
+  );
 }
 
 test("folds 3 pages into one finding per check id (not per page)", () => {
   const pages = [
-    scoredPage("https://example.com/a", [check("meta-tags", "fail", { evidence: "app/layout.tsx" }), check("canonical-urls", "pass")]),
-    scoredPage("https://example.com/b", [check("meta-tags", "fail"), check("canonical-urls", "pass")]),
-    scoredPage("https://example.com/c", [check("meta-tags", "fail"), check("canonical-urls", "pass")]),
+    scoredPage("https://example.com/a", [
+      check("meta-tags", "fail", { evidence: "app/layout.tsx" }),
+      check("canonical-urls", "pass"),
+    ]),
+    scoredPage("https://example.com/b", [
+      check("meta-tags", "fail"),
+      check("canonical-urls", "pass"),
+    ]),
+    scoredPage("https://example.com/c", [
+      check("meta-tags", "fail"),
+      check("canonical-urls", "pass"),
+    ]),
   ];
   const site = aggregate(pages);
 
@@ -147,8 +206,12 @@ test("folds 3 pages into one finding per check id (not per page)", () => {
 
 test("a check failing on every page becomes one finding with affectedCount = N", () => {
   const pages = [
-    scoredPage("https://example.com/a", [check("meta-tags", "fail", { evidence: "app/layout.tsx" })]),
-    scoredPage("https://example.com/b", [check("meta-tags", "fail", { evidence: "app/b/page.tsx" })]),
+    scoredPage("https://example.com/a", [
+      check("meta-tags", "fail", { evidence: "app/layout.tsx" }),
+    ]),
+    scoredPage("https://example.com/b", [
+      check("meta-tags", "fail", { evidence: "app/b/page.tsx" }),
+    ]),
     scoredPage("https://example.com/c", [check("meta-tags", "fail")]),
   ];
   const meta = aggregate(pages).findings.find((f) => f.id === "meta-tags")!;
@@ -178,7 +241,13 @@ test("mixed fail/partial/pass -> siteStatus mixed, counts exact", () => {
     scoredPage("https://example.com/c", [check("open-graph", "pass")]),
   ];
   const f = aggregate(pages).findings.find((c) => c.id === "open-graph")!;
-  expect(f.counts).toEqual({ pass: 1, partial: 1, fail: 1, inconclusive: 0, notApplicable: 0 });
+  expect(f.counts).toEqual({
+    pass: 1,
+    partial: 1,
+    fail: 1,
+    inconclusive: 0,
+    notApplicable: 0,
+  });
   expect(f.siteStatus).toBe("mixed");
   expect(f.affectedCount).toBe(2); // fail + partial
 });
@@ -186,18 +255,28 @@ test("mixed fail/partial/pass -> siteStatus mixed, counts exact", () => {
 test("scope is derived from the registry (site-wide vs per-page)", () => {
   const pages = [
     scoredPage("https://example.com/a", [
-      check("robots-ai-crawlers", "fail", { category: "Crawl surface", pillars: ["geo"] }),
-      check("definitions", "fail", { category: "Answerability", pillars: ["aeo"] }),
+      check("robots-ai-crawlers", "fail", {
+        category: "Crawl surface",
+        pillars: ["geo"],
+      }),
+      check("definitions", "fail", {
+        category: "Answerability",
+        pillars: ["aeo"],
+      }),
     ]),
   ];
   const findings = aggregate(pages).findings;
-  expect(findings.find((f) => f.id === "robots-ai-crawlers")!.scope).toBe("site-wide");
+  expect(findings.find((f) => f.id === "robots-ai-crawlers")!.scope).toBe(
+    "site-wide",
+  );
   expect(findings.find((f) => f.id === "definitions")!.scope).toBe("per-page");
 });
 
 test("per-finding page sample is capped but counts stay exact", () => {
   const pages = Array.from({ length: 120 }, (_, i) =>
-    scoredPage(`https://example.com/p${i}`, [check("meta-tags", "fail", { evidence: `route-${i}` })]),
+    scoredPage(`https://example.com/p${i}`, [
+      check("meta-tags", "fail", { evidence: `route-${i}` }),
+    ]),
   );
   const f = aggregate(pages).findings.find((c) => c.id === "meta-tags")!;
   expect(f.counts.fail).toBe(120); // exact
@@ -212,7 +291,9 @@ test("blocked pages are excluded from findings but still indexed", () => {
   ];
   const site = aggregate(pages);
   expect(site.pageIndex.length).toBe(2);
-  expect(site.pageIndex.find((p) => p.blocked)!.url).toBe("https://example.com/blocked");
+  expect(site.pageIndex.find((p) => p.blocked)!.url).toBe(
+    "https://example.com/blocked",
+  );
   // the blocked page contributed no checks, so meta-tags counts only the readable page.
   expect(site.findings.find((f) => f.id === "meta-tags")!.counts.fail).toBe(1);
 });

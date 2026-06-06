@@ -32,6 +32,7 @@ function Thumb({ post }: { post: Post }) {
       <div className="relative aspect-[16/9] overflow-hidden border-b border-border">
         <HalftoneImage
           src={post.thumbnail}
+          alt={post.title}
           className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]"
         />
       </div>

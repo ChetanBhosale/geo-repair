@@ -114,11 +114,9 @@ export async function createFix(req: Request, res: Response) {
     });
     return res.status(202).json(result);
   } catch (err) {
-    return res
-      .status(400)
-      .json({
-        error: err instanceof Error ? err.message : "Failed to start fix",
-      });
+    return res.status(400).json({
+      error: err instanceof Error ? err.message : "Failed to start fix",
+    });
   }
 }
 

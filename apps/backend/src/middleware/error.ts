@@ -8,7 +8,7 @@ export function errorHandler(
   err: unknown,
   _req: Request,
   res: Response,
-  _next: NextFunction
+  _next: NextFunction,
 ) {
   console.error("[error]", err);
 
@@ -17,6 +17,8 @@ export function errorHandler(
   const isProd = process.env.NODE_ENV === "production";
   res.status(500).json({
     error: "Internal server error",
-    ...(isProd ? {} : { detail: err instanceof Error ? err.message : String(err) }),
+    ...(isProd
+      ? {}
+      : { detail: err instanceof Error ? err.message : String(err) }),
   });
 }

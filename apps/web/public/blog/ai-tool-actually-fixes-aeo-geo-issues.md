@@ -1,0 +1,98 @@
+---
+title: "Free AEO audit: find GEO issues, then fix them in code | GEO Repair"
+description: "A free AEO audit can find answer engine optimization and generative engine optimization problems. A repair-grade AI tool fixes them at the source."
+source: https://geo.repair/blog/ai-tool-actually-fixes-aeo-geo-issues
+---
+
+# Free AEO audit: can AI fix GEO issues?
+
+> A free AEO audit can find answer engine optimization and generative engine optimization problems. A repair-grade AI tool fixes them at the source.
+
+**June 5, 2026** · AEO, GEO, Fixes · By GEO Repair
+
+A free AEO audit or GEO scan can find issues. An AI tool can actually fix AEO and GEO issues when the issue lives in your website code, content source, crawl files, metadata, or structured data. It cannot force ChatGPT, Perplexity, Claude, or Google AI Overviews to cite you.
+
+That distinction matters. The right promise is not "we make AI mention you." The right promise is "we remove the technical reasons your site is hard to fetch, parse, and trust."
+
+If you want the free scan first, use the [free GEO tools page](/free-geo-tools). It covers crawler access, raw HTML visibility, metadata, schema, llms.txt, sitemap coverage, and answerability in one report.
+
+## Why a free AEO audit usually only tells you what is wrong
+
+Reporting is easier than fixing. A tool can check prompts, monitor mentions, or compare competitors without touching your website. That can be useful, but it leaves you with a to-do list.
+
+Actual fixing requires more:
+
+- Access to the code or CMS source
+- A route-by-route understanding of how pages are rendered
+- Knowledge of the framework, metadata system, sitemap, and schema source
+- Safe edits that do not break the build
+- A review path, usually a pull request
+- A re-check after the fix
+
+Without that loop, the tool is an audit tool, not a repair tool.
+
+## What can an AI fixing tool repair?
+
+An AI fixing tool can handle technical and structural issues like:
+
+- Important content missing from raw HTML
+- Missing or generic title tags and meta descriptions
+- Incorrect canonical URLs
+- Missing Article, Organization, Product, FAQ, or Breadcrumb structured data where the visible page supports it
+- Stale or incomplete `sitemap.xml`
+- `robots.txt` rules that block the wrong crawlers
+- Missing `llms.txt` or Markdown twins for pages where plain-text copies help
+- Multiple `h1` tags or unclear heading order
+- FAQ sections that render visibly but do not emit matching JSON-LD
+- Answer sections that bury the direct answer too far down the page
+
+These are real website changes, not recommendations in a report.
+
+## What should stay human-reviewed?
+
+Some parts should not be invented by an AI agent:
+
+- Customer claims
+- Case studies
+- Testimonials
+- Legal or security promises
+- Pricing details
+- Medical, financial, or regulated advice
+- Comparisons that require live competitor proof
+- New content based on private business facts
+
+For those, the tool should either use approved source material or ask for input. A fixing tool that fabricates proof is worse than a tool that does nothing.
+
+## Why crawler access still matters
+
+AI search systems have their own crawler and retrieval rules. OpenAI documents `OAI-SearchBot` for ChatGPT search, Anthropic documents separate Claude bots for training, user requests, and search, and Perplexity says `PerplexityBot` follows `robots.txt`.
+
+That means crawler configuration is not a small detail. If the wrong bot is blocked, or if your CDN serves an empty shell to a non-rendering crawler, the best content on the page may never enter the system cleanly.
+
+## What a real fix flow looks like
+
+A repair-grade AI tool should produce something you can inspect:
+
+1. The failing evidence, such as missing HTML, bad metadata, or blocked crawler rules.
+2. The exact files that need changing.
+3. The code or content patch.
+4. The re-check evidence after the change.
+5. A clear note on what the fix can and cannot influence.
+
+The final output should be a pull request, not a PDF.
+
+## The honest answer
+
+If you want an AI tool that actually fixes AEO, SEO, and GEO issues, look for one that works at the website source level. Scores and dashboards are useful for monitoring. Fixes require code, content, configuration, and verification.
+
+GEO Repair is designed for that source-level path: run the free scan, connect the one repository you choose, review the pull request, and re-check the site after the changes land.
+
+## Sources
+
+- [OpenAI crawler documentation](https://developers.openai.com/api/docs/bots)
+- [Anthropic crawler documentation](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler)
+- [Perplexity robots.txt documentation](https://www.perplexity.ai/help-center/en/articles/10354969-how-does-perplexity-follow-robots-txt)
+
+---
+
+_Markdown copy of [Free AEO audit: find GEO issues, then fix them in code | GEO Repair](https://geo.repair/blog/ai-tool-actually-fixes-aeo-geo-issues), a faithful text version of the page for machines and readers. © GEO Repair._

@@ -8,7 +8,13 @@
 //
 // Tier 0 (static) only. See /RUBRIC.md (canonical checks) and /scraper.md (fetch + scoring).
 
-import { detectBlock, fetchDomainFiles, rawFetch, type FetchOptions, type RawFetch } from "./fetcher.ts";
+import {
+  detectBlock,
+  fetchDomainFiles,
+  rawFetch,
+  type FetchOptions,
+  type RawFetch,
+} from "./fetcher.ts";
 import { parsePage } from "./parser.ts";
 import { probeTwin } from "./twin.ts";
 import { runChecks } from "./checks.ts";
@@ -89,7 +95,8 @@ export interface SiteCheckupOptions extends CheckupOptions {
 
 function emptyCategories(): Record<Category, CategoryScore> {
   const out = {} as Record<Category, CategoryScore>;
-  for (const cat of CATEGORIES) out[cat] = { score: 0, earned: 0, applicable: 0 };
+  for (const cat of CATEGORIES)
+    out[cat] = { score: 0, earned: 0, applicable: 0 };
   return out;
 }
 
@@ -119,7 +126,11 @@ function normalizeUrl(input: string): URL {
   if (u.protocol !== "http:" && u.protocol !== "https:") {
     throw new Error(`Unsupported protocol: ${u.protocol}`);
   }
-  if (u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname.endsWith(".local")) {
+  if (
+    u.hostname === "localhost" ||
+    u.hostname === "127.0.0.1" ||
+    u.hostname.endsWith(".local")
+  ) {
     throw new Error("Refusing to check localhost / .local hosts.");
   }
   return u;
@@ -139,7 +150,15 @@ function inconclusiveReport(
     durationMs: Date.now() - start,
     rubricVersion: RUBRIC_VERSION,
     pageType: "generic",
-    fetch: { requestedUrl, finalUrl, status, ok: false, blocked: true, blockReason, tier: "static" },
+    fetch: {
+      requestedUrl,
+      finalUrl,
+      status,
+      ok: false,
+      blocked: true,
+      blockReason,
+      tier: "static",
+    },
     overall: 0,
     pillars: {
       seo: { score: 0, earned: 0, applicable: 0, checks: 0 },
@@ -153,7 +172,9 @@ function inconclusiveReport(
       good: [],
       bad: [],
       missing: [],
-      inconclusive: [`fetch: Could not read the page (${blockReason}). Scored as inconclusive, not a failure.`],
+      inconclusive: [
+        `fetch: Could not read the page (${blockReason}). Scored as inconclusive, not a failure.`,
+      ],
     },
   };
 }
@@ -172,7 +193,13 @@ async function scorePage(
   const block = detectBlock(raw);
   if (block || !raw.ok) {
     return {
-      report: inconclusiveReport(requestedUrl, start, raw.status, raw.finalUrl, block ?? `HTTP ${raw.status}`),
+      report: inconclusiveReport(
+        requestedUrl,
+        start,
+        raw.status,
+        raw.finalUrl,
+        block ?? `HTTP ${raw.status}`,
+      ),
       page: null,
     };
   }
@@ -181,7 +208,13 @@ async function scorePage(
   const twin = options.skipTwin ? emptyTwin() : await probeTwin(page, options);
   const pageType = classifyPage(page);
 
-  const ctx: CheckContext = { url: new URL(page.finalUrl), page, domain, twin, pageType };
+  const ctx: CheckContext = {
+    url: new URL(page.finalUrl),
+    page,
+    domain,
+    twin,
+    pageType,
+  };
   const checks = runChecks(ctx);
   const pillars = scorePillars(checks);
 
@@ -232,7 +265,13 @@ export async function checkPage(
   const raw = await rawFetch(url.toString(), options);
   if (detectBlock(raw) || !raw.ok) {
     const reason = detectBlock(raw) ?? `HTTP ${raw.status}`;
-    return inconclusiveReport(url.toString(), start, raw.status, raw.finalUrl, reason);
+    return inconclusiveReport(
+      url.toString(),
+      start,
+      raw.status,
+      raw.finalUrl,
+      reason,
+    );
   }
 
   await options.progress?.({
@@ -252,12 +291,15 @@ async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const i = cursor++;
-      results[i] = await fn(items[i]!, i);
-    }
-  });
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (cursor < items.length) {
+        const i = cursor++;
+        results[i] = await fn(items[i]!, i);
+      }
+    },
+  );
   await Promise.all(workers);
   return results;
 }
@@ -298,7 +340,13 @@ export async function checkSite(
   // If the homepage itself is unreadable, return a single inconclusive page (honest, no guessing).
   if (homepageBlocked) {
     const reason = detectBlock(homepageRaw) ?? `HTTP ${homepageRaw.status}`;
-    const report = inconclusiveReport(url.toString(), start, homepageRaw.status, homepageRaw.finalUrl, reason);
+    const report = inconclusiveReport(
+      url.toString(),
+      start,
+      homepageRaw.status,
+      homepageRaw.finalUrl,
+      reason,
+    );
     await options.progress?.({
       type: "pages_discovered",
       phase: "discovering_pages",
@@ -341,9 +389,15 @@ export async function checkSite(
     message: "Discovering representative pages.",
   });
   let sitemapUrls = domain.sitemap.urls;
-  let sitemapSource: "sitemap" | "sitemap-index" | null = domain.sitemap.ok ? "sitemap" : null;
+  let sitemapSource: "sitemap" | "sitemap-index" | null = domain.sitemap.ok
+    ? "sitemap"
+    : null;
   if (domain.sitemap.isIndex || sitemapUrls.length === 0) {
-    const expanded = await urlsFromSitemap(domain.origin, domain.sitemapUrl, options);
+    const expanded = await urlsFromSitemap(
+      domain.origin,
+      domain.sitemapUrl,
+      options,
+    );
     if (expanded) {
       sitemapUrls = expanded.urls;
       sitemapSource = expanded.source;
@@ -376,42 +430,52 @@ export async function checkSite(
     message: "Scoring selected pages.",
   });
   const homeFinal = homepageRaw.finalUrl;
-  const scored = await mapWithConcurrency(discovery.selected, concurrency, async (pageUrl) => {
-    const pageStart = Date.now();
-    await options.progress?.({
-      type: "page_started",
-      phase: "scoring_pages",
-      pageUrl,
-      message: `Scoring ${pageUrl}`,
-    });
-    const result =
-      pageUrl === homeFinal || pageUrl === url.toString()
-        ? await scorePage(pageUrl, homepageRaw, domain, pageStart, options)
-        : await scorePage(pageUrl, await rawFetch(pageUrl, options), domain, pageStart, options);
-    const failed = result.report.fetch.blocked || !result.report.fetch.ok;
-    if (failed) {
+  const scored = await mapWithConcurrency(
+    discovery.selected,
+    concurrency,
+    async (pageUrl) => {
+      const pageStart = Date.now();
       await options.progress?.({
-        type: "page_failed",
+        type: "page_started",
         phase: "scoring_pages",
         pageUrl,
-        message: `Could not read ${pageUrl}.`,
+        message: `Scoring ${pageUrl}`,
       });
-    } else {
-      const issuesFound = result.report.checks.filter(
-        (check) => check.status === "fail" || check.status === "partial"
-      ).length;
-      await options.progress?.({
-        type: "page_completed",
-        phase: "scoring_pages",
-        pageUrl,
-        score: result.report.overall,
-        checksEvaluated: result.report.checks.length,
-        issuesFound,
-        message: `Finished ${pageUrl}.`,
-      });
-    }
-    return result;
-  });
+      const result =
+        pageUrl === homeFinal || pageUrl === url.toString()
+          ? await scorePage(pageUrl, homepageRaw, domain, pageStart, options)
+          : await scorePage(
+              pageUrl,
+              await rawFetch(pageUrl, options),
+              domain,
+              pageStart,
+              options,
+            );
+      const failed = result.report.fetch.blocked || !result.report.fetch.ok;
+      if (failed) {
+        await options.progress?.({
+          type: "page_failed",
+          phase: "scoring_pages",
+          pageUrl,
+          message: `Could not read ${pageUrl}.`,
+        });
+      } else {
+        const issuesFound = result.report.checks.filter(
+          (check) => check.status === "fail" || check.status === "partial",
+        ).length;
+        await options.progress?.({
+          type: "page_completed",
+          phase: "scoring_pages",
+          pageUrl,
+          score: result.report.overall,
+          checksEvaluated: result.report.checks.length,
+          issuesFound,
+          message: `Finished ${pageUrl}.`,
+        });
+      }
+      return result;
+    },
+  );
 
   await options.progress?.({
     type: "phase",

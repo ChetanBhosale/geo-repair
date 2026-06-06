@@ -15,7 +15,12 @@ export type {
   FixSiteResult,
 } from "./shared";
 
-export { startCheckup, getCheckupStatus, getCheckupReport, getCheckupCount } from "./checkup";
+export {
+  startCheckup,
+  getCheckupStatus,
+  getCheckupReport,
+  getCheckupCount,
+} from "./checkup";
 export type { CheckupStatusResponse } from "./checkup";
 export {
   createCheckupRun,

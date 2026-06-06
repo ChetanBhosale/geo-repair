@@ -99,6 +99,7 @@ export function LandingPage({ content }: { content: LandingContent }) {
         points={LANDING_FEATURES[0].points}
         graphic={<ScoreGraphic />}
         image="/images/features/floral-silhouette.jpg"
+        imageAlt="Stylized emerald floral silhouette background texture"
       />
 
       <FeatureSection
@@ -109,6 +110,7 @@ export function LandingPage({ content }: { content: LandingContent }) {
         points={LANDING_FEATURES[1].points}
         graphic={<PrGraphic />}
         image="/images/features/foggy-scene.jpg"
+        imageAlt="Stylized smoky foggy forest landscape background texture"
       />
 
       <SocialProof />

@@ -14,7 +14,7 @@ export async function logEvent(
   fixRunId: string,
   type: string,
   phase: string | null,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown>,
 ): Promise<void> {
   const last = await prisma.runEvent.findFirst({
     where: { fixRunId },
@@ -41,7 +41,10 @@ export async function logEvent(
   });
 }
 
-export async function setState(fixRunId: string, state: FixRunState): Promise<void> {
+export async function setState(
+  fixRunId: string,
+  state: FixRunState,
+): Promise<void> {
   await prisma.fixRun.update({ where: { id: fixRunId }, data: { state } });
   await logEvent(fixRunId, "state_changed", state);
 }
@@ -49,7 +52,7 @@ export async function setState(fixRunId: string, state: FixRunState): Promise<vo
 export async function setSandbox(
   fixRunId: string,
   sandboxId: string | null,
-  sandboxStatus: SandboxStatus
+  sandboxStatus: SandboxStatus,
 ): Promise<void> {
   await prisma.fixRun.update({
     where: { id: fixRunId },
@@ -70,7 +73,7 @@ export async function setCheckStatus(
   fixRunId: string,
   rubricId: string,
   status: FixCheckStatus,
-  opts: { fixed?: boolean; note?: string } = {}
+  opts: { fixed?: boolean; note?: string } = {},
 ): Promise<void> {
   await prisma.fixCheck.update({
     where: { fixRunId_rubricId: { fixRunId, rubricId } },
@@ -87,7 +90,9 @@ export async function refreshCounters(fixRunId: string): Promise<void> {
   });
   const total = checks.length;
   const fixed = checks.filter((c) => c.fixed).length;
-  const pending = checks.filter((c) => c.status === "PENDING" || c.status === "FIXING").length;
+  const pending = checks.filter(
+    (c) => c.status === "PENDING" || c.status === "FIXING",
+  ).length;
   await prisma.fixRun.update({
     where: { id: fixRunId },
     data: { totalChecks: total, fixedChecks: fixed, pendingChecks: pending },
@@ -98,7 +103,7 @@ export async function setPr(
   fixRunId: string,
   branch: string,
   prUrl: string,
-  prNumber: number
+  prNumber: number,
 ): Promise<void> {
   await prisma.fixRun.update({
     where: { id: fixRunId },
@@ -111,7 +116,7 @@ export async function addCogs(
   fixRunId: string,
   tokensIn: number,
   tokensOut: number,
-  model: string
+  model: string,
 ): Promise<void> {
   const run = await prisma.fixRun.findUnique({
     where: { id: fixRunId },
@@ -171,15 +176,13 @@ export async function recordSandboxCogs(
     select: { createdAt: true, payload: true },
   });
   const startedAt =
-    sandboxStartEvents.find(
-      (event) => eventHasSandboxId(event, sandboxId),
-    )?.createdAt ?? run.createdAt;
+    sandboxStartEvents.find((event) => eventHasSandboxId(event, sandboxId))
+      ?.createdAt ?? run.createdAt;
   const sessionSandboxSeconds = Math.max(
     0,
     Math.ceil((Date.now() - startedAt.getTime()) / 1000),
   );
-  const nextSandboxSeconds =
-    (run.sandboxSeconds ?? 0) + sessionSandboxSeconds;
+  const nextSandboxSeconds = (run.sandboxSeconds ?? 0) + sessionSandboxSeconds;
   const nextSandboxCostCents = sandboxCostCents(nextSandboxSeconds);
 
   await prisma.fixRun.update({

@@ -20,23 +20,20 @@ const { planRun, prepareSandbox } = proxyActivities<typeof activities>({
   retry: { maximumAttempts: 3 },
 });
 
-const {
-  runPlanningAgent,
-  runHarness,
-  finalizeRun,
-  teardownSandbox,
-  failRun,
-} = proxyActivities<typeof activities>({
-  startToCloseTimeout: "45 minutes",
-  retry: { maximumAttempts: 1 },
-});
+const { runPlanningAgent, runHarness, finalizeRun, teardownSandbox, failRun } =
+  proxyActivities<typeof activities>({
+    startToCloseTimeout: "45 minutes",
+    retry: { maximumAttempts: 1 },
+  });
 
 // The fix run is a harness: prepare the sandbox, let one autonomous agent fix
 // the repo, then finalize (push + PR). The workflow never hard-fails on a fix
 // problem — runHarness and finalizeRun return outcomes as data and the sandbox
 // is always torn down. Only infra failures in planning or sandbox setup can
 // surface as workflow errors.
-export async function fixSiteWorkflow(input: FixSiteInput): Promise<FixSiteResult> {
+export async function fixSiteWorkflow(
+  input: FixSiteInput,
+): Promise<FixSiteResult> {
   let intake = input.intake;
   setHandler(submitFixIntakeSignal, (submitted) => {
     intake = submitted;
@@ -69,7 +66,11 @@ export async function fixSiteWorkflow(input: FixSiteInput): Promise<FixSiteResul
     const { sandboxId } = await prepareSandbox(runInput);
 
     try {
-      const { committed, summary } = await runHarness(runInput, sandboxId, tasks);
+      const { committed, summary } = await runHarness(
+        runInput,
+        sandboxId,
+        tasks,
+      );
       const result = await finalizeRun(runInput, sandboxId, committed, summary);
       return {
         prUrl: result.prUrl ?? "",

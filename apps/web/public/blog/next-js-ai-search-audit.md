@@ -1,0 +1,58 @@
+---
+title: "Next.js AI search audit: fix rendering and metadata | GEO Repair"
+description: "A route-by-route audit and checkup process for rendered HTML, metadata, structured data, crawl files, and content clarity in Next.js."
+source: https://geo.repair/blog/next-js-ai-search-audit
+---
+
+# Next.js AI search audit with scan report
+
+> A route-by-route audit and checkup process for rendered HTML, metadata, structured data, crawl files, and content clarity in Next.js.
+
+**May 27, 2026** · Next.js, Audit, Technical · By GEO Repair
+
+Next.js can be excellent for AI search readiness, but only when the important content is rendered in the right place. A free Next.js AI search audit, scan, or checkup report should catch when critical text is hidden behind client components, client-side fetches, and interactive states that crawlers never execute.
+
+The audit report should be route-by-route and source-of-truth driven.
+
+## What should the scan check first?
+
+Fetch the production route and inspect the raw HTML:
+
+```bash
+curl -s https://example.com/pricing | grep -i "pricing"
+```
+
+Look for the h1, primary body copy, FAQ answers, pricing facts, and unique phrases. If they are absent, inspect whether the route moved content into a client component or fetches it after hydration.
+
+## Which Next.js files matter most?
+
+Check these surfaces:
+
+- `app/layout.tsx` for metadataBase, global metadata, and providers
+- Route `page.tsx` files for server-rendered content
+- Route `metadata` or `generateMetadata` exports
+- `sitemap.ts`
+- `robots.ts`
+- Any route-specific `opengraph-image.tsx`
+- MDX or content source files
+- Client components that may contain primary copy
+
+Client components are fine for interaction. They should not be the only place where public, indexable content exists.
+
+## What metadata should each route have?
+
+Every public route should have a unique title, description, canonical URL, and social image behavior. Blog posts and resource pages should emit article-like metadata when appropriate. The metadata should match the visible content, not a generic site template.
+
+## How should you check structured data?
+
+View source or fetch the HTML and search for `application/ld+json`. Confirm the JSON-LD is valid and describes the actual route. A blog post should not use Organization schema as its only structured data. A FAQ schema should not exist if the questions are not visible.
+
+## What is the final pass?
+
+Compare three things: what the browser shows, what raw HTML contains, and what your sitemap and Markdown resources advertise. AI search readiness improves when all three tell the same story.
+
+That is the core Next.js audit report: visible content, crawlable HTML, accurate metadata, valid schema, and no accidental blocks.
+
+---
+
+_Markdown copy of [Next.js AI search audit: fix rendering and metadata | GEO Repair](https://geo.repair/blog/next-js-ai-search-audit), a faithful text version of the page for machines and readers. © GEO Repair._

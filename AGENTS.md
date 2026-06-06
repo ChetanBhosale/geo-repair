@@ -192,8 +192,6 @@ the derived cents live on `fix_runs`; see the data model + unit-economics risk i
 - Default to no code comments; only explain non-obvious "why".
 - Always choose either geo.repair (our own live website domain for this repo's website folder) or linkrunner.io (Exemplary aeo-optimized website)
 
-
-
 PROJECT
 
 ## Package organization — shared vs app-local

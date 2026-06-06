@@ -1,4 +1,3 @@
-import "server-only"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 
@@ -175,6 +174,17 @@ function freeToolsTwin(): string {
     "",
     comparison,
     "",
+    "## Core Concepts & Definitions",
+    "",
+    "- **Generative Engine Optimization (GEO)**: The structural and mathematical optimization of web layouts, metadata, and body content to align with LLM ranking and retrieval parameters.",
+    "- **Answer Engine Optimization (AEO)**: A specialized field focused on structuring and presenting direct answers to questions, facilitating easy and rapid extraction by conversational models.",
+    "",
+    "## Technical Standards & Authority Sourcing",
+    "",
+    "- [IETF RFC 9309: Robots Exclusion Protocol](https://datatracker.ietf.org/doc/html/rfc9309) (IETF Standards)",
+    "- [Sitemaps.org Protocol specifications](https://www.sitemaps.org/protocol.html) (Sitemaps.org)",
+    "- [W3C HTML Living Standard specifications](https://html.spec.whatwg.org/multipage/) (WHATWG Living Standard)",
+    "",
     "## When the audit finds a blocker, ship a fix",
     "",
     "A low score is only useful if someone can turn it into a change. GEO Repair is built for that handoff: scan, evidence, sandboxed edit, reviewable pull request, re-check.",
@@ -230,6 +240,16 @@ function pricingTwin(): string {
     "",
     PRICING_FOOTNOTE,
     "",
+    "## Core Concepts & Definitions",
+    "",
+    "- **AI Search Fix**: A targeted, sandbox-validated code change that corrects technical crawl, structured data, and rendering issues directly in your repository.",
+    "- **Autopilot**: A system that continually scans your sitemap, identifies new pages or content drift, and automates new fix pull requests.",
+    "",
+    "## Technical Standards & Authority Sourcing",
+    "",
+    "- [Google Search Central: Price & Product Schema Guides](https://developers.google.com/search/docs/appearance/structured-data/product) (Google Search Central)",
+    "- [OpenAI GPTBot Crawler Documentation](https://platform.openai.com/docs/gptbot) (OpenAI Docs)",
+    "",
     `## ${PRICING_FAQ_INTRO.title}`,
     "",
     faqMarkdown(PRICING_FAQ),
@@ -272,6 +292,16 @@ function securityTwin(): string {
     SECURITY_LIFECYCLE_INTRO.description ?? "",
     "",
     lifecycle,
+    "",
+    "## Core Concepts & Definitions",
+    "",
+    "- **Ephemeral Sandbox**: An isolated, temporary container provisioned purely for executing your fix agent run, which is completely destroyed immediately post-PR.",
+    "- **Zero Data Retention**: Our strict architectural policy where we never store, log, cache, or retain your private source code after the execution sandbox is deleted.",
+    "",
+    "## Technical Standards & Authority Sourcing",
+    "",
+    "- [OWASP Top Ten Security Risks Guidance](https://owasp.org/www-project-top-ten/) (OWASP Foundation)",
+    "- [GitHub Developer OAuth & App Security Standards](https://docs.github.com/en/apps/maintaining-github-apps/evaluating-a-github-app-security-report) (GitHub Docs)",
     "",
     `## ${SECURITY_FAQ_INTRO.title}`,
     "",
@@ -507,7 +537,7 @@ Questions about these Terms? Email hello@geo.repair or see our [Privacy Policy](
   SITE.url
 ).toString()}) and [Security](${new URL("/security", SITE.url).toString()}) pages.`
 
-// --- Public API ------------------------------------------------------------
+// --- Legal pages -----------------------------------------------------------
 
 function normalizePath(input: string): string {
   let p = input || "/"

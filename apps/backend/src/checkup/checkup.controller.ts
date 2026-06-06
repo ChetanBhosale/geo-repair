@@ -10,7 +10,10 @@ import { normalizeWebsite } from "../lib/url";
 
 // POST /api/checkups { url, singlePage? } -> { workflowId, website }
 export async function createCheckup(req: Request, res: Response) {
-  const { url, singlePage } = req.body as { url?: string; singlePage?: boolean };
+  const { url, singlePage } = req.body as {
+    url?: string;
+    singlePage?: boolean;
+  };
 
   const website = url ? normalizeWebsite(url) : null;
   if (!website) {
@@ -65,7 +68,9 @@ export async function getCheckupReportByKey(req: Request, res: Response) {
   const result = await getCheckupReport(key);
 
   if (!result) {
-    return res.status(404).json({ error: "No checkup report found for that key" });
+    return res
+      .status(404)
+      .json({ error: "No checkup report found for that key" });
   }
 
   return res.json(result);

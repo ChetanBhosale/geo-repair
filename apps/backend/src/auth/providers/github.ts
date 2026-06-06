@@ -38,7 +38,10 @@ export const githubProvider: OAuthProvider = {
   async handleCallback(code: string): Promise<NormalizedProfile> {
     const tokenRes = await fetch(GITHUB_TOKEN_URL, {
       method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         client_id: Secrets.GITHUB_CLIENT_ID,
         client_secret: Secrets.GITHUB_CLIENT_SECRET,
@@ -56,7 +59,7 @@ export const githubProvider: OAuthProvider = {
 
     if (!tokenData.access_token) {
       throw new Error(
-        `GitHub token exchange failed: ${tokenData.error_description ?? tokenData.error ?? "unknown error"}`
+        `GitHub token exchange failed: ${tokenData.error_description ?? tokenData.error ?? "unknown error"}`,
       );
     }
 
