@@ -53,6 +53,30 @@ enum PaymentProvider {
   DODO
 }
 
+
+model Plan {
+  id   String    @id @default(cuid())
+  tier OrderTier  @unique
+  name String
+
+  maxPages Int?
+
+  amountCents Int
+  currency    String  @default("USD")
+  providerProductId String?
+  details Json?
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([active])
+  @@map("plans")
+}
+
 enum WebhookProcessingStatus {
   PROCESSING
   PROCESSED
@@ -211,6 +235,8 @@ model Order {
   status                 OrderStatus          @default(PENDING)
   resolutionState        OrderResolutionState @default(OPEN)
   provider               PaymentProvider      @default(DODO)
+  planId                 String?
+  plan                   Plan?                @relation(fields: [planId], references: [id], onDelete: SetNull)
   amountCents            Int
   currency               String               @default("USD")
   sitemapPageCount       Int
@@ -246,6 +272,7 @@ model Order {
 
   @@index([userId, status])
   @@index([checkupReportId])
+  @@index([planId])
   @@index([provider, providerPaymentId])
   @@index([provider, providerSessionId])
   @@map("orders")

@@ -32,6 +32,70 @@ const orders = new Map<string, OrderRow>();
 const events = new Map<string, EventRow>();
 let nextId = 1;
 
+type PlanRow = {
+  id: string;
+  tier: string;
+  name: string;
+  maxPages: number | null;
+  amountCents: number;
+  currency: string;
+  providerProductId: string | null;
+  details: unknown;
+  sortOrder: number;
+  active: boolean;
+};
+
+const PLANS: PlanRow[] = [
+  {
+    id: "plan_starter",
+    tier: "STARTER",
+    name: "Starter",
+    maxPages: 25,
+    amountCents: 4900,
+    currency: "USD",
+    providerProductId: "prod_starter",
+    details: null,
+    sortOrder: 0,
+    active: true,
+  },
+  {
+    id: "plan_growth",
+    tier: "GROWTH",
+    name: "Growth",
+    maxPages: 100,
+    amountCents: 14900,
+    currency: "USD",
+    providerProductId: "prod_growth",
+    details: null,
+    sortOrder: 1,
+    active: true,
+  },
+  {
+    id: "plan_scale",
+    tier: "SCALE",
+    name: "Scale",
+    maxPages: 250,
+    amountCents: 39900,
+    currency: "USD",
+    providerProductId: "prod_scale",
+    details: null,
+    sortOrder: 2,
+    active: true,
+  },
+  {
+    id: "plan_enterprise",
+    tier: "ENTERPRISE_CUSTOM",
+    name: "Enterprise",
+    maxPages: null,
+    amountCents: 0,
+    currency: "USD",
+    providerProductId: null,
+    details: null,
+    sortOrder: 3,
+    active: true,
+  },
+];
+
 function resetStore() {
   orders.clear();
   events.clear();
@@ -39,6 +103,11 @@ function resetStore() {
 }
 
 const prisma = {
+  plan: {
+    async findMany(): Promise<PlanRow[]> {
+      return [...PLANS].sort((a, b) => a.sortOrder - b.sortOrder);
+    },
+  },
   order: {
     async findUnique(args: {
       where: {
@@ -151,8 +220,8 @@ mock.module("./providers/dodo", () => ({
 
 const {
   BillingError,
-  getFixTierForPageCount,
-  getFixTierForSelection,
+  getPlanForPageCount,
+  getPlanForSelection,
   processDodoWebhook,
 } = await import("./billing.service.ts");
 
@@ -160,36 +229,38 @@ beforeEach(() => {
   resetStore();
 });
 
-test("fix tier calculation matches the public price table", () => {
-  expect(getFixTierForPageCount(25)).toEqual({
+test("plan resolution matches the seeded price table", async () => {
+  expect(await getPlanForPageCount(25)).toMatchObject({
     tier: "STARTER",
     amountCents: 4900,
-    productId: "prod_starter",
+    providerProductId: "prod_starter",
   });
-  expect(getFixTierForPageCount(100)).toEqual({
+  expect(await getPlanForPageCount(100)).toMatchObject({
     tier: "GROWTH",
     amountCents: 14900,
-    productId: "prod_growth",
+    providerProductId: "prod_growth",
   });
-  expect(getFixTierForPageCount(250)).toEqual({
+  expect(await getPlanForPageCount(250)).toMatchObject({
     tier: "SCALE",
     amountCents: 39900,
-    productId: "prod_scale",
+    providerProductId: "prod_scale",
   });
-  expect(getFixTierForPageCount(251)).toEqual({
+  expect(await getPlanForPageCount(251)).toMatchObject({
     tier: "ENTERPRISE_CUSTOM",
     amountCents: 0,
   });
 });
 
-test("selected fix tier can be higher but not lower than the scan tier", () => {
-  expect(getFixTierForSelection(25, "GROWTH")).toEqual({
+test("selected plan can be higher but not lower than the scan tier", async () => {
+  expect(await getPlanForSelection(25, "GROWTH")).toMatchObject({
     tier: "GROWTH",
     amountCents: 14900,
-    productId: "prod_growth",
+    providerProductId: "prod_growth",
   });
 
-  expect(() => getFixTierForSelection(100, "STARTER")).toThrow(BillingError);
+  await expect(getPlanForSelection(100, "STARTER")).rejects.toThrow(
+    BillingError,
+  );
 });
 
 test("payment.succeeded marks the order paid and duplicate webhook ids are ignored", async () => {

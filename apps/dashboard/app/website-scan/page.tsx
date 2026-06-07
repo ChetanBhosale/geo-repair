@@ -10,7 +10,7 @@ import type { CheckupProgress } from "@/lib/api"
 import { useUser } from "@/hooks/use-auth"
 import { useAudit } from "@/hooks/use-audit"
 import { useScanQuota } from "@/hooks/use-scan-quota"
-import { useBillingHistory, useCreateFixCheckout } from "@/hooks/use-billing"
+import { useBillingHistory, useCreateFixCheckout, usePlans } from "@/hooks/use-billing"
 import { useSavedRepos, useUpdateRepoWebsite } from "@/hooks/use-repos"
 import { AuditReport } from "@/components/audit-report"
 import { FixTierCheckoutDialog } from "@/components/billing/fix-tier-checkout-dialog"
@@ -64,6 +64,7 @@ export default function WebsiteScanPage() {
   const scanQuota = useScanQuota(isSignedIn)
   const savedRepos = useSavedRepos(isSignedIn)
   const billing = useBillingHistory(isSignedIn)
+  const plans = usePlans()
   const updateWebsite = useUpdateRepoWebsite()
   const checkout = useCreateFixCheckout()
   const repositories = savedRepos.data ?? []
@@ -330,6 +331,7 @@ export default function WebsiteScanPage() {
             onOpenChange={setCheckoutDialogOpen}
             open={checkoutDialogOpen}
             pageCount={audit.result.report.crawl.pagesChecked}
+            plans={plans.data ?? []}
             pending={checkout.isPending}
           />
         </>

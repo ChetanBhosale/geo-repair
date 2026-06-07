@@ -14,6 +14,7 @@ import {
   getInvoiceForUser,
   getOrderById,
   invoiceDownloadFilename,
+  listActivePlansForApi,
   listBillingHistoryForUser,
   processDodoWebhook,
   reconcileFixCheckoutReturn,
@@ -37,6 +38,16 @@ function intBodyValue(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isInteger(value)) return value;
   if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
   return undefined;
+}
+
+// GET /api/billing/plans -> public pricing catalog for the tier picker.
+export async function listPlans(_req: Request, res: Response) {
+  try {
+    const plans = await listActivePlansForApi();
+    return res.json({ plans });
+  } catch (err) {
+    return sendBillingError(res, err);
+  }
 }
 
 export async function createFixCheckout(req: Request, res: Response) {

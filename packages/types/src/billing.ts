@@ -53,6 +53,29 @@ export interface CreateFixCheckoutResponse {
   checkoutUrl: string | null;
 }
 
+// A self-serve plan from the DB-backed catalog. Pricing/copy is data, not code.
+export interface PlanSummary {
+  id: string;
+  tier: FixTier;
+  name: string;
+  amountCents: number;
+  currency: string;
+  // Inclusive page bound this plan covers; null = unbounded (custom).
+  maxPages: number | null;
+  // Ranking for "you can't pick a lower tier" (lower = cheaper).
+  sortOrder: number;
+  // Whether this plan can be checked out directly (false = contact sales).
+  selfServe: boolean;
+  // Display copy pulled from the plan's `details` JSON.
+  pageCover: string | null;
+  description: string | null;
+  features: string[];
+}
+
+export interface ListPlansResponse {
+  plans: PlanSummary[];
+}
+
 export const ReconcileFixCheckoutRequestSchema = z.object({
   orderId: z.string(),
   paymentId: z.string(),

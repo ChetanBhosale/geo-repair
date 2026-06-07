@@ -23,6 +23,8 @@ import type {
   BillingInvoiceDetail,
   CreateFixCheckoutRequest,
   CreateFixCheckoutResponse,
+  ListPlansResponse,
+  PlanSummary,
 } from "@repo/types/billing"
 import type {
   GenerateReportsResponse,
@@ -291,6 +293,11 @@ export function revokeReportShareLink(id: string): Promise<void> {
 }
 
 // --- Billing ---
+
+export async function getPlans(): Promise<PlanSummary[]> {
+  const data = await request<ListPlansResponse>(ENDPOINTS.plans)
+  return data.plans
+}
 
 export function getBillingHistory(): Promise<BillingHistoryResponse> {
   return request<BillingHistoryResponse>(ENDPOINTS.billingHistory)

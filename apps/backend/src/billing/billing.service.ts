@@ -7,6 +7,7 @@ import type {
   BillingInvoiceDetail,
   BillingOrder,
   OrderSummary,
+  PlanSummary,
   SiteReport,
 } from "@repo/types";
 
@@ -32,20 +33,7 @@ type OrderStatus =
   | "REFUNDED"
   | "DISPUTED";
 
-type FixTierConfig = {
-  tier: FixTier;
-  amountCents: number;
-  productId?: string;
-};
-
 type GatedOrder = Prisma.OrderGetPayload<{ include: { user: true } }>;
-
-const FIX_TIER_RANK: Record<FixTier, number> = {
-  STARTER: 0,
-  GROWTH: 1,
-  SCALE: 2,
-  ENTERPRISE_CUSTOM: 3,
-};
 
 export class BillingError extends Error {
   constructor(
@@ -57,95 +45,130 @@ export class BillingError extends Error {
   }
 }
 
-export function getFixTierForPageCount(pageCount: number): FixTierConfig {
+// ─── Plans (DB-backed pricing) ───────────────────────────────────────────────
+// Pricing and tiering live in the `plans` table so prices/offers can change
+// without a deploy. Orders snapshot the chosen plan's price at purchase time,
+// so editing a plan never rewrites an already-placed order's amount.
+
+const PLAN_SELECT = {
+  id: true,
+  tier: true,
+  name: true,
+  maxPages: true,
+  amountCents: true,
+  currency: true,
+  providerProductId: true,
+  details: true,
+  sortOrder: true,
+} satisfies Prisma.PlanSelect;
+
+type PlanRow = Prisma.PlanGetPayload<{ select: typeof PLAN_SELECT }>;
+
+const NO_PLANS_MESSAGE =
+  "No active plans are configured. Seed them with `bun run add-plans`.";
+
+// All active plans, ordered cheapest-first (by sortOrder). sortOrder is the
+// single source of truth for tier ranking ("you can't pick a lower tier").
+export async function listActivePlans(): Promise<PlanRow[]> {
+  return prisma.plan.findMany({
+    where: { active: true },
+    orderBy: { sortOrder: "asc" },
+    select: PLAN_SELECT,
+  });
+}
+
+// The smallest plan whose page bound covers the count. Unbounded plans
+// (maxPages = null, e.g. enterprise) always cover, and sit last by sortOrder.
+function pickPlanForPageCount(plans: PlanRow[], pageCount: number): PlanRow {
   if (!Number.isInteger(pageCount) || pageCount < 1) {
     throw new BillingError(400, "sitemapPageCount must be a positive integer.");
   }
-
-  if (pageCount <= 25) {
-    return {
-      tier: "STARTER",
-      amountCents: 4900,
-      productId: Secrets.DODO_PRODUCT_ID_STARTER,
-    };
+  const match = plans.find(
+    (plan) => plan.maxPages === null || pageCount <= plan.maxPages,
+  );
+  if (!match) {
+    throw new BillingError(500, "No active plan covers this page count.");
   }
-
-  if (pageCount <= 100) {
-    return {
-      tier: "GROWTH",
-      amountCents: 14900,
-      productId: Secrets.DODO_PRODUCT_ID_GROWTH,
-    };
-  }
-
-  if (pageCount <= 250) {
-    return {
-      tier: "SCALE",
-      amountCents: 39900,
-      productId: Secrets.DODO_PRODUCT_ID_SCALE,
-    };
-  }
-
-  return { tier: "ENTERPRISE_CUSTOM", amountCents: 0 };
+  return match;
 }
 
-export function getFixTierByName(tier: FixTier): FixTierConfig {
-  switch (tier) {
-    case "STARTER":
-      return {
-        tier: "STARTER",
-        amountCents: 4900,
-        productId: Secrets.DODO_PRODUCT_ID_STARTER,
-      };
-    case "GROWTH":
-      return {
-        tier: "GROWTH",
-        amountCents: 14900,
-        productId: Secrets.DODO_PRODUCT_ID_GROWTH,
-      };
-    case "SCALE":
-      return {
-        tier: "SCALE",
-        amountCents: 39900,
-        productId: Secrets.DODO_PRODUCT_ID_SCALE,
-      };
-    case "ENTERPRISE_CUSTOM":
-      return { tier: "ENTERPRISE_CUSTOM", amountCents: 0 };
-  }
+// The plan a scan of this size must buy at minimum.
+export async function getPlanForPageCount(pageCount: number): Promise<PlanRow> {
+  const plans = await listActivePlans();
+  if (!plans.length) throw new BillingError(500, NO_PLANS_MESSAGE);
+  return pickPlanForPageCount(plans, pageCount);
 }
 
-export function getFixTierForSelection(
+// Resolve the plan for a checkout. A user may upgrade to a larger plan but the
+// server rejects anything below the tier the scan requires (the price/tier is
+// never trusted from the client, only the choice of an allowed upgrade).
+export async function getPlanForSelection(
   sitemapPageCount: number,
   selectedTier?: FixTier,
-): FixTierConfig {
-  const applicableTier = getFixTierForPageCount(sitemapPageCount);
-  const requestedTier = selectedTier
-    ? getFixTierByName(selectedTier)
-    : applicableTier;
+): Promise<PlanRow> {
+  const plans = await listActivePlans();
+  if (!plans.length) throw new BillingError(500, NO_PLANS_MESSAGE);
 
-  if (FIX_TIER_RANK[requestedTier.tier] < FIX_TIER_RANK[applicableTier.tier]) {
+  const applicable = pickPlanForPageCount(plans, sitemapPageCount);
+  if (!selectedTier) return applicable;
+
+  const requested = plans.find((plan) => plan.tier === selectedTier);
+  if (!requested) {
+    throw new BillingError(400, "Selected plan is not available.");
+  }
+  if (requested.sortOrder < applicable.sortOrder) {
     throw new BillingError(
       400,
       "Selected tier cannot be lower than the tier required by the scan.",
     );
   }
-
-  return requestedTier;
+  return requested;
 }
 
-function requireProductId(tier: FixTierConfig): string {
-  if (tier.tier === "ENTERPRISE_CUSTOM") {
-    throw new BillingError(400, "Custom plans require a sales conversation.");
-  }
-
-  if (!tier.productId) {
+function requirePlanProductId(plan: PlanRow): string {
+  if (!plan.providerProductId) {
     throw new BillingError(
-      500,
-      `Missing Dodo product id for ${tier.tier.toLowerCase()} tier.`,
+      400,
+      plan.tier === "ENTERPRISE_CUSTOM"
+        ? "Custom plans require a sales conversation."
+        : `Plan ${plan.tier.toLowerCase()} is missing a Dodo product id.`,
     );
   }
+  return plan.providerProductId;
+}
 
-  return tier.productId;
+function toPlanSummary(plan: PlanRow): PlanSummary {
+  const details =
+    plan.details && typeof plan.details === "object" && !Array.isArray(plan.details)
+      ? (plan.details as Record<string, unknown>)
+      : {};
+  const pageCover =
+    typeof details.page_cover === "string" ? details.page_cover : null;
+  const description =
+    typeof details.description === "string" ? details.description : null;
+  const features = Array.isArray(details.features)
+    ? details.features.filter((f): f is string => typeof f === "string")
+    : [];
+
+  return {
+    id: plan.id,
+    tier: plan.tier as FixTier,
+    name: plan.name,
+    amountCents: plan.amountCents,
+    currency: plan.currency,
+    maxPages: plan.maxPages,
+    sortOrder: plan.sortOrder,
+    selfServe: !!plan.providerProductId,
+    pageCover,
+    description,
+    features,
+  };
+}
+
+// Public pricing catalog for the dashboard's tier picker.
+export async function listActivePlansForApi(): Promise<PlanSummary[]> {
+  const plans = await listActivePlans();
+  return plans.map(toPlanSummary);
 }
 
 function checkoutReturnUrl(orderId: string): string {
@@ -499,7 +522,7 @@ export async function createFixCheckoutForSelection(input: {
   }
 
   const sitemapPageCount = pageCountForReport(report.reportData);
-  const tier = getFixTierForSelection(sitemapPageCount, input.selectedTier);
+  const plan = await getPlanForSelection(sitemapPageCount, input.selectedTier);
 
   const existing = await prisma.order.findFirst({
     where: {
@@ -507,7 +530,7 @@ export async function createFixCheckoutForSelection(input: {
       checkupReportId: report.id,
       repoFullName: repo.fullName,
       website: report.website,
-      tier: tier.tier,
+      tier: plan.tier,
       status: { in: ["PENDING", "CHECKOUT_CREATED", "PROCESSING", "PAID"] },
     },
     include: { user: true },
@@ -518,14 +541,16 @@ export async function createFixCheckoutForSelection(input: {
     return createCheckoutForGatedOrder(existing);
   }
 
-  const productId = requireProductId(tier);
+  const productId = requirePlanProductId(plan);
 
   const order = await prisma.order.create({
     data: {
       userId: input.userId,
       checkupReportId: report.id,
-      tier: tier.tier,
-      amountCents: tier.amountCents,
+      planId: plan.id,
+      tier: plan.tier,
+      amountCents: plan.amountCents,
+      currency: plan.currency,
       sitemapPageCount,
       website: report.website,
       repoFullName: repo.fullName,
@@ -758,8 +783,8 @@ export async function createDevFixtureOrder(input: {
   }
 
   const sitemapPageCount = input.sitemapPageCount ?? 25;
-  const tier = getFixTierForPageCount(sitemapPageCount);
-  const productId = requireProductId(tier);
+  const plan = await getPlanForPageCount(sitemapPageCount);
+  const productId = requirePlanProductId(plan);
   const email = input.email ?? "dev-billing@geo.repair";
 
   const user = await prisma.user.upsert({
@@ -789,8 +814,10 @@ export async function createDevFixtureOrder(input: {
     data: {
       userId: user.id,
       checkupReportId: report.id,
-      tier: tier.tier,
-      amountCents: tier.amountCents,
+      planId: plan.id,
+      tier: plan.tier,
+      amountCents: plan.amountCents,
+      currency: plan.currency,
       sitemapPageCount,
       website,
       repoFullName: input.repoFullName ?? "local/example-site",

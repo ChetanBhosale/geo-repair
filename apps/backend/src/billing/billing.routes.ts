@@ -9,10 +9,12 @@ import {
   getInvoice,
   getOrderStatus,
   handleDodoWebhook,
+  listPlans,
   reconcileCheckoutReturn,
 } from "./billing.controller";
 
 export const billingRoutes = Router();
+billingRoutes.get("/billing/plans", listPlans);
 billingRoutes.post("/billing/fix-checkout", requireAuth, createFixCheckout);
 billingRoutes.get("/billing/history", requireAuth, getBillingHistory);
 billingRoutes.get(

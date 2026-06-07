@@ -50,6 +50,7 @@ export const ENDPOINTS = {
     `${BACKEND_URL}/api/reports/share/${encodeURIComponent(token)}/download`,
 
   // Billing
+  plans: `${BACKEND_URL}/api/billing/plans`,
   fixCheckout: `${BACKEND_URL}/api/billing/fix-checkout`,
   billingHistory: `${BACKEND_URL}/api/billing/history`,
   billingInvoice: (orderId: string) =>

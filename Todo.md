@@ -11,3 +11,5 @@ Todo:
 - [x] Now that we have the scraper/website analysis logic also in place, we need to tie it in the landing page.
 
 - [ ] right now our fix agent doesnt check whether the pr has any merge issues, so we need to tell the agent to look for merge clinflicts after rasing the pr
+
+- [x] move pricing plans into the DB (`Plan` model) so prices/offers can change without a deploy. Backend resolves tier + price from DB and snapshots onto the order; frontend tier picker fetches `/api/billing/plans`; seed via `bun run add-plans`. NOTE: run the Prisma migration + `bun run add-plans` before this works at runtime.

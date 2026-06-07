@@ -6,7 +6,17 @@ import {
   createFixCheckout,
   getBillingHistory,
   getBillingInvoice,
+  getPlans,
 } from "@/lib/api"
+
+export function usePlans(enabled = true) {
+  return useQuery({
+    queryKey: ["billing-plans"],
+    queryFn: getPlans,
+    staleTime: 5 * 60 * 1000,
+    enabled,
+  })
+}
 
 export function useBillingHistory(enabled = true) {
   return useQuery({

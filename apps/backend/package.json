@@ -9,6 +9,7 @@
     "worker": "bun run src/temporal/workers/index.ts",
     "worker:dev": "bun run --watch src/temporal/workers/index.ts",
     "checkup": "bun run src/temporal/functions/checkup/cli.ts",
+    "add-plans": "bun run scripts/add-plans.ts",
     "billing:webhook:listen": "dodo wh listen",
     "billing:webhook:trigger": "dodo wh trigger",
     "check-types": "tsc --noEmit"
