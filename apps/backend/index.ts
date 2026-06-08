@@ -71,6 +71,6 @@ app.use("/api", reportRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Backend listening on port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Backend listening on port ${PORT}`);
+// });

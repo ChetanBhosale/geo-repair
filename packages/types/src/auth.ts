@@ -23,11 +23,17 @@ export const NormalizedProfileSchema = z.object({
   provider: AuthProviderSchema,
   providerAccountId: z.string(),
   email: z.string().email().nullable(),
+  // Whether the provider asserts the email is verified. Only verified emails
+  // are safe to auto-link to an existing user.
+  emailVerified: z.boolean().optional(),
   name: z.string().nullable(),
   username: z.string().nullable(),
   avatarUrl: z.string().url().nullable(),
   accessToken: z.string(),
   refreshToken: z.string().nullable().optional(),
+  accessTokenExpiresAt: z.date().nullable().optional(),
+  refreshTokenExpiresAt: z.date().nullable().optional(),
+  tokenType: z.string().nullable().optional(),
   scope: z.string().nullable().optional(),
 });
 export type NormalizedProfile = z.infer<typeof NormalizedProfileSchema>;

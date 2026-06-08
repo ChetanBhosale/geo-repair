@@ -1,0 +1,526 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Supported OAuth providers. GitHub is live; the rest are scaffolded so we can
+// add their logins later without a schema change.
+enum AuthProvider {
+  GITHUB
+  GOOGLE
+  FRAMER
+  WORDPRESS
+}
+
+enum OrderKind {
+  FIX
+}
+
+enum OrderTier {
+  STARTER
+  GROWTH
+  SCALE
+  ENTERPRISE_CUSTOM
+}
+
+enum OrderStatus {
+  PENDING
+  CHECKOUT_CREATED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+  DISPUTED
+}
+
+enum OrderResolutionState {
+  OPEN
+  SUPPORT_REQUIRED
+  REFUND_PENDING
+  REFUNDED
+  CLOSED
+}
+
+enum PaymentProvider {
+  DODO
+}
+
+
+model Plan {
+  id   String    @id @default(cuid())
+  tier OrderTier  @unique
+  name String
+
+  maxPages Int?
+
+  amountCents Int
+  currency    String  @default("USD")
+  providerProductId String?
+  details Json?
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([active])
+  @@map("plans")
+}
+
+enum WebhookProcessingStatus {
+  PROCESSING
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
+enum ProjectReportType {
+  SCAN
+  FIX_SUMMARY
+  BEFORE_AFTER
+  EXPORT
+}
+
+enum ProjectReportStatus {
+  READY
+  DRAFT
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String?
+  username  String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts     Account[]
+  orders       Order[]
+  repositories Repository[]
+  fixRuns      FixRun[]
+  reports      ProjectReport[]
+  reportShares ReportShareLink[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          AuthProvider
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  scope             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  repositories Repository[]
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model CheckupReport {
+  id                String   @id @default(cuid())
+  website           String   @unique
+  websiteType       String?
+  reportData        Json?
+  totalCheckupCount Int      @default(0)
+
+  // Request metadata (captured from the checkup request for analytics / abuse).
+  ip                String?
+  userAgent         String?
+  referer           String?
+  origin            String?
+  singlePage        Boolean  @default(false)
+
+  runs              CheckupRun[]
+  orders            Order[]
+  reports           ProjectReport[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([website])
+  @@index([websiteType])
+  @@map("checkupReports")
+}
+
+model CheckupRun {
+  id              String            @id @default(cuid())
+  workflowId      String            @unique
+  website         String
+  status          String            @default("queued")
+  phase           String            @default("queued")
+  pagesTotal      Int               @default(0)
+  pagesCompleted  Int               @default(0)
+  pagesFailed     Int               @default(0)
+  checksEvaluated Int               @default(0)
+  issuesFound     Int               @default(0)
+  currentPageUrl  String?
+  resultKey       String?
+  error           String?
+
+  report          CheckupReport?    @relation(fields: [resultKey], references: [id], onDelete: SetNull)
+  events          CheckupRunEvent[]
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([website])
+  @@index([status])
+  @@index([phase])
+  @@map("checkupRuns")
+}
+
+model CheckupRunEvent {
+  id        String     @id @default(cuid())
+  runId     String
+  run       CheckupRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sequence  Int
+  phase     String
+  type      String
+  message   String
+  pageUrl   String?
+  metadata  Json?
+  createdAt DateTime   @default(now())
+
+  @@index([runId, createdAt])
+  @@index([runId, sequence])
+  @@map("checkupRunEvents")
+}
+
+// Per-day free-scan usage counters. Anonymous visitors are bounded per IP,
+// signed-in users per user id. One row per (scope, key, calendar day); the
+// 24h report cache means a re-scan of an already-scanned site never reaches
+// here. Replaces the old global per-domain lifetime cap.
+enum ScanUsageScope {
+  IP
+  USER
+}
+
+model ScanUsage {
+  id        String         @id @default(cuid())
+  scope     ScanUsageScope
+  key       String
+  day       DateTime       @db.Date
+  count     Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([scope, key, day])
+  @@index([day])
+  @@map("scan_usage")
+}
+
+model Order {
+  id                     String               @id @default(cuid())
+  kind                   OrderKind            @default(FIX)
+  tier                   OrderTier
+  status                 OrderStatus          @default(PENDING)
+  resolutionState        OrderResolutionState @default(OPEN)
+  provider               PaymentProvider      @default(DODO)
+  planId                 String?
+  plan                   Plan?                @relation(fields: [planId], references: [id], onDelete: SetNull)
+  amountCents            Int
+  currency               String               @default("USD")
+  sitemapPageCount       Int
+  website                String
+  repoFullName           String?
+  repoConfirmed          Boolean              @default(false)
+  feasibilityPassed      Boolean              @default(false)
+  checkoutUrl            String?
+  providerProductId      String
+  providerSessionId      String?              @unique
+  providerPaymentId      String?              @unique
+  providerCustomerId     String?
+  checkupReportId        String?
+  checkupReport          CheckupReport?       @relation(fields: [checkupReportId], references: [id], onDelete: SetNull)
+  userId                 String?
+  user                   User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  paidAt                 DateTime?
+  failedAt               DateTime?
+  canceledAt             DateTime?
+  refundedAt             DateTime?
+  disputedAt             DateTime?
+
+  // Entitlement counters: a paid order grants a bounded number of fix-run
+  // attempts and post-PR agent chat messages. See @repo/types entitlements.
+  fixAttemptsUsed        Int                  @default(0)
+  chatMessagesUsed       Int                  @default(0)
+
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  webhookEvents          PaymentWebhookEvent[]
+  fixRuns                FixRun[]
+
+  @@index([userId, status])
+  @@index([checkupReportId])
+  @@index([planId])
+  @@index([provider, providerPaymentId])
+  @@index([provider, providerSessionId])
+  @@map("orders")
+}
+
+model PaymentWebhookEvent {
+  id                String                  @id @default(cuid())
+  provider          PaymentProvider         @default(DODO)
+  providerEventId   String
+  eventType         String
+  processingStatus  WebhookProcessingStatus @default(PROCESSING)
+  providerPaymentId String?
+  orderId           String?
+  order             Order?                  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  rawPayload        Json
+  error             String?
+  processedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@unique([provider, providerEventId])
+  @@index([provider, eventType])
+  @@index([providerPaymentId])
+  @@index([orderId])
+  @@map("paymentWebhookEvents")
+}
+
+// ─── Repositories (premium: the GitHub repo a user picks to fix) ─────────────
+
+model Repository {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  githubRepoId  BigInt
+  name          String
+  fullName      String
+  owner         String
+  private       Boolean  @default(false)
+  htmlUrl       String
+  cloneUrl      String
+  defaultBranch String
+  description   String?
+  language      String?
+  website       String?
+
+  // Whether this is the repo currently chosen for fixing.
+  selected      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fixRuns FixRun[]
+
+  @@unique([userId, githubRepoId])
+  @@index([userId])
+  @@index([accountId])
+  @@map("repositories")
+}
+
+// ─── Fix runs (premium: AI agent fixes failing checks → opens a PR) ──────────
+
+// Overall lifecycle of one fix run. Maps onto the Temporal workflow.
+enum FixRunState {
+  QUEUED
+  SCANNING
+  CLONING
+  WAITING_FOR_INPUT
+  FIXING
+  CHATTING
+  VERIFYING
+  PUSHING
+  PR_OPENED
+  COMPLETED
+  FAILED
+}
+
+enum SandboxStatus {
+  NONE
+  CREATING
+  RUNNING
+  KILLED
+}
+
+// Per-check status within a run.
+enum FixCheckStatus {
+  PENDING
+  FIXING
+  FIXED
+  SKIPPED
+  FLAGGED
+  FAILED
+}
+
+// One fix attempt for a (user, repo, website). The orchestration + COGS record.
+// State is kept in sync by the Temporal activities so the dashboard polls the
+// DB, not Temporal, for each run.
+model FixRun {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  // The paid order this run was started against. Drives the per-order attempt
+  // and chat-message entitlement counters.
+  orderId      String?
+  order        Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  website      String
+  intake       Json?
+
+  // Temporal handles.
+  temporalWorkflowId String  @unique
+  temporalRunId      String?
+
+  // Sandbox lifecycle (reconnect by sandboxId on retry).
+  sandboxId     String?
+  sandboxStatus SandboxStatus @default(NONE)
+
+  state  FixRunState @default(QUEUED)
+  branch String?
+  prUrl  String?
+  prNumber Int?
+  // How the PR was opened: false = same-repo push, true = via a fork. Chat
+  // follow-ups push to the same target so the existing PR updates in place.
+  prViaFork Boolean @default(false)
+
+  // Check progress counters (denormalized for cheap polling).
+  totalChecks   Int @default(0)
+  fixedChecks   Int @default(0)
+  pendingChecks Int @default(0)
+
+  // COGS / logs.
+  model          String?
+  tokensIn       Int?
+  tokensOut      Int?
+  sandboxSeconds Int?
+  imageCount     Int @default(0)
+
+  tokenCostCents   Int @default(0)
+  sandboxCostCents Int @default(0)
+  imageCostCents   Int @default(0)
+
+  error String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checks FixCheck[]
+  events RunEvent[]
+  reports ProjectReport[]
+
+  @@index([userId])
+  @@index([repositoryId])
+  @@index([orderId])
+  @@index([state])
+  @@map("fix_runs")
+}
+
+// One row per check in a run. Drives "X of Y fixed" and crash resume: on retry
+// the workflow processes only the checks still PENDING.
+model FixCheck {
+  id        String   @id @default(cuid())
+  fixRunId  String
+  fixRun    FixRun   @relation(fields: [fixRunId], references: [id], onDelete: Cascade)
+
+  rubricId      String
+  category      String
+  scope         String
+  tier          String
+  weight        Int    @default(0)
+  affectedCount Int    @default(0)
+
+  status FixCheckStatus @default(PENDING)
+  fixed  Boolean        @default(false)
+  note   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fixRunId, rubricId])
+  @@index([fixRunId])
+  @@map("fix_checks")
+}
+
+// Append-only transcript / logs for a run. The dashboard replays these.
+model RunEvent {
+  id       String   @id @default(cuid())
+  fixRunId String
+  fixRun   FixRun   @relation(fields: [fixRunId], references: [id], onDelete: Cascade)
+
+  seq     Int
+  type    String
+  phase   String?
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([fixRunId, seq])
+  @@index([fixRunId])
+  @@map("run_events")
+}
+
+// Stored client-facing artifacts. Generated from scan reports, fix runs, and
+// later re-checks so the dashboard can render, share, and download reports.
+model ProjectReport {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            ProjectReportType
+  status          ProjectReportStatus @default(READY)
+  title           String
+  summary         String
+  content         Json
+  sourceKey       String              @unique
+  website         String?
+  repoFullName    String?
+  checkupReportId String?
+  checkupReport   CheckupReport?      @relation(fields: [checkupReportId], references: [id], onDelete: SetNull)
+  fixRunId        String?
+  fixRun          FixRun?             @relation(fields: [fixRunId], references: [id], onDelete: SetNull)
+  generatedAt     DateTime            @default(now())
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  shareLinks ReportShareLink[]
+
+  @@index([userId, type])
+  @@index([checkupReportId])
+  @@index([fixRunId])
+  @@map("project_reports")
+}
+
+model ReportShareLink {
+  id        String        @id @default(cuid())
+  reportId  String
+  report    ProjectReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String        @unique
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([reportId])
+  @@index([userId])
+  @@index([token])
+  @@map("report_share_links")
+}

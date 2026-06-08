@@ -40,6 +40,15 @@ const BackendSecrets = {
   // Owner PAT — fallback git credential for local/owner testing of the fix flow.
   GITHUB_PERSONAL_ACCESS_TOKEN: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
 
+  // Google OAuth. Note: .env currently has the key as GOOGLE_ClIENT_ID (typo),
+  // so we read both spellings.
+  GOOGLE_CLIENT_ID:
+    process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_ClIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URL:
+    process.env.GOOGLE_REDIRECT_URL ||
+    "http://localhost:4000/api/auth/google/callback",
+
   // Temporal Cloud (API-key auth).
   TEMPORAL_API_KEY: process.env.TEMPORAL_API_KEY,
   TEMPORAL_ENDPOINT: process.env.TEMPORAL_ENDPOINT,

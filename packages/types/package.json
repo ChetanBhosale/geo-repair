@@ -8,6 +8,8 @@
     "./auth": "./src/auth.ts",
     "./scraper": "./src/scraper.ts",
     "./github": "./src/github.ts",
+    "./project": "./src/project.ts",
+    "./scraping": "./src/scraping.ts",
     "./fix": "./src/fix.ts",
     "./billing": "./src/billing.ts",
     "./entitlements": "./src/entitlements.ts",

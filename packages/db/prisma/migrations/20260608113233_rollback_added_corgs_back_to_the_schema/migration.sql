@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "agent_runs" ADD COLUMN     "costBudgetCents" INTEGER,
+ADD COLUMN     "providerCostUsd" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "requests" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "tokenBudget" INTEGER,
+ADD COLUMN     "totalTokens" INTEGER NOT NULL DEFAULT 0;
