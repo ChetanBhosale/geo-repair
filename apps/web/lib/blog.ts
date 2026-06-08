@@ -8,6 +8,7 @@ export type Post = {
   tags: string[]
   author: string
   draft?: boolean
+  definedTerms?: { name: string; definition: string }[]
 }
 
 export const BLOG_SEO_METADATA_UPDATED = "2026-06-05"
@@ -36,6 +37,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/florals.jpg",
     tags: ["AI Search", "Fundamentals"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "AI Search Optimization",
+        definition:
+          "AI Search Optimization is the practice of making a website easy for AI search engines like ChatGPT, Perplexity, Google AI Overviews, and Claude to read, understand, and quote accurately.",
+      },
+    ],
   },
   {
     slug: "how-ai-crawlers-read-your-site",
@@ -86,6 +94,16 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["Measurement", "AI Citations", "Reddit Questions"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "AI mention",
+        definition: "A mention means an AI answer names your brand.",
+      },
+      {
+        name: "AI citation",
+        definition: "An AI citation is a linked source.",
+      },
+    ],
   },
   {
     slug: "automated-ai-blog-publishing",
@@ -267,6 +285,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["Rendering", "AI Crawlers", "Technical"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "Server-rendered content",
+        definition:
+          "Server-rendered content is the foundation of AI search readiness because it gives crawlers the full page before JavaScript has to do any work.",
+      },
+    ],
   },
   {
     slug: "structured-data-for-ai-search",
@@ -277,6 +302,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/florals.jpg",
     tags: ["Structured Data", "JSON-LD", "Technical"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "Structured data",
+        definition:
+          "Structured data helps AI search engines understand what a page is, who published it, when it changed, and which facts belong together.",
+      },
+    ],
   },
   {
     slug: "robots-txt-ai-crawlers",
@@ -297,6 +329,18 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["llms.txt", "Markdown", "AI Search"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "llms.txt",
+        definition:
+          "llms.txt is a plain-text index that points AI systems to the pages and Markdown resources you most want them to read.",
+      },
+      {
+        name: "Markdown twin",
+        definition:
+          "A Markdown twin is a clean text version of a page served at a predictable URL, often by appending .md to the route.",
+      },
+    ],
   },
   {
     slug: "answer-first-content-ai-search",
@@ -307,6 +351,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/florals.jpg",
     tags: ["Content", "Answerability", "AI Search"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "AI Search Optimization",
+        definition:
+          "AI Search Optimization is the practice of making a website easier for AI search engines to fetch, understand, and cite accurately.",
+      },
+    ],
   },
   {
     slug: "ai-search-optimization-for-saas",
