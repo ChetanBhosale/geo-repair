@@ -63,3 +63,13 @@ export {
   type RunAgentOptions,
   type RunAgentResult,
 } from "./agent";
+export {
+  generateImage,
+  imageTool,
+  DEFAULT_OPENROUTER_IMAGE_MODEL,
+  type GenerateImageOptions,
+  type GeneratedImage,
+  type ImageAspectRatio,
+  type ImageProvider,
+  type ImageToolOptions,
+} from "./image";

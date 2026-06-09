@@ -30,6 +30,9 @@ enum ScrapingStatus {
 enum LogSource {
   SCRAPING
   AGENT
+  // Code/file-change + build/diagnostic events from the fix run. Kept out of
+  // the chat; rendered on the right-hand "code changes" panel instead.
+  AGENT_FILE
   SYSTEM
 }
 
@@ -46,6 +49,72 @@ enum LogLevel {
   ERROR
 }
 
+// Lifecycle of one fix-agent run. The agent ingests a Scraping result, plans a
+// fix per failing check, optionally asks the user to approve net-new work, then
+// applies the approved fixes in a sandbox and opens a PR.
+enum AgentRunStatus {
+  QUEUED // created, not yet picked up by the worker
+  PLANNING // sandbox up, agent analyzing checks and drafting the per-check plan
+  AWAITING_INPUT // plan sent to chat; waiting on the user's choices/answers
+  FIXING // applying approved fixes in the sandbox
+  VERIFYING // running build/typecheck after edits
+  OPENING_PR // committing + opening the pull request
+  PR_OPENED // PR is open, run done
+  COMPLETED // finished with no PR needed (nothing to fix / all skipped)
+  FAILED
+  CANCELED
+}
+
+// Ephemeral E2B sandbox state for a run.
+enum SandboxStatus {
+  NONE
+  CREATING
+  RUNNING
+  STOPPED
+  KILLED
+}
+
+// State of the pull request the run opens.
+enum PrState {
+  NONE
+  OPEN
+  MERGED
+  CLOSED
+}
+
+// How a single check's fix is being handled.
+// AUTO  = simple/safe, the agent just does it (no user input needed).
+// NEEDS_INPUT = net-new or judgment-call work; ask the user before acting.
+enum AgentPlanMode {
+  AUTO
+  NEEDS_INPUT
+}
+
+// The user's answer to a NEEDS_INPUT plan item (the YES/NO in chat).
+enum AgentPlanChoice {
+  PENDING // shown in chat, not answered yet
+  APPROVED // user said yes, go ahead
+  DECLINED // user said no, skip this check
+}
+
+// Final outcome of a check after the agent runs.
+enum AgentPlanOutcome {
+  PENDING // not executed yet
+  FIXED // repo changed to satisfy the check
+  SKIPPED_BY_USER // user declined the net-new work
+  FLAGGED_MANUAL // can't be done safely in code (e.g. CSR->SSR), user must do it
+  ALREADY_OK // nothing to change
+  FAILED // attempted but could not complete
+}
+
+// Lifecycle of the single plan a planning run produces.
+enum AgentPlanStatus {
+  DRAFTING // the agent-plan workflow is still building the per-check plan
+  AWAITING_USER // plan built + shown in chat; collecting the user's per-check answers
+  SUBMITTED // user hit Submit; the fix run can start
+  FAILED // planning failed
+}
+
 // One human = one User. `email` is the account-linking key.
 model User {
   id            String   @id @default(cuid())
@@ -60,6 +129,7 @@ model User {
   accounts     Account[]
   projects     Project[]
   scrapings    Scraping[]
+  agentRuns    AgentRun[]
   logs         Log[]
   workerStatus WorkerStatus[]
 
@@ -131,6 +201,7 @@ model Project {
   updatedAt DateTime @updatedAt
 
   scrapings    Scraping[]
+  agentRuns    AgentRun[]
   logs         Log[]
   workerStatus WorkerStatus[]
 
@@ -173,6 +244,7 @@ model Scraping {
 
   logs         Log[]
   workerStatus WorkerStatus?
+  agentRuns    AgentRun[]
 
   @@index([projectId])
   @@index([userId])
@@ -210,31 +282,183 @@ model WorkerStatus {
   @@map("worker_status")
 }
 
-// Generic append-only log. One pattern for scraping, agent, and system events.
 model Log {
-  id      String    @id @default(cuid())
+  id      String   @id @default(cuid())
   source  LogSource
-  level   LogLevel  @default(INFO)
-  // Event name, e.g. "repo_match", "page_scored", "check_failed".
+  level   LogLevel @default(INFO)
+  // Event name, e.g. "repo_match", "page_scored", "plan_proposed", "fix_applied".
   event   String
   message String?
-  // Structured payload (check result, evidence, etc.).
+  // Structured payload (check result, evidence, plan snapshot, etc.).
   data    Json?
-  // Ordering within a run.
-  seq     Int       @default(0)
+  // Ordering within a run (scraping or agent).
+  seq     Int      @default(0)
 
-  // Optional links. A log belongs to a scraping now, an agent run later.
+  // Optional links. A log belongs to a scraping or an agent run.
   projectId  String?
   project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scrapingId String?
   scraping   Scraping? @relation(fields: [scrapingId], references: [id], onDelete: Cascade)
+  // The agent run this chat message belongs to.
+  agentRunId String?
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  // Set on exactly ONE log per run: the "plan_proposed" chat card that carries
+  // the whole plan (all checks). The frontend renders this row as the
+  // interactive plan the user answers and submits.
+  agentPlanId String?
+  agentPlan   AgentPlan? @relation(fields: [agentPlanId], references: [id], onDelete: SetNull)
   userId     String?
   user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([scrapingId, seq])
+  @@index([agentRunId, seq])
+  @@index([agentPlanId])
   @@index([projectId])
   @@index([source, event])
   @@map("logs")
+}
+
+
+model AgentRun {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The scan whose findings this run fixes. SetNull so a deleted scan doesn't
+  // wipe the run history.
+  scrapingId String?
+  scraping   Scraping? @relation(fields: [scrapingId], references: [id], onDelete: SetNull)
+
+  status AgentRunStatus @default(QUEUED)
+
+  sandboxId     String?
+  sandboxStatus SandboxStatus @default(NONE)
+
+  branch     String?
+  prUrl      String?
+  prNumber   Int?
+  prState    PrState   @default(NONE)
+  prOpenedAt DateTime?
+  prMergedAt DateTime?
+  prClosedAt DateTime?
+
+  temporalWorkflowId String? @unique
+
+  scoreBefore Int?
+  scoreAfter  Int?
+  rubricVersion String?
+
+  totalChecks   Int @default(0)
+  fixedChecks   Int @default(0)
+  skippedChecks Int @default(0)
+  pendingChecks Int @default(0)
+
+  model            String?
+  tokensIn         Int @default(0)
+  tokensOut        Int @default(0)
+  tokenCostCents   Int @default(0)
+  sandboxSeconds   Int @default(0)
+  sandboxCostCents Int @default(0)
+
+  error String?
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  plan AgentPlan?
+  logs Log[]
+
+  @@index([projectId])
+  @@index([userId, status])
+  @@index([scrapingId])
+  @@map("agent_runs")
+}
+
+
+// The SINGLE plan a planning run produces for an AgentRun (1:1). It holds one
+// AgentPlanCheck per rubric check. Exactly one Log row (event "plan_proposed")
+// points at this plan via agentPlanId - that row is the interactive plan card
+// the user answers check-by-check, then submits to start the fix run.
+model AgentPlan {
+  id         String   @id @default(cuid())
+  agentRunId String   @unique
+  agentRun   AgentRun @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+
+  status  AgentPlanStatus @default(DRAFTING)
+  // First-person summary of the stack found and the overall fix strategy.
+  summary String?
+  // Checks that cannot be fixed in code (no plan action): [{ rubricId, reason }].
+  manual  Json?
+
+  // Scan snapshot this plan was built from (same rubric_version for an honest
+  // before/after delta).
+  scoreBefore   Int?
+  rubricVersion String?
+
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  checks AgentPlanCheck[]
+  logs   Log[]
+
+  @@map("agent_plans")
+}
+
+// The plan for ONE rubric check, nested under the single AgentPlan. Carries the
+// scan context, what the agent intends to do, which pages it will touch to take
+// the check to 100%, whether it needs the user to approve net-new work (and the
+// options shown in the plan card), the user's answer, and the final outcome.
+model AgentPlanCheck {
+  id          String    @id @default(cuid())
+  agentPlanId String
+  agentPlan   AgentPlan @relation(fields: [agentPlanId], references: [id], onDelete: Cascade)
+
+  // Check identity, mirrored from the rubric/scan (keep rubricId == check name).
+  rubricId String // e.g. "answerability", "structured-data"
+  category String
+  tier     String // A | B | C | out-of-scope
+  weight   Int    @default(0)
+
+  // Scan context for this check (from Scraping.result.checks[]).
+  scanStatus     String? // SUCCESS | MID | FAILED | NOT_APPLICABLE | INCONCLUSIVE
+  fixableByAgent String? // "true" | "false" | "partial"
+  evidence       String?
+  recommendation String?
+
+  // The agent's plan for this check.
+  mode     AgentPlanMode @default(AUTO)
+  approach String? // plain-language description of what the agent will do
+  // Pages this check will update to reach a full pass.
+  // Shape: [{ url, action: "modify"|"create"|"delete", reason }]
+  targetPages Json?
+
+  // Interactive ask (only when mode = NEEDS_INPUT). `question` is the prompt;
+  // `options` are the selectable choices. Shape: [{ id, label, description? }]
+  question String?
+  options  Json?
+
+  // The user's response, collected in the plan card.
+  choice         AgentPlanChoice @default(PENDING)
+  selectedOption String? // option id the user picked, if any
+  userSuggestion String? // free-text guidance the user typed
+
+  // Execution result (filled by the fix run, not the planning run).
+  outcome AgentPlanOutcome @default(PENDING)
+  reason  String? // why skipped/flagged/failed, or a short fixed summary
+
+  // Ordering within the plan card.
+  seq Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentPlanId, rubricId])
+  @@index([agentPlanId, seq])
+  @@map("agent_plan_checks")
 }

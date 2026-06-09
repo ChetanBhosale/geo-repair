@@ -62,6 +62,15 @@ const BackendSecrets = {
   E2B_SANDBOX_API_KEY: process.env.E2B_SANDBOX_API_KEY,
   E2B_SANDBOX_ID: process.env.E2B_SANDBOX_ID,
 
+  // Google Vertex AI (Imagen image generation). Auth is via a service account:
+  // either GOOGLE_APPLICATION_CREDENTIALS (path to key file, picked up by ADC)
+  // or GOOGLE_VERTEX_CREDENTIALS (the key JSON inline as a string).
+  GOOGLE_VERTEX_PROJECT: process.env.GOOGLE_VERTEX_PROJECT,
+  GOOGLE_VERTEX_LOCATION: process.env.GOOGLE_VERTEX_LOCATION || "us-central1",
+  GOOGLE_VERTEX_IMAGE_MODEL:
+    process.env.GOOGLE_VERTEX_IMAGE_MODEL || "imagen-3.0-generate-002",
+  GOOGLE_VERTEX_CREDENTIALS: process.env.GOOGLE_VERTEX_CREDENTIALS,
+
   // Internal run COGS estimates. Values are cents, not dollars.
   COGS_LLM_INPUT_CENTS_PER_MILLION_TOKENS:
     process.env.COGS_LLM_INPUT_CENTS_PER_MILLION_TOKENS,

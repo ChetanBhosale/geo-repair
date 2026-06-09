@@ -11,7 +11,7 @@ export {
 export { sandboxTools, type SandboxTool, type SandboxToolsOptions } from "./tools";
 
 // Default per-run lifetime. E2B kills the sandbox after this unless extended.
-const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
 
 function apiKey(): string {
   if (!Secrets.E2B_SANDBOX_API_KEY) {

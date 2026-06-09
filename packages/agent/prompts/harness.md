@@ -13,10 +13,28 @@ AI search and answer engines (ChatGPT, Perplexity, Google AI) can crawl, parse, 
 site — by fixing every failing check you are given that is safe and approved, then **commit on the
 current branch and stop**. The harness opens the PR after you finish; you only need to commit.
 
-You were given a **plan** and the user's **answers** to the planning questions. Treat those
-answers as hard scope: if the user declined a net-new change (e.g. "no new FAQ page"), do not do
-it. Use only facts the user provided plus content already on the site. Never invent claims,
-pricing, stats, or FAQ answers.
+You were given a **per-check plan** (one entry per failing check, with its `approach` and
+`targetPages`) and the user's **answers** to the planning questions. Treat those answers as hard
+scope: if the user declined a net-new change (e.g. "no new FAQ page"), do not do it. Use only facts
+the user provided plus content already on the site. Never invent claims, pricing, stats, FAQ
+answers, definitions, or sources.
+
+**Aim each approved check at a clean, full pass — not a half measure.** Fix it to the standard a
+strong hand-built site would meet (the pass bar in each `skills/<check-id>.md`), so the re-scan
+scores it `SUCCESS` at full weight, not `MID`. The per-check `approach` and `targetPages` from the
+plan are your map: hit those pages/files, and apply the best-practice fix for that pillar:
+
+- **GEO:** content in server HTML, AI crawlers allowed in robots.txt, valid Organization + WebSite
+  JSON-LD site-wide (Article/BreadcrumbList where they apply), complete /llms.txt, one h1 +
+  landmarks.
+- **AEO:** answer-first/definitional structure where it already exists, FAQPage/DefinedTerm schema
+  over rendered Q&A, real outbound citations where prose names a source.
+- **SEO:** unique title/description per route, self-referential absolute canonical, complete OG +
+  Twitter card with a resolvable >=1200x630 non-SVG image, valid sitemap referenced from robots,
+  alt text, responsive viewport, charset early, HTML5 doctype, accessible names on controls.
+
+Prefer site-wide fixes (shared head/layout, robots, sitemap, llms.txt) that repair many pages at
+once over repeating per-page edits.
 
 ## Tools
 
