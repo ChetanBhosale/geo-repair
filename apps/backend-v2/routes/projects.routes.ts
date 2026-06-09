@@ -7,6 +7,7 @@ import {
   deleteProjectById,
 } from "../controllers/project.controller";
 import { postScan, getProjectScraping, getProjectScrapings } from "../controllers/scraping.controller";
+import { postAgentPlan, getProjectAgentRuns } from "../controllers/agent-plan.controller"
 
 const router = Router();
 
@@ -17,5 +18,7 @@ router.delete("/:id", requireAuth, deleteProjectById);
 router.post("/:id/scan", requireAuth, postScan);
 router.get("/:id/scraping", requireAuth, getProjectScraping);
 router.get("/:id/scrapings", requireAuth, getProjectScrapings);
+router.post("/:id/agent-plan", requireAuth, postAgentPlan);
+router.get("/:id/agent-runs", requireAuth, getProjectAgentRuns);
 
 export default router;

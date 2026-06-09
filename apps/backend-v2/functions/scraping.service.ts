@@ -8,6 +8,7 @@ import type {
 } from "@repo/types/scraping";
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
+// import { checkWorkerRunning } from "../lib/worker-health";
 import type { ScrapeWorkflowInput } from "../temporal/worker/scraper/workflow-types";
 
 export class ScrapingError extends Error {
@@ -58,6 +59,15 @@ export async function startScan(
     where: { id: projectId, userId },
   });
   if (!project) throw new ScrapingError(404, "Project not found.");
+
+  // NOTE: worker-liveness gate disabled - describeTaskQueue check was not
+  // behaving as expected. Re-enable once fixed.
+  // if (!(await checkWorkerRunning(TASK_QUEUES.scraping))) {
+  //   throw new ScrapingError(
+  //     503,
+  //     "The scan worker is offline right now. Please try again shortly.",
+  //   );
+  // }
 
   const scraping = await prisma.scraping.create({
     data: {

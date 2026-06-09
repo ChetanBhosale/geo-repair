@@ -11,6 +11,7 @@ import authRoutes from "./routes/auth.routes";
 import githubRoutes from "./routes/github.routes";
 import projectRoutes from "./routes/projects.routes";
 import scrapingRoutes from "./routes/scrapings.routes";
+import agentRunRoutes from "./routes/agent-runs.routes";
 import workerStatusRoutes from "./routes/worker-status.routes";
 
 const app = express();
@@ -39,6 +40,7 @@ app.use("/api/auth", authRateLimiter, authRoutes);
 app.use("/api/github", githubRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/scrapings", scrapingRoutes);
+app.use("/api/agent-runs", agentRunRoutes);
 app.use("/api/worker-status", workerStatusRoutes);
 
 app.use(notFoundHandler);

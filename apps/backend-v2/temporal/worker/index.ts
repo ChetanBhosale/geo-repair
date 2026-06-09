@@ -1,9 +1,11 @@
 // Runs every Temporal worker in one process. Start with `bun run worker`.
 // Add new workers to the Promise.all as services are built.
 import { runScraperWorker } from "./scraper/worker";
+import { runAgentPlanWorker } from "./agent-plan/worker";
+import { runAgentFixWorker } from "./agent-fix/worker";
 
 async function main() {
-  await Promise.all([runScraperWorker()]);
+  await Promise.all([runScraperWorker(), runAgentPlanWorker(), runAgentFixWorker()]);
 }
 
 main().catch((err) => {
