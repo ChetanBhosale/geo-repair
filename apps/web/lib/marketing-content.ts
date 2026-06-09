@@ -269,10 +269,4 @@ export const CONTACT_CHANNELS: ContactChannel[] = [
     href: `mailto:${SECURITY_EMAIL}`,
     body: "Report a vulnerability or ask about our sandbox, access scope, and data handling.",
   },
-  {
-    label: "GitHub",
-    value: "github.com/geo-repair",
-    href: "https://github.com/geo-repair",
-    body: "Issues and discussion for the open parts of the project.",
-  },
 ]

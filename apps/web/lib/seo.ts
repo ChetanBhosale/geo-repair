@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { SOCIAL_LINKS } from "./navigation"
 import { hasMarkdownTwin, markdownTwinPath } from "./twin-paths"
 
 export const SITE = {
@@ -8,7 +9,7 @@ export const SITE = {
   url: "https://geo.repair",
   description:
     "GEO Repair runs a free AI search audit and checkup report for ChatGPT, Perplexity, and Google AI Overviews, then ships a pull request that fixes it.",
-  twitter: "@georepair",
+  twitter: "@GeoRepair",
 } as const
 
 // Stable, statically-served route from app/opengraph-image.tsx. Referenced
@@ -62,6 +63,8 @@ export function buildMetadata({
     },
     twitter: {
       card: "summary_large_image",
+      site: SITE.twitter,
+      creator: SITE.twitter,
       title: fullTitle,
       description,
       ...(image ? { images: [image] } : {}),
@@ -78,6 +81,7 @@ export function organizationJsonLd() {
     url: SITE.url,
     logo: new URL("/icon-512.png", SITE.url).toString(),
     description: SITE.description,
+    sameAs: SOCIAL_LINKS.map((social) => social.href),
   }
 }
 

@@ -8,6 +8,7 @@ export type Post = {
   tags: string[]
   author: string
   draft?: boolean
+  definedTerms?: { name: string; definition: string }[]
 }
 
 export const BLOG_SEO_METADATA_UPDATED = "2026-06-05"
@@ -17,6 +18,16 @@ export const BLOG_SEO_METADATA_UPDATED = "2026-06-05"
 // metadata out of MDX frontmatter avoids runtime parsing and keeps the
 // listing + sitemap cheap to build.
 const POSTS: Post[] = [
+  {
+    slug: "ai-search-readiness-self-audit",
+    title: "The 7-minute AI-search readiness self-audit",
+    description:
+      "Seven checks you can run by hand, in a terminal and a browser, to see whether ChatGPT, Perplexity, and Google AI can fetch, parse, and trust your pages.",
+    date: "2026-06-09",
+    thumbnail: "/images/blog/aeo-seo-geo-tool.jpg",
+    tags: ["AI Search", "Audit", "Technical"],
+    author: "GEO Repair",
+  },
   {
     slug: "free-geo-tools-2026",
     title: "Free GEO tools in 2026: what to use before you pay",
@@ -36,6 +47,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/florals.jpg",
     tags: ["AI Search", "Fundamentals"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "AI Search Optimization",
+        definition:
+          "AI Search Optimization is the practice of making a website easy for AI search engines like ChatGPT, Perplexity, Google AI Overviews, and Claude to read, understand, and quote accurately.",
+      },
+    ],
   },
   {
     slug: "how-ai-crawlers-read-your-site",
@@ -86,6 +104,16 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["Measurement", "AI Citations", "Reddit Questions"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "AI mention",
+        definition: "A mention means an AI answer names your brand.",
+      },
+      {
+        name: "AI citation",
+        definition: "An AI citation is a linked source.",
+      },
+    ],
   },
   {
     slug: "automated-ai-blog-publishing",
@@ -267,6 +295,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["Rendering", "AI Crawlers", "Technical"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "Server-rendered content",
+        definition:
+          "Server-rendered content is the foundation of AI search readiness because it gives crawlers the full page before JavaScript has to do any work.",
+      },
+    ],
   },
   {
     slug: "structured-data-for-ai-search",
@@ -277,6 +312,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/florals.jpg",
     tags: ["Structured Data", "JSON-LD", "Technical"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "Structured data",
+        definition:
+          "Structured data helps AI search engines understand what a page is, who published it, when it changed, and which facts belong together.",
+      },
+    ],
   },
   {
     slug: "robots-txt-ai-crawlers",
@@ -297,6 +339,18 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/sunset-grass.jpg",
     tags: ["llms.txt", "Markdown", "AI Search"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "llms.txt",
+        definition:
+          "llms.txt is a plain-text index that points AI systems to the pages and Markdown resources you most want them to read.",
+      },
+      {
+        name: "Markdown twin",
+        definition:
+          "A Markdown twin is a clean text version of a page served at a predictable URL, often by appending .md to the route.",
+      },
+    ],
   },
   {
     slug: "answer-first-content-ai-search",
@@ -307,6 +361,13 @@ const POSTS: Post[] = [
     thumbnail: "/images/blog/florals.jpg",
     tags: ["Content", "Answerability", "AI Search"],
     author: "GEO Repair",
+    definedTerms: [
+      {
+        name: "AI Search Optimization",
+        definition:
+          "AI Search Optimization is the practice of making a website easier for AI search engines to fetch, understand, and cite accurately.",
+      },
+    ],
   },
   {
     slug: "ai-search-optimization-for-saas",
@@ -351,6 +412,8 @@ const POSTS: Post[] = [
 ]
 
 const SEO_TITLES_BY_SLUG: Record<string, string> = {
+  "ai-search-readiness-self-audit":
+    "AI-search readiness self-audit: 7 manual checks | GEO Repair",
   "free-geo-tools-2026":
     "Free GEO tools in 2026: choose audits before paid platforms | GEO Repair",
   "what-is-ai-search-optimization":
