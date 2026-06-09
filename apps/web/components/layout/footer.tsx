@@ -1,7 +1,8 @@
 import Link from "next/link"
+import { LinkedinLogoIcon, XLogoIcon } from "@phosphor-icons/react/ssr"
 
 import { SITE } from "@/lib/seo"
-import { FOOTER_SECTIONS } from "@/lib/navigation"
+import { FOOTER_SECTIONS, SOCIAL_LINKS } from "@/lib/navigation"
 import { Logo } from "./logo"
 
 const TRUST_LINE = [
@@ -9,6 +10,12 @@ const TRUST_LINE = [
   "Only the one repo you pick",
   "Zero data retention, no model training",
 ]
+
+// Icons stay colocated with the component; the URLs live in lib/navigation.ts.
+const SOCIAL_ICONS = {
+  LinkedIn: LinkedinLogoIcon,
+  X: XLogoIcon,
+} as const
 
 export function Footer() {
   return (
@@ -22,6 +29,24 @@ export function Footer() {
               ChatGPT, Perplexity, and Google AI, then ships a pull request that
               fixes it.
             </p>
+            <ul className="mt-1 flex items-center gap-3">
+              {SOCIAL_LINKS.map((social) => {
+                const Icon = SOCIAL_ICONS[social.label]
+                return (
+                  <li key={social.href}>
+                    <Link
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`GEO Repair on ${social.label}`}
+                      className="inline-flex text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <Icon className="size-5" aria-hidden />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
 
           {FOOTER_SECTIONS.map((section) => (

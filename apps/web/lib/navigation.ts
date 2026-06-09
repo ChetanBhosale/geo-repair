@@ -33,3 +33,10 @@ export const FOOTER_SECTIONS = [
     ],
   },
 ] as const
+
+// Single source of truth for our profiles: rendered as icon links in the footer
+// and emitted as the Organization `sameAs` array in the JSON-LD (see lib/seo.ts).
+export const SOCIAL_LINKS = [
+  { label: "LinkedIn", href: "https://www.linkedin.com/company/geo-repair" },
+  { label: "X", href: "https://x.com/GeoRepair" },
+] as const
