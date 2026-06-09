@@ -19,6 +19,16 @@ export const BLOG_SEO_METADATA_UPDATED = "2026-06-05"
 // listing + sitemap cheap to build.
 const POSTS: Post[] = [
   {
+    slug: "ai-search-readiness-self-audit",
+    title: "The 7-minute AI-search readiness self-audit",
+    description:
+      "Seven checks you can run by hand, in a terminal and a browser, to see whether ChatGPT, Perplexity, and Google AI can fetch, parse, and trust your pages.",
+    date: "2026-06-09",
+    thumbnail: "/images/blog/aeo-seo-geo-tool.jpg",
+    tags: ["AI Search", "Audit", "Technical"],
+    author: "GEO Repair",
+  },
+  {
     slug: "free-geo-tools-2026",
     title: "Free GEO tools in 2026: what to use before you pay",
     description:
@@ -402,6 +412,8 @@ const POSTS: Post[] = [
 ]
 
 const SEO_TITLES_BY_SLUG: Record<string, string> = {
+  "ai-search-readiness-self-audit":
+    "AI-search readiness self-audit: 7 manual checks | GEO Repair",
   "free-geo-tools-2026":
     "Free GEO tools in 2026: choose audits before paid platforms | GEO Repair",
   "what-is-ai-search-optimization":
