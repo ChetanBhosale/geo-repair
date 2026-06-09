@@ -114,3 +114,38 @@ Done (frontend):
 - Composer PR-merged state: when `prMerged` is true the chat box is disabled with "This run is complete. The PR has been merged." placeholder, a "PR merged" label (filled GitPullRequest icon), and a disabled green-tinted "PR merged" send button (filled CheckCircle). Zero-budget is a separate muted box. Chat markdown rendering via `<Markdown>` (react-markdown + remark-gfm).
 
 Migration still pending (owner): agent tables + `USER` log source + `CHATTING` status + `prMerged`/`chatMessagesLeft` columns.
+
+## AEO delivery checks (dualmark-aligned) — rubric + scraper + agent
+
+Motivated by dualmark (dodopayments/dualmark): its `verify` scores ONE thing deeply — markdown-twin
+delivery over HTTP content negotiation + a header contract — which our old single `markdown-twins`
+check (a regex for a `<link rel=alternate>` tag) barely touched. Deepened that axis while keeping our
+24-check breadth.
+
+Done:
+- RUBRIC.md: replaced check #23 `markdown-twins` with three checks — `markdown-twin` (Content, B,
+  medium), `content-negotiation` (Crawl surface, A, medium, #25), `ai-delivery-headers` (Crawl
+  surface, A, low, #26). Kept within existing categories (no new category, no frontend change).
+- `check-intent.ts`: same three entries, IDs/tiers/weights identical to RUBRIC.md.
+- Scraper probe (`fetcher.ts`): `rawFetch` now takes `{ headers }`; new `twinUrlFor()` + `probeTwin()`
+  fetch `<path>.md` and re-request the HTML URL with `Accept: text/markdown` and a GPTBot UA (3 cheap
+  parallel requests/page). Returns twin reachability/content-type/headers + negotiation results +
+  HTML `Link` alternate header. Wired into `run.ts scorePage` -> `CheckContext.twin`.
+- Evaluators (`activities.ts`): `markdown-twin` (200 + text/markdown + non-empty), `content-negotiation`
+  (Accept + bot-UA both serve markdown), `ai-delivery-headers` (X-Robots-Tag noindex, Vary: Accept,
+  X-Markdown-Tokens on twin + Link rel=alternate header on HTML). SUCCESS/MID/FAILED like every check.
+- Agent fix: skills replaced (markdown-twin.md, content-negotiation.md, ai-delivery-headers.md; deleted
+  markdown-twins.md — skills.test still 1:1 with rubric). Fix system prompt (agent-fix), planner.md, and
+  the inline planner AUTO rule (planner.ts) now plan/fix these as AUTO, **hand-written framework-idiomatic
+  code (route/handler + middleware + headers), never adding a third-party dep (@dualmark/*) to the user repo**.
+- Verified: backend-v2 check-types clean; agent skills test passes; live smoke — dualmark.dev scores
+  twin PASS / negotiation PASS / headers MID(3/4); linkrunner.io scores twin PASS / negotiation FAILED /
+  headers PASS (accurate, discriminating per layer).
+
+Notes:
+- Scoring is now stricter: most sites FAIL the 3 delivery checks (no twins), which is intended (matches
+  dualmark's stance) and gives the agent concrete fix targets.
+- apps/web demo-data.ts still shows the old `markdown-twins` id (marketing illustration only, not the
+  checker) — update if we want the demo to mirror the new IDs.
+- Follow-up (separate): make geo.repair (apps/web) pass these — it serves static .md files with no
+  negotiation/header contract today.

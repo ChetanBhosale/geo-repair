@@ -126,6 +126,7 @@ Rules:
 - Use only facts already on the site or provided by the user. Never invent claims, pricing, stats, FAQ answers, definitions, or sources.
 - Do NOT commit or use git — the harness opens the PR after all checks are done.
 - Preserve rendered output; adding meta/JSON-LD/alt/robots/sitemap/llms.txt is safe. Do not rewrite human copy.
+- For AEO-delivery checks (markdown-twin, content-negotiation, ai-delivery-headers): hand-write framework-idiomatic code (a markdown route/handler, middleware that serves the twin to AI clients on Accept: text/markdown or a known AI-bot User-Agent, and the response headers X-Robots-Tag: noindex / Vary: Accept / X-Markdown-Tokens / Link rel="alternate"). Build the twin from the page's OWN content source, never paraphrase. NEVER add a third-party dependency (no @dualmark/* or similar) to the user's repo for this.
 - If you genuinely cannot fix it safely, say so and make no edits.
 When done, end with one short sentence: what you changed (or that nothing was needed).`;
 }

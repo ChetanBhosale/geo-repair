@@ -77,8 +77,10 @@ measured and scored but only flagged, never auto-edited.
 | 20 | `favicon` | Metadata | Low | A | true (wire existing asset) / flag if none |
 | 21 | `hreflang` | Metadata | Low | A | partial (only when locales exist) |
 | 22 | `social-image-size` | Metadata | Low | A | true |
-| 23 | `markdown-twins` | Content | Low | B | true |
+| 23 | `markdown-twin` | Content | Medium | B | true |
 | 24 | `mobile-viewport` | Rendering | Low | A | true |
+| 25 | `content-negotiation` | Crawl surface | Medium | A | true |
+| 26 | `ai-delivery-headers` | Crawl surface | Low | A | true |
 
 > `mobile-viewport` checks only the static `<meta name="viewport">` tag (present, responsive,
 > zoom not disabled) — a deterministic, agent-safe markup fix. It is distinct from
@@ -169,18 +171,30 @@ measured and scored but only flagged, never auto-edited.
     unfurl), and declared `og:image:width` / `og:image:height` (+ `og:image:type`). Extends
     `open-graph` (#4): it **validates / annotates the already-wired image**, it does **not** select,
     resize, or generate one — wired image too small / heavy / wrong-format with no better asset → flag.
-23. **`markdown-twins`** — Does each primary page expose a clean **Markdown "twin"** — the same
-    rendered content served as `text/markdown` at a predictable URL (`<path>.md`), linked from the
-    HTML via `<link rel="alternate" type="text/markdown">` and indexed in `/llms.txt`? AI crawlers and
+23. **`markdown-twin`** — Does each primary page expose a clean **Markdown "twin"** — the same
+    rendered content served as `text/markdown` at a predictable URL (`<path>.md`)? AI crawlers and
     answer engines parse Markdown far more reliably than a JS-heavy DOM, so a faithful twin is the
     cleanest possible "machine-eye view" of a page. **The only Tier B check** (derived content): the
     twin is a *faithful reformat of the page's existing rendered content* — same headings, prose, FAQ,
-    and lists, **no new claims, no invented copy** (that would be Tier C). `pass` = twin present,
-    reachable (200, correct content-type), discoverable (alternate link + llms.txt entry), and faithful;
-    `partial` = twin exists but isn't linked/indexed, or covers only some primary pages; `fail` = none.
-    Auto-fix = generate twins from the page's own content source (Markdown/MDX raw, or the structured
-    content the page renders from) and wire discovery; **never** paraphrase or add material the page
-    doesn't already say. Pairs with `llms-txt` (#8) — llms.txt is the *index*, the twins are the *pages*.
+    and lists, **no new claims, no invented copy** (that would be Tier C). Scored at the HTTP layer
+    (we fetch `<path>.md`): `pass` = twin reachable (200), `Content-Type: text/markdown; charset=utf-8`,
+    non-empty body; `partial` = reachable but wrong content-type or empty; `fail` = no twin. Auto-fix =
+    generate twins from the page's own content source (Markdown/MDX raw, or the structured content the
+    page renders from); **never** paraphrase or add material the page doesn't already say. Pairs with
+    `content-negotiation` (#25), `ai-delivery-headers` (#26), and `llms-txt` (#8 — the index).
+25. **`content-negotiation`** — Does the site serve the Markdown twin via **HTTP content negotiation**,
+    not just at the `.md` URL? We re-request the HTML URL with `Accept: text/markdown` and with a known
+    AI-bot `User-Agent` (GPTBot, ClaudeBot, PerplexityBot, ...) and check it returns markdown rather than
+    the JS-heavy HTML. `pass` = both Accept-header and bot-UA negotiation return markdown; `partial` =
+    only one path does; `fail` = the HTML URL never returns markdown to AI clients. Auto-fix = add
+    middleware/an edge handler that detects the markdown preference or AI-bot UA and serves the twin.
+    Hand-written, framework-idiomatic — **never** add a third-party dependency to the user's repo.
+26. **`ai-delivery-headers`** — The AEO delivery **header contract** that makes twins safe and cacheable:
+    the markdown twin response sets `X-Robots-Tag: noindex` (no duplicate-content indexing), `Vary: Accept`
+    (correct caching across representations), and `X-Markdown-Tokens` (a positive integer, context-budget
+    hint); the HTML response advertises the twin via a `Link: <…>; rel="alternate"; type="text/markdown"`
+    **response header** (not only a `<link>` tag in `<head>`). `pass` = all four present; `partial` = some;
+    `fail` = none. Auto-fix = set the headers where the twin and HTML are served. Pairs with #23/#25.
 
 ## Planned expansions (not yet scored in v1)
 

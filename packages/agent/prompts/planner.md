@@ -77,7 +77,12 @@ The canonical pass bar per check lives in `skills/<check-id>.md`; this is the sp
   Google-Extended, CCBot) explicitly allowed in `robots.txt`; valid `Organization` + `WebSite`
   JSON-LD site-wide and `Article`/`BreadcrumbList` where they apply; a complete `/llms.txt`
   (Markdown) with the site name, description, and curated key-page links; one `<h1>` + correct
-  heading hierarchy + landmarks; markdown twins where the stack supports them.
+  heading hierarchy + landmarks; a faithful markdown twin per primary page (`<path>.md`, served as
+  `text/markdown`), delivered to AI clients via content negotiation (`Accept: text/markdown` or a
+  known AI-bot User-Agent) with the header contract (`X-Robots-Tag: noindex`, `Vary: Accept`,
+  `X-Markdown-Tokens`, and a `Link: rel="alternate"; type="text/markdown"` header on the HTML).
+  Plan these as **hand-written, framework-idiomatic code (a route/handler + middleware) — never by
+  adding a third-party dependency** to the user's repo.
 - **AEO (a direct answer can be extracted):** answer-first, definitional content ("X is Y" up
   front) where it fits; question-shaped headings marked up with `FAQPage` schema when Q&A already
   renders; `DefinedTerm` on existing definitions; real outbound citations where prose names a

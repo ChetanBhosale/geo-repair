@@ -1,5 +1,5 @@
 import { check_intent } from "./check-intent";
-import type { DomainFiles } from "./fetcher";
+import type { DomainFiles, TwinProbe } from "./fetcher";
 import { AI_CRAWLERS } from "./fetcher";
 import type { PageModel } from "./parser";
 import type { PageType } from "./pagetype";
@@ -15,6 +15,9 @@ export interface CheckContext {
   page: PageModel;
   domain: DomainFiles;
   pageType: PageType;
+  // Markdown-twin / content-negotiation probe (AEO delivery). Optional so unit
+  // callers that don't probe still type-check; absent => delivery checks FAIL.
+  twin?: TwinProbe;
 }
 
 // Content-judgment checks only apply to real content pages. On landing/utility/
@@ -314,16 +317,85 @@ const EVALUATORS: Record<string, Evaluator> = {
     return MID(`og:image is ${w}x${h}, below the recommended 1200x630.`, { evidence: img });
   },
 
-  "markdown-twins": ({ page }) => {
-    const hasAlt = page.links.some((l) => l.rel === "alternate" && (l.type ?? "").includes("markdown"));
-    if (hasAlt) return PASS("Markdown twin linked via rel=alternate.");
-    return {
-      status: "FAILED",
-      summary: "No Markdown twin (<path>.md) exposed for this page.",
-      method: "heuristic",
-      recommendedAction: "add_page",
-      recommendation: "Serve a faithful Markdown twin of each primary page at <path>.md, link it via rel=alternate, and index it in /llms.txt.",
-    };
+  "markdown-twin": ({ twin }) => {
+    if (!twin || !twin.twin.fetched || twin.twin.status === 0) {
+      return FAIL("Could not reach a Markdown twin (<path>.md) for this page.", {
+        recommendedAction: "add_page",
+        recommendation:
+          "Serve a faithful Markdown twin of each primary page at <path>.md (200, Content-Type text/markdown; charset=utf-8), built from the page's own content.",
+        fixHint: "Add a .md route/handler that renders the same content as markdown.",
+      });
+    }
+    const t = twin.twin;
+    if (!t.ok) {
+      return FAIL(`Markdown twin returned HTTP ${t.status} at ${twin.twinUrl}.`, {
+        evidence: twin.twinUrl,
+        recommendedAction: "add_page",
+        recommendation: "Serve <path>.md with a 200 status for every primary page.",
+      });
+    }
+    if (!t.nonEmpty) return MID("Markdown twin is reachable but the body is empty.", { evidence: twin.twinUrl });
+    if (!t.isMarkdownType) {
+      return MID(`Markdown twin served as "${t.contentType || "unknown"}" instead of text/markdown.`, {
+        evidence: twin.twinUrl,
+        fixHint: "Set Content-Type: text/markdown; charset=utf-8 on the .md response.",
+      });
+    }
+    return PASS(`Markdown twin present at ${twin.twinUrl} (text/markdown, non-empty).`, { evidence: twin.twinUrl });
+  },
+
+  "content-negotiation": ({ twin }) => {
+    if (!twin) {
+      return FAIL("Content negotiation for markdown was not detected.", {
+        recommendedAction: "add_content",
+        recommendation:
+          "Serve the Markdown twin via content negotiation: requesting the HTML URL with Accept: text/markdown, or with an AI-bot User-Agent, should return markdown.",
+      });
+    }
+    const both = twin.acceptServesMarkdown && twin.botUaServesMarkdown;
+    if (both) return PASS("Accept: text/markdown and AI-bot User-Agents both receive the markdown twin.");
+    if (twin.acceptServesMarkdown || twin.botUaServesMarkdown) {
+      const which = twin.acceptServesMarkdown ? "Accept: text/markdown" : "AI-bot User-Agent";
+      return MID(`Only ${which} negotiation returns markdown; the other returns HTML.`, {
+        recommendedAction: "add_content",
+        fixHint: "Serve markdown for both Accept: text/markdown and known AI-bot User-Agents (GPTBot, ClaudeBot, PerplexityBot, ...).",
+      });
+    }
+    return FAIL("The HTML URL never returns markdown to AI clients (no content negotiation).", {
+      recommendedAction: "add_content",
+      recommendation:
+        "Add middleware that serves the markdown twin when the request prefers text/markdown or comes from an AI-bot User-Agent.",
+    });
+  },
+
+  "ai-delivery-headers": ({ twin }) => {
+    if (!twin || !twin.twin.ok) {
+      return FAIL("No Markdown twin response to carry the AEO delivery headers.", {
+        recommendedAction: "add_content",
+        recommendation:
+          "Once the twin is served, set X-Robots-Tag: noindex, Vary: Accept, and X-Markdown-Tokens on it, and advertise it via a Link rel=\"alternate\" response header on the HTML.",
+      });
+    }
+    const signals: string[] = [];
+    if (twin.twin.noindex) signals.push("X-Robots-Tag: noindex");
+    if (twin.twin.varyAccept) signals.push("Vary: Accept");
+    if (twin.twin.tokensHeader) signals.push("X-Markdown-Tokens");
+    if (twin.htmlLinkAlternate) signals.push("Link rel=alternate (HTML)");
+    const total = 4;
+    if (signals.length === total) return PASS(`All AEO delivery headers present: ${signals.join(", ")}.`);
+    const missing = total - signals.length;
+    if (signals.length >= 1) {
+      return MID(`${signals.length}/${total} AEO delivery headers present (${missing} missing).`, {
+        recommendedAction: "add_content",
+        fixHint:
+          "Markdown twin must send X-Robots-Tag: noindex, Vary: Accept, X-Markdown-Tokens; HTML must send Link: rel=\"alternate\"; type=\"text/markdown\".",
+      });
+    }
+    return FAIL("None of the AEO delivery headers are set on the twin or HTML response.", {
+      recommendedAction: "add_content",
+      recommendation:
+        "Set X-Robots-Tag: noindex, Vary: Accept, X-Markdown-Tokens on the markdown twin, and a Link rel=\"alternate\"; type=\"text/markdown\" header on the HTML.",
+    });
   },
 
   "mobile-viewport": ({ page }) => {

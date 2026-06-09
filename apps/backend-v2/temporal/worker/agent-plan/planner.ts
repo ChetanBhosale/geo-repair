@@ -93,9 +93,14 @@ export function planCheck(check: PlanCheckInput): PlannedCheck {
   }
 
   const targetPages = targetPagesFor(check);
+  // AEO-delivery checks create routes/middleware/headers from the page's own
+  // content, so they're AUTO (no user judgment) even though their action is
+  // add_*. Everything else that adds pages/content asks the user first.
+  const AEO_DELIVERY = new Set(["markdown-twin", "content-negotiation", "ai-delivery-headers"]);
   const needsInput =
-    check.recommendedAction === "add_page" ||
-    check.recommendedAction === "add_content";
+    !AEO_DELIVERY.has(check.rubricId) &&
+    (check.recommendedAction === "add_page" ||
+      check.recommendedAction === "add_content");
 
   if (needsInput) {
     const { question, options } = questionFor(check);
@@ -162,7 +167,7 @@ Return ONLY a single JSON object (no markdown, no prose around it) with this sha
 }
 
 Rules:
-- mode AUTO = safe structural/markup fix over existing content (metadata, JSON-LD, robots, sitemap, llms.txt, canonical, alt text, semantic HTML, charset, doctype, viewport). No user input.
+- mode AUTO = safe structural/markup fix over existing content (metadata, JSON-LD, robots, sitemap, llms.txt, canonical, alt text, semantic HTML, charset, doctype, viewport) OR a hand-written AEO-delivery fix (markdown twin route/handler, content-negotiation middleware serving the twin to AI clients, and the X-Robots-Tag/Vary/X-Markdown-Tokens/Link headers). No user input. For AEO delivery, never add a third-party dependency to the user's repo: write framework-idiomatic code.
 - mode NEEDS_INPUT = needs net-new content or a judgment only the user can make (e.g. adding an FAQ, adding citations). Always offer a safe default first and a "No, skip this" option.
 - mode MANUAL = impossible to do safely in code (e.g. client-rendered SPA -> SSR rearchitecture, responsive/CSS layout).
 - Use ONLY the affected pages given for targetPages. Never invent claims, content, or sources.

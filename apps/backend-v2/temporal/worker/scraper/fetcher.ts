@@ -99,8 +99,16 @@ async function readCapped(res: Response, maxBytes: number): Promise<string> {
   return new TextDecoder("utf-8", { fatal: false }).decode(merged);
 }
 
+export interface RawFetchOptions {
+  timeoutMs?: number;
+  // Override request headers (e.g. a custom User-Agent or Accept) for the
+  // markdown content-negotiation probes.
+  headers?: Record<string, string>;
+}
+
 // Static GET. Never throws: failures come back on the `error` field.
-export async function rawFetch(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<RawFetch> {
+export async function rawFetch(url: string, opts: RawFetchOptions = {}): Promise<RawFetch> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -112,6 +120,7 @@ export async function rawFetch(url: string, timeoutMs = DEFAULT_TIMEOUT_MS): Pro
         "User-Agent": DEFAULT_UA,
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
+        ...opts.headers,
       },
     });
     const body = await readCapped(res, MAX_BYTES);
@@ -281,4 +290,109 @@ export async function fetchDomainFiles(finalUrl: string): Promise<DomainFiles> {
   };
 
   return { origin, sitemapUrl, robots, sitemap, llmsTxt };
+}
+
+// --- Markdown-twin / AEO delivery probe -------------------------------------
+// dualmark-style conformance: does the site serve a clean Markdown "twin" of
+// the page over HTTP content negotiation, with the right headers? These are the
+// signals AI crawlers use (they want markdown, not a JS-heavy DOM). We probe by
+// fetching <path>.md and re-requesting the HTML URL as an AI client would.
+
+// A representative AI crawler UA (matches the AI Agent Registry).
+const AI_BOT_UA =
+  "Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)";
+
+export interface TwinProbe {
+  twinUrl: string;
+  // The <path>.md fetch.
+  twin: {
+    fetched: boolean;
+    status: number;
+    ok: boolean;
+    contentType: string;
+    isMarkdownType: boolean;
+    nonEmpty: boolean;
+    // Delivery headers on the markdown response.
+    noindex: boolean; // X-Robots-Tag contains "noindex"
+    varyAccept: boolean; // Vary contains "Accept"
+    tokensHeader: boolean; // X-Markdown-Tokens is a positive integer
+  };
+  // Re-requesting the HTML URL with Accept: text/markdown.
+  acceptServesMarkdown: boolean;
+  // Re-requesting the HTML URL with an AI-bot User-Agent.
+  botUaServesMarkdown: boolean;
+  // The HTML response's own Link header advertised a markdown alternate.
+  htmlLinkAlternate: boolean;
+}
+
+// Derive the conventional twin URL for a page: <path>.md (root -> /index.md).
+export function twinUrlFor(pageUrl: string): string {
+  try {
+    const u = new URL(pageUrl);
+    u.hash = "";
+    u.search = "";
+    let path = u.pathname.replace(/\/+$/, "");
+    if (path === "" || path === "/") path = "/index";
+    if (/\.[a-z0-9]+$/i.test(path)) path = path.replace(/\.[a-z0-9]+$/i, "");
+    u.pathname = `${path}.md`;
+    return u.toString();
+  } catch {
+    return `${pageUrl.replace(/\/+$/, "")}.md`;
+  }
+}
+
+function isMarkdownContentType(ct: string): boolean {
+  return /text\/markdown|text\/x-markdown/i.test(ct);
+}
+
+// True when a negotiation response (re-requested HTML URL) actually returned
+// markdown rather than HTML.
+function servedMarkdown(res: RawFetch): boolean {
+  if (!res.ok) return false;
+  if (isMarkdownContentType(res.contentType)) return true;
+  // Some servers mislabel; fall back to a content sniff: markdown bodies don't
+  // open with an HTML document and don't carry a doctype/<html>.
+  const head = res.body.slice(0, 600).toLowerCase();
+  const looksHtml = /<!doctype html|<html|<head|<body/.test(head);
+  return !looksHtml && !res.contentType.includes("text/html") && res.body.trim().length > 0;
+}
+
+// Probe a single page for Markdown-twin / content-negotiation conformance.
+// `htmlHeaders` are the already-fetched HTML response headers (for the Link
+// alternate check), so we don't re-fetch the page itself.
+export async function probeTwin(
+  pageUrl: string,
+  htmlHeaders: Record<string, string>,
+): Promise<TwinProbe> {
+  const twinUrl = twinUrlFor(pageUrl);
+
+  const [twinRes, acceptRes, botRes] = await Promise.all([
+    rawFetch(twinUrl),
+    rawFetch(pageUrl, { headers: { Accept: "text/markdown" } }),
+    rawFetch(pageUrl, { headers: { "User-Agent": AI_BOT_UA, Accept: "text/markdown" } }),
+  ]);
+
+  const xRobots = (twinRes.headers["x-robots-tag"] ?? "").toLowerCase();
+  const vary = (twinRes.headers["vary"] ?? "").toLowerCase();
+  const tokens = twinRes.headers["x-markdown-tokens"] ?? "";
+  const linkHeader = (htmlHeaders["link"] ?? "").toLowerCase();
+
+  return {
+    twinUrl,
+    twin: {
+      fetched: twinRes.status !== 0,
+      status: twinRes.status,
+      ok: twinRes.ok,
+      contentType: twinRes.contentType,
+      isMarkdownType: isMarkdownContentType(twinRes.contentType),
+      nonEmpty: twinRes.ok && twinRes.body.trim().length > 0,
+      noindex: xRobots.includes("noindex"),
+      varyAccept: /\baccept\b/.test(vary),
+      tokensHeader: /^\d+$/.test(tokens.trim()) && Number(tokens) > 0,
+    },
+    acceptServesMarkdown: servedMarkdown(acceptRes),
+    botUaServesMarkdown: servedMarkdown(botRes),
+    htmlLinkAlternate:
+      linkHeader.includes('rel="alternate"') && linkHeader.includes("text/markdown"),
+  };
 }

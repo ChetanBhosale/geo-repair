@@ -6,7 +6,7 @@ import {
   ALL_CHECK_NAMES,
   type CheckContext,
 } from "./activities";
-import { rawFetch, detectBlock, fetchDomainFiles, type DomainFiles } from "./fetcher";
+import { rawFetch, detectBlock, fetchDomainFiles, probeTwin, type DomainFiles } from "./fetcher";
 import { parsePage } from "./parser";
 import { classifyPage } from "./pagetype";
 import { discoverPages } from "./discover";
@@ -75,7 +75,10 @@ async function scorePage(
   }
   const page = parsePage(raw);
   const pageType = classifyPage(page);
-  const ctx: CheckContext = { url: new URL(page.finalUrl), page, domain, pageType };
+  // Probe the Markdown-twin / content-negotiation delivery layer (dualmark-style
+  // AEO conformance). Best-effort: a failed probe scores the checks as FAILED.
+  const twin = await probeTwin(page.finalUrl, raw.headers);
+  const ctx: CheckContext = { url: new URL(page.finalUrl), page, domain, pageType, twin };
   const checks: CheckResultOut[] = ALL_CHECK_NAMES.map((name) => runCheckActivity(name, ctx));
   const s = scoreChecks(checks);
   return {

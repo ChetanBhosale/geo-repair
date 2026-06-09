@@ -281,15 +281,37 @@ export const check_intent: CheckIntent[] = [
       "The OG/Twitter image is fit for unfurling: >= 1200x630, a web format (not SVG), sane file size, with declared width/height. Validates the wired image; does not select or generate one.",
   },
   {
-    name: "markdown-twins",
+    name: "markdown-twin",
     category: "Content",
     tier: "B",
+    priority: "medium",
+    weight: PRIORITY_WEIGHT.medium,
+    fixableByAgent: true,
+    scope: "per-page",
+    intent:
+      "Each primary page exposes a faithful Markdown twin at <path>.md that returns 200 with Content-Type text/markdown; charset=utf-8 and a non-empty body. Reformat existing content only, no new claims (the only Tier B check).",
+  },
+  {
+    name: "content-negotiation",
+    category: "Crawl surface",
+    tier: "A",
+    priority: "medium",
+    weight: PRIORITY_WEIGHT.medium,
+    fixableByAgent: true,
+    scope: "per-page",
+    intent:
+      "The page serves its Markdown twin via HTTP content negotiation: requesting the HTML URL with Accept: text/markdown, or with a known AI-bot User-Agent (GPTBot etc.), returns markdown instead of the JS-heavy HTML. The cleanest machine-eye view for AI crawlers.",
+  },
+  {
+    name: "ai-delivery-headers",
+    category: "Crawl surface",
+    tier: "A",
     priority: "low",
     weight: PRIORITY_WEIGHT.low,
     fixableByAgent: true,
     scope: "per-page",
     intent:
-      "Each primary page exposes a faithful Markdown twin at <path>.md, linked via rel=alternate and indexed in /llms.txt. Reformat existing content only, no new claims (the only Tier B check).",
+      "AEO delivery header contract: the Markdown twin response sets X-Robots-Tag: noindex (no duplicate indexing), Vary: Accept (correct caching), and X-Markdown-Tokens; the HTML response advertises the twin via a Link: rel=\"alternate\"; type=\"text/markdown\" response header.",
   },
   {
     name: "mobile-viewport",
