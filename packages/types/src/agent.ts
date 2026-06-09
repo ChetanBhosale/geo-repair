@@ -10,6 +10,7 @@ export type AgentRunStatus =
   | "VERIFYING"
   | "OPENING_PR"
   | "PR_OPENED"
+  | "CHATTING"
   | "COMPLETED"
   | "FAILED"
   | "CANCELED";
@@ -94,7 +95,7 @@ export interface AgentPlanDTO {
 // messages and AGENT_FILE for code-change/build events (right-hand panel).
 export interface AgentChatLog {
   id: string;
-  source: "AGENT" | "AGENT_FILE" | "SCRAPING" | "SYSTEM";
+  source: "AGENT" | "AGENT_FILE" | "USER" | "SCRAPING" | "SYSTEM";
   level: "debug" | "info" | "warn" | "error";
   event: string;
   message: string;
@@ -114,6 +115,11 @@ export interface AgentRunSummary {
   sandboxStatus: SandboxStatus;
   prState: PrState;
   prUrl: string | null;
+  prMerged: boolean;
+  branch: string | null;
+  chatMessagesLeft: number;
+  // Convenience: the run is "open" (blocks a new run) until merged/terminal.
+  isOpen: boolean;
   error: string | null;
   createdAt: string;
   finishedAt: string | null;
@@ -147,6 +153,22 @@ export interface StartFixResponse {
   agentRunId: string;
   status: AgentRunStatus;
   fixChecks: number;
+}
+
+export interface ChatRequest {
+  agentRunId: string;
+  message: string;
+}
+
+export interface ChatResponse {
+  agentRunId: string;
+  status: AgentRunStatus;
+  chatMessagesLeft: number;
+}
+
+export interface CompleteRunResponse {
+  agentRunId: string;
+  prMerged: boolean;
 }
 
 export interface ListAgentRunsResponse {

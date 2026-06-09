@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import {
   AgentPlanError,
+  completeAgentRun,
   getAgentRunDetail,
   listAgentRuns,
   startAgentPlan,
 } from "../functions/agent-plan.service";
 import { FixError, startFix } from "../functions/fix.service";
+import { ChatError, startChat } from "../functions/chat.service";
 
 // POST /api/projects/:id/agent-plan
 // Kicks off a planning run for the project's latest completed scan. Enqueues the
@@ -57,6 +59,41 @@ export async function postFix(req: Request, res: Response) {
     }
     return res.status(400).json({
       error: err instanceof Error ? err.message : "Failed to start fix run",
+    });
+  }
+}
+
+// POST /api/agent-runs/:id/chat -> one post-PR chat turn
+export async function postAgentChat(req: Request, res: Response) {
+  const userId = req.userId!;
+  const id = String(req.params.id ?? "");
+  const message = String(req.body?.message ?? "");
+  try {
+    const result = await startChat(userId, id, message);
+    return res.status(202).json(result);
+  } catch (err) {
+    if (err instanceof ChatError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return res.status(400).json({
+      error: err instanceof Error ? err.message : "Failed to send message",
+    });
+  }
+}
+
+// POST /api/agent-runs/:id/complete -> mark the run done so a new one can start
+export async function postCompleteRun(req: Request, res: Response) {
+  const userId = req.userId!;
+  const id = String(req.params.id ?? "");
+  try {
+    const result = await completeAgentRun(userId, id);
+    return res.json(result);
+  } catch (err) {
+    if (err instanceof AgentPlanError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return res.status(400).json({
+      error: err instanceof Error ? err.message : "Failed to complete run",
     });
   }
 }

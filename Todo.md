@@ -96,3 +96,21 @@ Done:
 - `imageTool({ onImage, provider })` AgentTool (`generate_image`); generation here, persistence via callback.
 - Wired into the fix agent: when `OPEN_ROUTER_KEY` is set, `fixCheckActivity` adds `generate_image`, writing the PNG into the cloned repo (e.g. a missing OG image) and logging it as an AGENT_FILE `file_change`.
 - (Replaced the earlier Vertex-only `vertex-image.ts` with the multi-provider `image.ts`.)
+
+
+## Post-PR chat + run lifecycle (chat / complete / one-open-run / history)
+
+Done (backend):
+- `lib/github.ts` `getPrStatus()` — reads a PR's merged/closed state with the user's token.
+- `POST /api/agent-runs/:id/chat` -> `startChat`: guards (PR must exist, live GitHub merge check sets `prMerged`, blocked if merged or `chatMessagesLeft<=0`), persists the user message as a `USER` log, decrements `chatMessagesLeft`, sets status `CHATTING`, enqueues `agentChatWorkflow` (queue `agent-chat`, workflowId unique per turn).
+- `agent-chat` worker: `runChatActivity` revives the run's sandbox (or creates + re-clones the fix branch, keeps it ALIVE), rebuilds memory context from DB (plan summary, check outcomes, changed files, recent USER/AGENT transcript), runs the chat agent with edit/run tools + image tool, commits + pushes to update the PR, logs to AGENT/AGENT_FILE, then re-checks merge and returns status to PR_OPENED. Sandbox is NOT killed.
+- `POST /api/agent-runs/:id/complete` -> `completeAgentRun`: reflects real PR state via GitHub, sets `prMerged=true` so a new run can start.
+- One-open-run guard in `startAgentPlan`: 409 if the project already has an open run (`prMerged=false` and non-terminal).
+- Run summary DTO now includes `prMerged`, `branch`, `chatMessagesLeft`, `isOpen`.
+
+Done (frontend):
+- Agent screen: real chat composer (enabled once PR exists; shows "N messages left"; disabled while CHATTING / when merged / when budget 0). USER messages render right-aligned. Polls during CHATTING.
+- Project page: "Agent runs" history list (every run, status/merged badge, links to its screen); button shows "Resume agent" + "New run" (-> complete-confirm dialog -> complete + start new) when a run is open, else "Agent Run".
+- Composer PR-merged state: when `prMerged` is true the chat box is disabled with "This run is complete. The PR has been merged." placeholder, a "PR merged" label (filled GitPullRequest icon), and a disabled green-tinted "PR merged" send button (filled CheckCircle). Zero-budget is a separate muted box. Chat markdown rendering via `<Markdown>` (react-markdown + remark-gfm).
+
+Migration still pending (owner): agent tables + `USER` log source + `CHATTING` status + `prMerged`/`chatMessagesLeft` columns.

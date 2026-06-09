@@ -10,6 +10,8 @@ import type {
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
+import { getPrStatus } from "../lib/github";
+import type { CompleteRunResponse } from "@repo/types/agent";
 import type { PlanCheckInput } from "../temporal/worker/agent-plan/types";
 import type { AgentPlanWorkflowInput } from "../temporal/worker/agent-plan/workflow-types";
 
@@ -89,6 +91,24 @@ export async function startAgentPlan(
     where: { id: projectId, userId },
   });
   if (!project) throw new AgentPlanError(404, "Project not found.");
+
+  // Only one open run per project. The user must complete/merge the current run
+  // (or it must fail) before starting a new one.
+  const openRun = await prisma.agentRun.findFirst({
+    where: {
+      projectId,
+      userId,
+      prMerged: false,
+      status: { notIn: ["COMPLETED", "FAILED", "CANCELED"] },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (openRun) {
+    throw new AgentPlanError(
+      409,
+      "There is already an active agent run for this project. Complete it before starting a new one.",
+    );
+  }
 
   // NOTE: worker-liveness gate disabled - describeTaskQueue check was not
   // behaving as expected. Re-enable once fixed.
@@ -215,6 +235,13 @@ export async function startAgentPlan(
 // Reads
 // ---------------------------------------------------------------------------
 
+// A run is "open" (blocks starting a new one) until it's merged or terminal.
+const TERMINAL_RUN_STATUS = new Set(["COMPLETED", "FAILED", "CANCELED"]);
+export function isRunOpen(row: { status: string; prMerged: boolean }): boolean {
+  if (row.prMerged) return false;
+  return !TERMINAL_RUN_STATUS.has(row.status);
+}
+
 function toRunSummary(row: {
   id: string;
   projectId: string;
@@ -225,6 +252,9 @@ function toRunSummary(row: {
   sandboxStatus: string;
   prState: string;
   prUrl: string | null;
+  prMerged: boolean;
+  branch: string | null;
+  chatMessagesLeft: number;
   error: string | null;
   createdAt: Date;
   finishedAt: Date | null;
@@ -239,6 +269,10 @@ function toRunSummary(row: {
     sandboxStatus: row.sandboxStatus as AgentRunSummary["sandboxStatus"],
     prState: row.prState as AgentRunSummary["prState"],
     prUrl: row.prUrl,
+    prMerged: row.prMerged,
+    branch: row.branch,
+    chatMessagesLeft: row.chatMessagesLeft,
+    isOpen: isRunOpen(row),
     error: row.error,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
@@ -324,4 +358,47 @@ export async function getAgentRunDetail(
   }));
 
   return { ...toRunSummary(row), plan, logs };
+}
+
+// Mark a run complete so a new run can start. The user confirms "I'm done with
+// the last run". We also check GitHub for the real merge state and record it.
+export async function completeAgentRun(
+  userId: string,
+  agentRunId: string,
+): Promise<CompleteRunResponse> {
+  const run = await prisma.agentRun.findFirst({
+    where: { id: agentRunId, userId },
+    include: { project: { include: { account: { select: { accessToken: true } } } } },
+  });
+  if (!run) throw new AgentPlanError(404, "Agent run not found.");
+
+  // Best-effort: reflect the real PR state if we can read it.
+  let prMergedAt: Date | undefined;
+  let prState = run.prState;
+  if (run.prNumber && run.project) {
+    const status = await getPrStatus(
+      run.project.owner,
+      run.project.name,
+      run.prNumber,
+      run.project.account?.accessToken,
+    );
+    if (status?.merged) {
+      prState = "MERGED";
+      prMergedAt = new Date();
+    } else if (status?.state === "closed") {
+      prState = "CLOSED";
+    }
+  }
+
+  await prisma.agentRun.update({
+    where: { id: run.id },
+    data: {
+      prMerged: true,
+      prState,
+      ...(prMergedAt ? { prMergedAt } : {}),
+      finishedAt: run.finishedAt ?? new Date(),
+    },
+  });
+
+  return { agentRunId: run.id, prMerged: true };
 }

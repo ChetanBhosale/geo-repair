@@ -107,6 +107,10 @@ the same way.
   content. Never ask the user to make a purely technical choice you can make yourself.
 - Tie each question to the check it unblocks (`rubricId`), so a "No" is recorded against that exact
   check.
+- **Never ask the user to upload or attach a file, document, or image — that is not supported.**
+  The user can only reply with text. If a fix needs an image (e.g. an Open Graph image, a logo, a
+  favicon), ask the user to **paste an image URL** in the note, or offer to generate one. Likewise,
+  for any asset, request a **URL or plain text**, never an upload.
 
 ## Honesty guardrail
 

@@ -76,7 +76,9 @@ When you are done inspecting, STOP using tools and return ONLY this JSON object 
   "manual": [{ "rubricId": "<id>", "reason": "why it can't be fixed in code" }]
 }
 
-Include one plans[] entry for EVERY failing check given (except those you put in manual). Never invent claims, content, or sources.`;
+Include one plans[] entry for EVERY failing check given (except those you put in manual). Never invent claims, content, or sources.
+
+The user can ONLY reply with text. NEVER ask them to upload or attach a file, document, or image (it is not supported). If a check needs an image (Open Graph image, logo, favicon), ask the user to paste an image URL in their note, or offer to generate one. Always request a URL or plain text, never an upload.`;
 
 interface ParsedPlanItem {
   rubricId?: string;
@@ -335,8 +337,13 @@ export async function runPlannerAgentActivity(
 
       const onEvent = async (e: AgentStepLog) => {
         if (e.type === "assistant" && e.content?.trim()) {
-          // Skip the final JSON blob; only narrate human sentences.
-          if (!e.content.trim().startsWith("{")) await log("agent_message", e.content.trim());
+          // Skip the final JSON blob; only narrate human sentences. Also strip a
+          // trailing ```json plan fence the model sometimes appends to prose
+          // (the plan card already shows that), so the chat stays readable.
+          const cleaned = e.content
+            .replace(/```(?:json)?\s*[\s\S]*?```/g, "")
+            .trim();
+          if (cleaned && !cleaned.startsWith("{")) await log("agent_message", cleaned);
         } else if (e.type === "tool_call") {
           const a = e.toolArgs ?? {};
           const msg =

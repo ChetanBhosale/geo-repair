@@ -3,9 +3,15 @@
 import { runScraperWorker } from "./scraper/worker";
 import { runAgentPlanWorker } from "./agent-plan/worker";
 import { runAgentFixWorker } from "./agent-fix/worker";
+import { runAgentChatWorker } from "./agent-chat/worker";
 
 async function main() {
-  await Promise.all([runScraperWorker(), runAgentPlanWorker(), runAgentFixWorker()]);
+  await Promise.all([
+    runScraperWorker(),
+    runAgentPlanWorker(),
+    runAgentFixWorker(),
+    runAgentChatWorker(),
+  ]);
 }
 
 main().catch((err) => {

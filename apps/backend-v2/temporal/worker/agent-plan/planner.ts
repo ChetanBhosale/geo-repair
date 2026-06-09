@@ -166,6 +166,7 @@ Rules:
 - mode NEEDS_INPUT = needs net-new content or a judgment only the user can make (e.g. adding an FAQ, adding citations). Always offer a safe default first and a "No, skip this" option.
 - mode MANUAL = impossible to do safely in code (e.g. client-rendered SPA -> SSR rearchitecture, responsive/CSS layout).
 - Use ONLY the affected pages given for targetPages. Never invent claims, content, or sources.
+- The user can ONLY reply with text. NEVER ask them to upload or attach a file, document, or image (not supported). If an image is needed (OG image, logo, favicon), ask for a pasted image URL or offer to generate one. Always request a URL or plain text, never an upload.
 - Aim for a full pass, not a half measure.`;
 
 interface AiPlanJson {
