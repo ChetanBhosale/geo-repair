@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun run --watch index.ts",
     "start": "bun run index.ts",
+    "open": "bun run free/index.ts",
     "worker": "bun run temporal/worker/index.ts",
     "scraper": "bun run temporal/worker/scraper/cli.ts",
     "check-types": "tsc --noEmit"

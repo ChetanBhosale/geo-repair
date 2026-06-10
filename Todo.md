@@ -252,3 +252,22 @@ false`, returning to the project page after starting a run served stale cache, s
 appeared after a hard refresh. Fix: `refetchOnMount: "always"` + a `refetchInterval` (4s) that polls
 only while a run is actively working (`isAgentRunWorking`) and stops once runs settle. Dashboard
 typecheck clean (only the pre-existing calendar.tsx error remains).
+
+## Free public checkup service (deploy-separately) — backend-v2/free
+
+Standalone Express server that runs the SAME scraper/checker inline (no Temporal, no DB, no auth),
+so free traffic never touches the paid control plane. `runScrape` is pure (only imports the scraper
+modules), so this is a thin wrapper.
+
+Done:
+- `apps/backend-v2/free/index.ts`: Express (helmet + open CORS + json 16kb + per-IP rate limit 20/15m).
+  Routes: `GET /` (health), `POST /scan-website` and `GET /scan-website?url=` -> calls `runScrape`
+  inline and returns the full result. Free bounds: maxPages 5 (hard cap 10), maxPerSection 2,
+  concurrency 3, `singlePage` opt-in. Own PORT (`PORT` / `FREE_PORT`, default 4100).
+- Scripts: `open` in backend-v2 (`bun run free/index.ts`) + root `backend:open`
+  (`bun run --filter=@repo/backend-v2 open`). Run with `bun run backend:open` (or npm).
+- Verified: check-types clean; live smoke — health OK, `POST /scan-website {url:"linkrunner.io",
+  singlePage:true}` -> status completed, score 94, 27 checks.
+
+Deploy: ship `apps/backend-v2` with start command `bun run free/index.ts` on its own host; the
+platform's PORT is honored. No DB/Temporal/secrets required for this endpoint.
