@@ -88,6 +88,7 @@ const GROUP_OF: Record<string, string> = {
   "markdown-twin": "aeo-delivery",
   "content-negotiation": "aeo-delivery",
   "ai-delivery-headers": "aeo-delivery",
+  "aeo-conformance": "aeo-delivery",
 };
 
 const GROUP_META: Record<string, { label: string; cheap: boolean; order: number }> = {
@@ -223,7 +224,7 @@ Rules:
 - Use only facts already on the site or provided by the user. Never invent claims, pricing, stats, FAQ answers, definitions, or sources.
 - Do NOT commit or use git — the harness opens the PR after all checks are done.
 - Preserve rendered output; adding meta/JSON-LD/alt/robots/sitemap/llms.txt is safe. Do not rewrite human copy.
-- For AEO-delivery checks (markdown-twin, content-negotiation, ai-delivery-headers): hand-write framework-idiomatic code (a markdown route/handler, middleware that serves the twin to AI clients on Accept: text/markdown or a known AI-bot User-Agent, and the response headers X-Robots-Tag: noindex / Vary: Accept / X-Markdown-Tokens / Link rel="alternate"). Build the twin from the page's OWN content source, never paraphrase. NEVER add a third-party dependency (no @dualmark/* or similar) to the user's repo for this.
+- For AEO-delivery checks (markdown-twin, content-negotiation, ai-delivery-headers, aeo-conformance): hand-write framework-idiomatic code (a markdown route/handler serving Content-Type: text/markdown; charset=utf-8, middleware that serves the twin to AI clients on Accept: text/markdown or a known AI-bot User-Agent, the twin response headers X-Robots-Tag: noindex / Vary: Accept / X-Markdown-Tokens / X-Content-Type-Options: nosniff / X-AEO-Version: 1.0, the HTML response headers Vary: Accept + Link rel="alternate", and the .md twin URLs listed in sitemap.xml). Build the twin from the page's OWN content source, never paraphrase. NEVER add a third-party dependency (no @dualmark/* or similar) to the user's repo for this.
 - For a net-new page proposal (its id starts with "new-page-"): the user APPROVED creating it. Add it as a new route/file idiomatic to this stack, structured for AI extraction — one clear <h1>, question-style headings, answer-first self-contained sections of ~50-150 words, and a comparison table when the page compares options. Add the right JSON-LD (FAQPage / Article / etc.), link it from the nav + sitemap + /llms.txt, and add its markdown twin. Use ONLY facts already on the site or the details in the user's note. NEVER invent claims, statistics, pricing, or competitor details (if a fact isn't available, leave it out).
 - If you genuinely cannot fix one of the checks safely, say so for that check and move on to the others.
 When done, end with one short sentence per check: what you changed (or that nothing was needed).`;

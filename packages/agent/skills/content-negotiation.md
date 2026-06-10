@@ -31,7 +31,11 @@ markdown, serves the twin:
 - **Next.js** → `middleware.ts` (or `proxy.ts`) that rewrites/returns the `.md` body for matched
   requests. **Astro** → middleware in `src/middleware.ts`. **SvelteKit** → `handle` in
   `src/hooks.server.ts`. **Edge (Cloudflare/Vercel/Deno)** → wrap the fetch handler.
-- Always set `Vary: Accept` on the negotiated response (see `ai-delivery-headers`).
+- Always set `Vary: Accept` on the negotiated response — both representations (see
+  `ai-delivery-headers`).
+- Spec SHOULD (informational in scans, never scored): when the `Accept` header matches neither
+  `text/html` nor `text/markdown` nor a wildcard, return `406 Not Acceptable`. Implement it when
+  trivial in the same middleware; never break default HTML serving for it.
 
 ## Auto-fix vs flag
 Pure delivery/config: safe to add. Do not change the HTML representation humans get. If the stack

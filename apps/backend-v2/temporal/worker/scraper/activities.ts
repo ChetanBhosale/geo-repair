@@ -341,7 +341,13 @@ const EVALUATORS: Record<string, Evaluator> = {
         fixHint: "Set Content-Type: text/markdown; charset=utf-8 on the .md response.",
       });
     }
-    return PASS(`Markdown twin present at ${twin.twinUrl} (text/markdown, non-empty).`, { evidence: twin.twinUrl });
+    if (!t.charsetUtf8) {
+      return MID(`Markdown twin served as text/markdown without charset=utf-8 ("${t.contentType}").`, {
+        evidence: twin.twinUrl,
+        fixHint: "Declare the charset: Content-Type: text/markdown; charset=utf-8 on the .md response.",
+      });
+    }
+    return PASS(`Markdown twin present at ${twin.twinUrl} (text/markdown; charset=utf-8, non-empty).`, { evidence: twin.twinUrl });
   },
 
   "content-negotiation": ({ twin }) => {
@@ -352,17 +358,31 @@ const EVALUATORS: Record<string, Evaluator> = {
           "Serve the Markdown twin via content negotiation: requesting the HTML URL with Accept: text/markdown, or with an AI-bot User-Agent, should return markdown.",
       });
     }
+    // Spec SHOULD (informational, never scored): an Accept matching neither
+    // HTML nor markdown should get 406 Not Acceptable.
+    const na = twin.notAcceptable;
+    const naEvidence = !na.probed
+      ? undefined
+      : na.returns406
+        ? "Spec SHOULD: unacceptable Accept correctly returns 406 Not Acceptable."
+        : `Spec SHOULD (informational): unacceptable Accept returned HTTP ${na.status} (406 expected).`;
     const both = twin.acceptServesMarkdown && twin.botUaServesMarkdown;
-    if (both) return PASS("Accept: text/markdown and AI-bot User-Agents both receive the markdown twin.");
+    if (both) {
+      return PASS("Accept: text/markdown and AI-bot User-Agents both receive the markdown twin.", {
+        evidence: naEvidence,
+      });
+    }
     if (twin.acceptServesMarkdown || twin.botUaServesMarkdown) {
       const which = twin.acceptServesMarkdown ? "Accept: text/markdown" : "AI-bot User-Agent";
       return MID(`Only ${which} negotiation returns markdown; the other returns HTML.`, {
         recommendedAction: "add_content",
+        evidence: naEvidence,
         fixHint: "Serve markdown for both Accept: text/markdown and known AI-bot User-Agents (GPTBot, ClaudeBot, PerplexityBot, ...).",
       });
     }
     return FAIL("The HTML URL never returns markdown to AI clients (no content negotiation).", {
       recommendedAction: "add_content",
+      evidence: naEvidence,
       recommendation:
         "Add middleware that serves the markdown twin when the request prefers text/markdown or comes from an AI-bot User-Agent.",
     });
@@ -373,28 +393,61 @@ const EVALUATORS: Record<string, Evaluator> = {
       return FAIL("No Markdown twin response to carry the AEO delivery headers.", {
         recommendedAction: "add_content",
         recommendation:
-          "Once the twin is served, set X-Robots-Tag: noindex, Vary: Accept, and X-Markdown-Tokens on it, and advertise it via a Link rel=\"alternate\" response header on the HTML.",
+          "Once the twin is served, set X-Robots-Tag: noindex, Vary: Accept, and X-Markdown-Tokens on it, set Vary: Accept on the HTML, and advertise the twin via a Link rel=\"alternate\" response header on the HTML.",
       });
     }
     const signals: string[] = [];
     if (twin.twin.noindex) signals.push("X-Robots-Tag: noindex");
-    if (twin.twin.varyAccept) signals.push("Vary: Accept");
+    if (twin.twin.varyAccept) signals.push("Vary: Accept (twin)");
     if (twin.twin.tokensHeader) signals.push("X-Markdown-Tokens");
     if (twin.htmlLinkAlternate) signals.push("Link rel=alternate (HTML)");
-    const total = 4;
+    if (twin.htmlVaryAccept) signals.push("Vary: Accept (HTML)");
+    const total = 5;
     if (signals.length === total) return PASS(`All AEO delivery headers present: ${signals.join(", ")}.`);
     const missing = total - signals.length;
     if (signals.length >= 1) {
       return MID(`${signals.length}/${total} AEO delivery headers present (${missing} missing).`, {
         recommendedAction: "add_content",
         fixHint:
-          "Markdown twin must send X-Robots-Tag: noindex, Vary: Accept, X-Markdown-Tokens; HTML must send Link: rel=\"alternate\"; type=\"text/markdown\".",
+          "Markdown twin must send X-Robots-Tag: noindex, Vary: Accept, X-Markdown-Tokens; HTML must send Vary: Accept and Link: rel=\"alternate\"; type=\"text/markdown\" (both representations of the negotiated URL vary on Accept).",
       });
     }
     return FAIL("None of the AEO delivery headers are set on the twin or HTML response.", {
       recommendedAction: "add_content",
       recommendation:
-        "Set X-Robots-Tag: noindex, Vary: Accept, X-Markdown-Tokens on the markdown twin, and a Link rel=\"alternate\"; type=\"text/markdown\" header on the HTML.",
+        "Set X-Robots-Tag: noindex, Vary: Accept, X-Markdown-Tokens on the markdown twin, and Vary: Accept plus a Link rel=\"alternate\"; type=\"text/markdown\" header on the HTML.",
+    });
+  },
+
+  "aeo-conformance": ({ twin, domain }) => {
+    if (!twin || !twin.twin.ok) {
+      return FAIL("No Markdown twin response to carry the AEO conformance extras.", {
+        recommendedAction: "add_content",
+        recommendation:
+          "Fix markdown-twin first; then set X-Content-Type-Options: nosniff and X-AEO-Version on the twin response and include the .md twin URLs in sitemap.xml.",
+      });
+    }
+    const signals: string[] = [];
+    const missing: string[] = [];
+    (twin.twin.nosniff ? signals : missing).push("X-Content-Type-Options: nosniff (twin)");
+    (twin.twin.aeoVersion ? signals : missing).push("X-AEO-Version (twin)");
+    // The sitemap signal is only assessable on a plain (non-index) sitemap;
+    // a missing/invalid sitemap is the `sitemap` check's finding, not ours.
+    const md = domain.sitemap.ok ? domain.sitemap.mdUrlCount : null;
+    if (md !== null) ((md > 0) ? signals : missing).push(".md twin URLs in sitemap.xml");
+    const total = signals.length + missing.length;
+    if (missing.length === 0) return PASS(`All AEO conformance extras present: ${signals.join(", ")}.`);
+    if (signals.length >= 1) {
+      return MID(`${signals.length}/${total} AEO conformance extras present (missing: ${missing.join(", ")}).`, {
+        recommendedAction: "add_content",
+        fixHint:
+          "Set X-Content-Type-Options: nosniff and X-AEO-Version: 1.0 on the markdown twin response, and list the .md twin URLs in sitemap.xml.",
+      });
+    }
+    return FAIL(`None of the AEO conformance extras are present (missing: ${missing.join(", ")}).`, {
+      recommendedAction: "add_content",
+      recommendation:
+        "Set X-Content-Type-Options: nosniff and X-AEO-Version: 1.0 where the markdown twin is served, and include the .md twin URLs in sitemap.xml.",
     });
   },
 

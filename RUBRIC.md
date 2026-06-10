@@ -6,7 +6,12 @@ compliance bar for our own site (`AGENTS.md`) all derive from here. The re-check
 disagree with what we sold, so **check IDs, categories, and tiers below are canonical** —
 keep `@repo/checker` and the agent playbook identical to this list.
 
-- **Version:** `v1` (the rubric is versioned; every checkup/order stores `rubric_version`).
+- **Version:** `v1.1` (the rubric is versioned; every checkup/order stores `rubric_version`).
+  - **v1.1 (June 2026):** closed the gaps vs the Dualmark AEO Spec v1.0 — added check #27
+    `aeo-conformance` (nosniff + `X-AEO-Version` on the twin, `.md` URLs in the sitemap);
+    tightened `markdown-twin` (`charset=utf-8` now required for `pass`, was stated but not
+    enforced) and `ai-delivery-headers` (5th signal: `Vary: Accept` on the **HTML** response);
+    `content-negotiation` now also probes `406 Not Acceptable` handling, **informational only**.
 - **Internal terms only.** "GEO/AEO" appears here and in code; customer-facing copy says
   "AI Search readiness." See `AGENTS.md` → Positioning & honesty guardrails.
 
@@ -48,7 +53,7 @@ Each check returns:
 | **C** | Net-new content (competitor comparison pages, invented FAQ Q&A, keyword copy) + optional on-brand generated thumbnails (≤ ~$0.10 each, opt-in) | **Only when `approved === true`**, set via the user's ~10-question MCQ intake (click-to-answer, optional free text per question; see `plan.md` → Tier C content gate) |
 | **Out of scope** | CSR→SSR conversion; mobile-responsive / CSS layout | **Never edited — flagged only** (can break the build, not build/typecheck-verifiable) |
 
-## Canonical checks (v1)
+## Canonical checks (v1.1)
 
 Priority drives the numeric `weight` in `@repo/checker`. `fixable_by_agent: false` items are
 measured and scored but only flagged, never auto-edited.
@@ -81,6 +86,7 @@ measured and scored but only flagged, never auto-edited.
 | 24 | `mobile-viewport` | Rendering | Low | A | true |
 | 25 | `content-negotiation` | Crawl surface | Medium | A | true |
 | 26 | `ai-delivery-headers` | Crawl surface | Low | A | true |
+| 27 | `aeo-conformance` | Crawl surface | Low | A | true |
 
 > `mobile-viewport` checks only the static `<meta name="viewport">` tag (present, responsive,
 > zoom not disabled) — a deterministic, agent-safe markup fix. It is distinct from
@@ -182,6 +188,8 @@ measured and scored but only flagged, never auto-edited.
     generate twins from the page's own content source (Markdown/MDX raw, or the structured content the
     page renders from); **never** paraphrase or add material the page doesn't already say. Pairs with
     `content-negotiation` (#25), `ai-delivery-headers` (#26), and `llms-txt` (#8 — the index).
+    *(v1.1)* `charset=utf-8` in the Content-Type is **enforced**, not just stated: markdown without
+    a utf-8 charset declaration scores `partial`.
 25. **`content-negotiation`** — Does the site serve the Markdown twin via **HTTP content negotiation**,
     not just at the `.md` URL? We re-request the HTML URL with `Accept: text/markdown` and with a known
     AI-bot `User-Agent` (GPTBot, ClaudeBot, PerplexityBot, ...) and check it returns markdown rather than
@@ -189,12 +197,27 @@ measured and scored but only flagged, never auto-edited.
     only one path does; `fail` = the HTML URL never returns markdown to AI clients. Auto-fix = add
     middleware/an edge handler that detects the markdown preference or AI-bot UA and serves the twin.
     Hand-written, framework-idiomatic — **never** add a third-party dependency to the user's repo.
+    *(v1.1, informational only)* We also probe with an `Accept` header matching neither HTML nor
+    markdown and record whether the server returns `406 Not Acceptable` (spec SHOULD). Surfaced as
+    evidence, **never scored** — almost no real server 406s and HTML-for-everything is harmless.
 26. **`ai-delivery-headers`** — The AEO delivery **header contract** that makes twins safe and cacheable:
     the markdown twin response sets `X-Robots-Tag: noindex` (no duplicate-content indexing), `Vary: Accept`
     (correct caching across representations), and `X-Markdown-Tokens` (a positive integer, context-budget
     hint); the HTML response advertises the twin via a `Link: <…>; rel="alternate"; type="text/markdown"`
-    **response header** (not only a `<link>` tag in `<head>`). `pass` = all four present; `partial` = some;
-    `fail` = none. Auto-fix = set the headers where the twin and HTML are served. Pairs with #23/#25.
+    **response header** (not only a `<link>` tag in `<head>`) and *(v1.1)* itself sends `Vary: Accept` —
+    the negotiated URL must vary on `Accept` in **both** representations or caches can serve markdown to
+    browsers (spec MUST). `pass` = all five present; `partial` = some; `fail` = none. Auto-fix = set the
+    headers where the twin and HTML are served. Pairs with #23/#25.
+27. **`aeo-conformance`** *(v1.1)* — The AEO-spec **SHOULD/MAY extras** beyond the core contract:
+    the markdown twin response sets `X-Content-Type-Options: nosniff` (don't let intermediaries
+    second-guess `text/markdown`) and `X-AEO-Version` (advertise the implemented spec version, e.g.
+    `1.0`); and `sitemap.xml` includes the `.md` twin URLs so AI crawlers can bulk-discover them.
+    `pass` = all signals present; `partial` = some; `fail` = none. The sitemap signal is skipped
+    (excluded from the denominator) when the sitemap is a **sitemap index** (child sitemaps aren't
+    crawled, so `.md` inclusion is unknown) or the sitemap itself is missing/invalid (that's
+    `sitemap` #7's finding, not this one's). No twin at all → `fail` with "fix `markdown-twin`
+    first." Auto-fix = same twin handler/middleware as #26 plus the sitemap generator. Pairs with
+    #23/#25/#26.
 
 ## Planned expansions (not yet scored in v1)
 

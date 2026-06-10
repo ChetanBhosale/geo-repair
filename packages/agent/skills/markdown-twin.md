@@ -20,7 +20,8 @@ content (same headings/prose/FAQ/links), **no new claims** (new claims would be 
 
 ## Pass bar
 pass = `<path>.md` returns 200, `Content-Type: text/markdown; charset=utf-8`, non-empty body.
-partial = reachable but wrong content-type or empty body. fail = no twin.
+partial = reachable but wrong content-type, **missing `charset=utf-8`**, or empty body. fail = no
+twin. The charset declaration is enforced — `text/markdown` alone scores partial.
 
 ## How to fix (by framework, hand-written — never add a third-party dependency)
 Generate from the page's **structured source** (MDX/collections/CMS, or the content module it

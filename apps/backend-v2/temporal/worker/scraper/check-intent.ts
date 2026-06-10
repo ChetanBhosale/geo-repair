@@ -1,8 +1,8 @@
-// Canonical GEO/AEO checks (RUBRIC.md v1). Single source of truth for the
+// Canonical GEO/AEO checks (RUBRIC.md v1.1). Single source of truth for the
 // scraper worker: each entry drives one check evaluator, its weight, and how it
 // is fixed. Keep IDs, categories, and tiers identical to RUBRIC.md.
 
-export const RUBRIC_VERSION = "v1";
+export const RUBRIC_VERSION = "v1.1";
 
 export type CheckCategory =
   | "Rendering"
@@ -312,6 +312,17 @@ export const check_intent: CheckIntent[] = [
     scope: "per-page",
     intent:
       "AEO delivery header contract: the Markdown twin response sets X-Robots-Tag: noindex (no duplicate indexing), Vary: Accept (correct caching), and X-Markdown-Tokens; the HTML response advertises the twin via a Link: rel=\"alternate\"; type=\"text/markdown\" response header.",
+  },
+  {
+    name: "aeo-conformance",
+    category: "Crawl surface",
+    tier: "A",
+    priority: "low",
+    weight: PRIORITY_WEIGHT.low,
+    fixableByAgent: true,
+    scope: "per-page",
+    intent:
+      "AEO-spec SHOULD/MAY conformance extras: the Markdown twin response sets X-Content-Type-Options: nosniff and advertises the implemented spec version via X-AEO-Version, and sitemap.xml includes the .md twin URLs so AI crawlers can discover them in bulk.",
   },
   {
     name: "mobile-viewport",

@@ -27,6 +27,8 @@ referenced / partial coverage. fail = none.
 - **Static HTML:** write `/sitemap.xml` (absolute URLs, `lastmod`).
 - **SvelteKit:** `sitemap.xml/+server.ts`. **Remix:** a resource route.
 - Ensure robots has a `Sitemap:` line; validate the XML.
+- When the site serves Markdown twins (`markdown-twin`), also list each page's `.md` twin URL —
+  scored by `aeo-conformance` (cross-ref that skill).
 
 ## Auto-fix vs flag
 Extend an existing sitemap setup rather than adding a parallel one. Any added dep is justified in

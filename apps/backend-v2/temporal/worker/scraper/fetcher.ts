@@ -44,6 +44,10 @@ export interface SitemapInfo {
   isXml: boolean;
   isIndex: boolean;
   urlCount: number;
+  // Count of <loc> entries ending in .md (markdown twins listed in the
+  // sitemap). null when the sitemap is an index (locs are child sitemaps,
+  // so .md inclusion is unknown without crawling them).
+  mdUrlCount: number | null;
   referencedInRobots: boolean;
   urls: string[];
 }
@@ -277,6 +281,7 @@ export async function fetchDomainFiles(finalUrl: string): Promise<DomainFiles> {
     isXml,
     isIndex,
     urlCount: locs.length,
+    mdUrlCount: isIndex ? null : locs.filter((l) => /\.md(\?|#|$)/i.test(l)).length,
     referencedInRobots: robots.sitemaps.length > 0,
     urls: isIndex ? [] : locs,
   };
@@ -311,11 +316,14 @@ export interface TwinProbe {
     ok: boolean;
     contentType: string;
     isMarkdownType: boolean;
+    charsetUtf8: boolean; // Content-Type declares charset=utf-8 (spec MUST)
     nonEmpty: boolean;
     // Delivery headers on the markdown response.
     noindex: boolean; // X-Robots-Tag contains "noindex"
     varyAccept: boolean; // Vary contains "Accept"
     tokensHeader: boolean; // X-Markdown-Tokens is a positive integer
+    nosniff: boolean; // X-Content-Type-Options: nosniff (spec SHOULD)
+    aeoVersion: boolean; // X-AEO-Version present and non-empty (spec SHOULD)
   };
   // Re-requesting the HTML URL with Accept: text/markdown.
   acceptServesMarkdown: boolean;
@@ -323,6 +331,12 @@ export interface TwinProbe {
   botUaServesMarkdown: boolean;
   // The HTML response's own Link header advertised a markdown alternate.
   htmlLinkAlternate: boolean;
+  // The HTML response itself sends Vary: Accept (the negotiated URL must vary
+  // on Accept in BOTH representations, not just the twin).
+  htmlVaryAccept: boolean;
+  // Spec SHOULD: an Accept header matching neither HTML nor markdown (nor a
+  // wildcard) gets 406 Not Acceptable. Informational only — never scored.
+  notAcceptable: { probed: boolean; status: number; returns406: boolean };
 }
 
 // Derive the conventional twin URL for a page: <path>.md (root -> /index.md).
@@ -366,16 +380,21 @@ export async function probeTwin(
 ): Promise<TwinProbe> {
   const twinUrl = twinUrlFor(pageUrl);
 
-  const [twinRes, acceptRes, botRes] = await Promise.all([
+  const [twinRes, acceptRes, botRes, unacceptableRes] = await Promise.all([
     rawFetch(twinUrl),
     rawFetch(pageUrl, { headers: { Accept: "text/markdown" } }),
     rawFetch(pageUrl, { headers: { "User-Agent": AI_BOT_UA, Accept: "text/markdown" } }),
+    // Neither text/html nor text/markdown nor a wildcard: spec says SHOULD 406.
+    rawFetch(pageUrl, { headers: { Accept: "text/n3" } }),
   ]);
 
   const xRobots = (twinRes.headers["x-robots-tag"] ?? "").toLowerCase();
   const vary = (twinRes.headers["vary"] ?? "").toLowerCase();
   const tokens = twinRes.headers["x-markdown-tokens"] ?? "";
+  const ctOptions = (twinRes.headers["x-content-type-options"] ?? "").toLowerCase();
+  const aeoVersion = (twinRes.headers["x-aeo-version"] ?? "").trim();
   const linkHeader = (htmlHeaders["link"] ?? "").toLowerCase();
+  const htmlVary = (htmlHeaders["vary"] ?? "").toLowerCase();
 
   return {
     twinUrl,
@@ -385,14 +404,23 @@ export async function probeTwin(
       ok: twinRes.ok,
       contentType: twinRes.contentType,
       isMarkdownType: isMarkdownContentType(twinRes.contentType),
+      charsetUtf8: /charset\s*=\s*["']?utf-?8/i.test(twinRes.contentType),
       nonEmpty: twinRes.ok && twinRes.body.trim().length > 0,
       noindex: xRobots.includes("noindex"),
       varyAccept: /\baccept\b/.test(vary),
       tokensHeader: /^\d+$/.test(tokens.trim()) && Number(tokens) > 0,
+      nosniff: ctOptions.includes("nosniff"),
+      aeoVersion: aeoVersion.length > 0,
     },
     acceptServesMarkdown: servedMarkdown(acceptRes),
     botUaServesMarkdown: servedMarkdown(botRes),
     htmlLinkAlternate:
       linkHeader.includes('rel="alternate"') && linkHeader.includes("text/markdown"),
+    htmlVaryAccept: /\baccept\b/.test(htmlVary),
+    notAcceptable: {
+      probed: unacceptableRes.status !== 0,
+      status: unacceptableRes.status,
+      returns406: unacceptableRes.status === 406,
+    },
   };
 }
