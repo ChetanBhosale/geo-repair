@@ -206,7 +206,7 @@ Decide where code lives by whether it is **shared across apps** or **specific to
   subpath export like `@repo/<name>/sub`). Do not reach into another app's folder or
   copy-paste shared logic between apps.
   - Examples: `@repo/types`, `@repo/db`, `@repo/secrets`, `@repo/ai` (OpenRouter),
-    `@repo/checker`, `@repo/github`, `@repo/agent`.
+    `@repo/checker`, `@repo/github`, `@repo/agent`, `@repo/email`.
 - **App-specific → keep it inside that app.** Anything only one app needs (a route handler, a
   one-off React component, an app-only dependency) lives in that `apps/*` package and is
   installed there, not promoted to `packages/*`.
@@ -215,5 +215,23 @@ Rule of thumb: if you are about to add a dependency or a module that a second ap
 plausibly import, create/extend a `@repo/*` package instead of installing it inside one app.
 When unsure, prefer a shared package for libraries/SDKs/types/flows, and app-local for UI and
 wiring that only makes sense in that app.
+
+## Transactional email — use `@repo/email`
+
+All user-facing email is sent from the shared `@repo/email` package (React Email templates +
+Resend client). **Never hand-roll Resend calls or inline email HTML inside an app.** The
+templates already exist; as each segment ships, wire the matching one at its trigger:
+
+- **Auth** → `accountWelcome` on first user creation.
+- **Scan / checkup** → `checkupComplete` / `scanFailed` on `Scraping` COMPLETED/FAILED.
+- **Billing (Dodo)** → `paymentReceipt` / `paymentFailed` / `refund` on order PAID/FAILED/REFUNDED.
+- **Fix agent** → `fixPlanReady` / `fixPrOpened` / `fixFailed` / `chatLimitReached` on the run's
+  status transitions.
+
+Sends are best-effort and must never block or break the triggering work. Presence-aware
+suppression (skip scan/fix emails if the user was just active in the dashboard) and `notifiedAt`
+idempotency are deferred until the dashboard/billing exist — implement them when you wire those
+segments. Full mapping, trigger files, and recipient rules live in
+[`packages/email/AGENTS.md`](packages/email/AGENTS.md).
 
 keep [Todo.md](Todo.md) file always up to date.
