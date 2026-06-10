@@ -62,6 +62,16 @@ real product behavior and data handling. They must stay accurate.
 - **Both pages move together when shared facts change.** Contact addresses, company
   identity, and data-handling claims appear in both; update both so they never disagree.
 
+## Transactional email
+
+Send all user-facing email from `@repo/email` (`import { sendEmail } from "@repo/email"`) —
+never inline Resend calls or email HTML here. The control plane (billing/Dodo webhooks,
+dashboard, auth) lives in this app, so as those segments ship, wire their templates
+(`paymentReceipt`/`paymentFailed`/`refund`, `checkupComplete`/`scanFailed`, `fix*`,
+`accountWelcome`) at the trigger sites. Sends are best-effort and must not block the request.
+The legacy `lib/email.ts` (waitlist + contact) predates the package and is slated to move into
+it. Full mapping: [`packages/email/AGENTS.md`](../../packages/email/AGENTS.md).
+
 ## Analytics & events
 
 PostHog tracking is required on insightful surfaces (see the root `AGENTS.md` Analytics
