@@ -12,7 +12,6 @@ Whether you're sizing up the checkup, weighing a plan, or vetting our security, 
 
 - **General & sales**: [hello@geo.repair](mailto:hello@geo.repair): Questions about the checkup, the fix agent, or a plan. We read every message.
 - **Security**: [security@geo.repair](mailto:security@geo.repair): Report a vulnerability or ask about our sandbox, access scope, and data handling.
-- **GitHub**: [github.com/geo-repair](https://github.com/geo-repair): Issues and discussion for the open parts of the project.
 
 ---
 

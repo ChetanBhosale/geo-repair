@@ -20,6 +20,7 @@ export const FOOTER_SECTIONS = [
   {
     title: "Company",
     links: [
+      { label: "About", href: "/about" },
       { label: "Blog", href: "/blog" },
       { label: "Contact", href: "/contact" },
       { label: "Security", href: "/security" },

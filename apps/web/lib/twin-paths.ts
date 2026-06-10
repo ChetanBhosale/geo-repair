@@ -14,6 +14,7 @@ export const MARKDOWN_TWIN_PATHS: readonly string[] = [
   "/geo-aeo-checker",
   "/pricing",
   "/security",
+  "/about",
   "/contact",
   "/blog",
   "/privacy",

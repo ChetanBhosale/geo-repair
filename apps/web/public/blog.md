@@ -8,6 +8,12 @@ source: https://geo.repair/blog
 
 Technical guides to answer engine optimization and generative engine optimization, with plain advice on audits, scans, checkups, reports, and fixes.
 
+## [The 7-minute AI-search readiness self-audit](https://geo.repair/blog/ai-search-readiness-self-audit)
+
+June 9, 2026 · AI Search, Audit, Technical
+
+Seven checks you can run by hand, in a terminal and a browser, to see whether ChatGPT, Perplexity, and Google AI can fetch, parse, and trust your pages.
+
 ## [Free GEO tools in 2026: what to use before you pay](https://geo.repair/blog/free-geo-tools-2026)
 
 June 5, 2026 · GEO, Tools, AI Search

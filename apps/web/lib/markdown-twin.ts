@@ -39,6 +39,11 @@ import {
   SECURITY_FAQ,
   CONTACT_HEADER,
   CONTACT_CHANNELS,
+  ABOUT_HEADER,
+  ABOUT_STORY_INTRO,
+  ABOUT_STORY,
+  ABOUT_PROMISE,
+  FOUNDERS,
 } from "./marketing-content"
 import { getAllPosts, getPostBySlug, getPostSeoTitle } from "./blog"
 export { MARKDOWN_TWIN_PATHS, markdownTwinPath } from "./twin-paths"
@@ -339,6 +344,37 @@ function contactTwin(): string {
   })
 }
 
+function aboutTwin(): string {
+  const founders = FOUNDERS.map(
+    (f) => `- **${f.name}** — ${f.role}. ${f.bio} [${f.handle}](${f.x})`
+  ).join("\n")
+
+  const body = [
+    `# ${ABOUT_HEADER.title}`,
+    "",
+    ABOUT_HEADER.description ?? "",
+    "",
+    `## ${ABOUT_STORY_INTRO.title}`,
+    "",
+    ABOUT_STORY.join("\n\n"),
+    "",
+    "## The founders",
+    "",
+    founders,
+    "",
+    `## ${ABOUT_PROMISE.title}`,
+    "",
+    ABOUT_PROMISE.body,
+  ].join("\n")
+
+  return doc({
+    title: ABOUT_HEADER.title,
+    description: ABOUT_HEADER.description ?? "",
+    canonicalPath: "/about",
+    body,
+  })
+}
+
 function blogIndexTwin(): string {
   const posts = getAllPosts()
   const list = posts
@@ -562,6 +598,8 @@ export async function getTwin(rawPath: string): Promise<string | null> {
       return pricingTwin()
     case "/security":
       return securityTwin()
+    case "/about":
+      return aboutTwin()
     case "/contact":
       return contactTwin()
     case "/blog":
