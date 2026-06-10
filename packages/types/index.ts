@@ -9,3 +9,9 @@ export * from "./src/agent";
 export * from "./src/fix";
 export * from "./src/entitlements";
 export * from "./src/reports";
+
+// A few names are defined in two modules; explicit re-exports resolve the
+// star-export ambiguity. Consumers that need the other shape import from the
+// module subpath (e.g. "@repo/types/fix") directly.
+export type { CategoryScore } from "./src/scraping"; // scraper.ts has a legacy shape
+export type { SandboxStatus, StartFixResponse } from "./src/agent"; // fix.ts has the older fix-run shapes
