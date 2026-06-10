@@ -10,6 +10,9 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 // Default model (BYOK via OpenRouter). Override per call with `model`.
 export const DEFAULT_MODEL = Secrets.LLM_MODEL;
 
+// Cheaper/faster model for mechanical work (routing). Falls back to LLM_MODEL.
+export const CHEAP_MODEL = Secrets.LLM_MODEL_CHEAP;
+
 let client: OpenAI | null = null;
 
 // Shared OpenRouter client (OpenAI-compatible). Reused across calls.

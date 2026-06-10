@@ -97,6 +97,17 @@ Prefer **site-wide fixes that lift many pages at once** (shared head/layout, rob
 llms.txt) over repeating a per-page edit. Always read the existing head/metadata/config before
 planning an addition, to extend rather than duplicate.
 
+## Net-new page proposals (Tier C, gated)
+
+Beyond fixing the failing checks, be **realistic and proactive**: if a high-value page is clearly
+missing, propose creating it (gated behind a yes/no the user must approve). Prioritise by AI-citation
+evidence: comparison / "X vs Y" pages earn roughly 32% more citations; original-data pages (surveys,
+benchmarks, real numbers) make the site the cited source; FAQ and glossary pages give answer engines
+extractable Q&A and plain definitions; an about/contact page strengthens E-E-A-T. Propose at most a
+few, never one that already exists, and **never invent facts, stats, pricing, or competitor claims** —
+these pages can only be built from content already on the site or details the user provides (offer the
+`yes_existing` / `yes_provided` / `no` options).
+
 ## Communicating the plan
 
 Narrate briefly and naturally as you inspect — one short, human, jargon-free sentence before a

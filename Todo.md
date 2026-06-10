@@ -149,3 +149,106 @@ Notes:
   checker) — update if we want the demo to mirror the new IDs.
 - Follow-up (separate): make geo.repair (apps/web) pass these — it serves static .md files with no
   negotiation/header contract today.
+
+## Fix-run cost reduction (workstream B) — batching + context reuse + model routing
+
+Goal: one fix run was expensive because each check ran as a SEPARATE runAgent session
+(maxSteps 20) that re-explored the repo from scratch — 15 checks = 15 re-discoveries.
+Research basis: prompt-cache/context reuse cuts cost 40-90%; batching shared context is the
+big lever; model routing to a cheaper tier keeps ~95% quality at 45-85% lower cost.
+
+Done (backend-v2 `agent-fix`):
+- **Batching**: `groupChecks()` buckets approved checks by shared surface into a few groups —
+  `crawl` (robots/sitemap/llms.txt/indexability), `head` (meta/OG/canonical/JSON-LD/favicon/
+  hreflang/charset/doctype/viewport/social-image-size), `semantics`, `content`, `aeo-delivery`
+  (markdown-twin/content-negotiation/ai-delivery-headers). Unknown ids get their own group.
+- Workflow now loops GROUPS, not checks: `fixSetupActivity` returns `groups` (+ flat `checks`,
+  `repoSummary`); new `fixGroupActivity` runs ONE runAgent per group so shared files are read once.
+  Replaced per-check `fixCheckActivity`. Steps budgeted `min(40, 10 + 6*checks)`.
+- **Context reuse**: the planner's `AgentPlan.summary` (stack/layout/content sources it already
+  found) is injected into the fix system prompt so the fix agent does NOT re-discover the repo.
+- **Model routing**: added `LLM_MODEL_CHEAP` secret + `CHEAP_MODEL` export. Mechanical groups
+  (`crawl`, `head`) use the cheap model; `semantics`/`content`/`aeo-delivery` use `DEFAULT_MODEL`.
+  No-op until `LLM_MODEL_CHEAP` is configured (defaults to LLM_MODEL).
+- Outcomes still set optimistically FIXED per group (matches prior behavior); workstream A's
+  verify-and-iterate rescan will make them truthful. Image tool + AGENT/AGENT_FILE logging kept
+  (file_change tagged with the group id).
+- Verified: backend-v2 check-types clean.
+
+Deferred (intentionally, for safety): true no-LLM deterministic fixers for templated checks
+(charset/doctype/viewport/robots/sitemap/llms.txt). Higher risk across arbitrary stacks; the
+batching + routing above is the high-ROI, low-risk subset. Revisit if cost still too high after A.
+
+Next: workstream A (verify-and-iterate loop — build+serve in sandbox, rescan with runScrape,
+re-fix still-failing checks up to ~3 iterations, mark outcomes from the rescan).
+
+## Verify-and-iterate loop (workstream A) — one run reaches the real score
+
+Problem: the fix run marked every check FIXED on the agent's word and never re-checked, so the
+true score only emerged on a fresh AgentRun (the "run it 3 times" pain). Research basis: self-
+correcting coding agents (Socratic-SWE) keep improving and plateau around 3 passes; the gate that
+makes cheap-model routing safe is re-verifying against the same checker.
+
+Done (backend-v2 `agent-fix`):
+- New `@repo/sandbox` helpers: `startBackground()` (E2B `commands.run({background:true})` -> pid +
+  kill) and `getSandboxHost(sandbox, port)` (public HTTPS host for a port inside the microVM).
+- New `fixRescanActivity`: detects how to serve the repo (a `start` script, else a static dir via
+  `bunx serve`), installs + builds, starts the server in the background, polls `https://<host>`
+  until up, then runs our own `runScrape` against it (maxPages 6). Maps each approved check to the
+  REAL result: SUCCESS -> outcome FIXED ("verified passing"); FAILED/MID -> outcome FAILED with the
+  re-scan summary, and collected as `stillFailing`. Sets `AgentRun.scoreAfter` from the re-scan.
+  Returns `{ ok, score, done, nextGroups }`. Best-effort: build/serve failure returns ok:false.
+- Workflow loop (`agentFixWorkflow`): fix groups -> rescan -> if `done` stop; else re-fix only
+  `nextGroups` (still-failing checks, with the re-scan feedback appended to their recommendation),
+  up to `MAX_ITERATIONS = 3`. If a rescan can't build/serve, falls back to the legacy build-only
+  `fixVerifyActivity` and opens the PR (never blocks). Activity timeout raised to 30 min.
+- Outcomes + `scoreAfter` are now truthful (measured), and the PR's "N fixes" count reflects
+  verified passes. `scoreBefore` already came from the originating scan, so the before/after delta
+  is real. Status shows VERIFYING during each re-scan (badge already existed).
+
+Notes / tradeoffs:
+- The re-scan serves the freshly-built FIXED code on localhost and scans that; before (live scan)
+  vs after (built fixed code) is the right comparison. Small page-count difference (6 vs up to 20)
+  can nudge the rollup slightly.
+- Serving arbitrary stacks is the main failure point; it's defensive and best-effort, so a repo we
+  can't serve still gets a PR with optimistic outcomes + a clear "couldn't auto-verify" log.
+- Cost: each iteration does install+build+serve+scan. Capped at 3 and re-fixes only what still
+  fails, so most runs converge in 1-2 passes. Workstream B's batching keeps the fix passes cheap.
+- Verified: backend-v2 check-types clean; agent skills test passes.
+
+## Net-new page proposals (workstream C) — planner is realistic + proactive
+
+Problem: the planner only fixed failing checks on existing pages; it never proposed creating a
+high-value page that's simply missing. Evidence (more-of-agent.md / GEO studies): comparison/"X vs
+Y" pages earn ~32% more AI citations, original-data pages make you the cited source, FAQ/glossary
+give extractable Q&A + definitions, about/contact strengthens E-E-A-T.
+
+Done (backend-v2):
+- Planner agent (`PLANNER_AGENT_SYSTEM`): added a `newPages[]` array to its JSON output + guidance
+  to propose 0-3 genuinely-missing high-value pages, prioritised by the citation evidence above.
+  Strict honesty: gated yes/no, built only from existing site content or user-provided facts, never
+  inventing claims/stats/pricing/competitor details; never propose a page that already exists.
+- `mapParsedToPlanned`: maps each `newPages` item to a gated NEEDS_INPUT `AgentPlanCheck` with a
+  UNIQUE synthetic `new-page-<kind>` id (the table has `@@unique([agentPlanId, rubricId])`),
+  category Content, tier C, **weight 0 (never scored)**, action "create", and the standard
+  yes_existing / yes_provided / no options. They surface in the plan card like any "need you" item,
+  so the user must explicitly approve them before the fix run creates them.
+- Fix agent (`fixSystemPrompt`): handles `new-page-*` checks — create the route idiomatic to the
+  stack, structured for AI extraction (one h1, question headings, answer-first 50-150 word chunks,
+  comparison table where relevant), add JSON-LD + nav/sitemap/llms.txt links + a markdown twin,
+  using ONLY existing/provided facts. Each net-new page becomes its own fix group (strong model).
+- The re-scan loop (workstream A) leaves these as their optimistic outcome (no deterministic check
+  for "good comparison page"), but they lift the scored checks (answerability, definitions,
+  internal-linking, markdown-twin) indirectly.
+- Docs: planner.md "Net-new page proposals" section; RUBRIC.md planned-expansions note. No frontend
+  change (NEEDS_INPUT + options already render in the plan card).
+- Verified: backend-v2 check-types clean; agent skills test passes (synthetic ids aren't canonical
+  checks, so no skill-sync break).
+
+## Fix: agent runs list needed a manual refresh
+
+`useProjectAgentRuns` had no polling; with the global `staleTime: 30_000` + `refetchOnWindowFocus:
+false`, returning to the project page after starting a run served stale cache, so the new run only
+appeared after a hard refresh. Fix: `refetchOnMount: "always"` + a `refetchInterval` (4s) that polls
+only while a run is actively working (`isAgentRunWorking`) and stops once runs settle. Dashboard
+typecheck clean (only the pre-existing calendar.tsx error remains).

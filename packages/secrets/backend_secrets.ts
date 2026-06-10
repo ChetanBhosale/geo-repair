@@ -57,6 +57,11 @@ const BackendSecrets = {
   // OpenRouter (LLM gateway). LLM_MODEL is the default model id.
   OPEN_ROUTER_KEY: process.env.OPEN_ROUTER_KEY,
   LLM_MODEL: process.env.LLM_MODEL || "google/gemini-3.5-flash",
+  // Cheaper/faster model for mechanical fix groups (metadata, robots/sitemap/
+  // llms.txt). Falls back to LLM_MODEL when unset, so routing is a no-op until
+  // configured. Reserve the stronger LLM_MODEL for content/structural edits.
+  LLM_MODEL_CHEAP:
+    process.env.LLM_MODEL_CHEAP || process.env.LLM_MODEL || "google/gemini-3.5-flash",
 
   // E2B (ephemeral execution sandbox).
   E2B_SANDBOX_API_KEY: process.env.E2B_SANDBOX_API_KEY,

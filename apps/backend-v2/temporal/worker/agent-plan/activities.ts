@@ -73,10 +73,22 @@ When you are done inspecting, STOP using tools and return ONLY this JSON object 
       "options": "only for NEEDS_INPUT: [{\\"id\\":\\"yes_existing|yes_provided|yes|no\\",\\"label\\":\\"...\\",\\"description\\":\\"...\\"}], else null"
     }
   ],
+  "newPages": [
+    {
+      "title": "human title of a NEW page that does not exist yet but would lift AI citations",
+      "kind": "comparison" | "faq" | "glossary" | "about" | "data" | "guide",
+      "path": "suggested route, e.g. /compare/acme-vs-competitor",
+      "reason": "why this page would help (tie to the gap you saw)",
+      "question": "Create this page? (yes/no)",
+      "options": [{"id":"yes_existing","label":"...","description":"..."},{"id":"yes_provided","label":"...","description":"..."},{"id":"no","label":"...","description":"..."}]
+    }
+  ],
   "manual": [{ "rubricId": "<id>", "reason": "why it can't be fixed in code" }]
 }
 
 Include one plans[] entry for EVERY failing check given (except those you put in manual). Never invent claims, content, or sources.
+
+newPages (be realistic and proactive): beyond fixing the failing checks, propose 0-3 HIGH-VALUE pages that DO NOT exist on this site yet but would materially improve how often AI engines cite it. Only propose a page when there is a real gap and clear value, and never one that already exists. Evidence to prioritise by: comparison / "X vs Y" pages earn around 32% more AI citations; original-data pages (surveys, benchmarks, real numbers) make the site the cited source; FAQ and glossary pages give answer engines extractable Q&A and plain definitions; an about/contact page strengthens E-E-A-T. Each newPages item is gated: it is presented to the user as a yes/no with options yes_existing (build only from content already on the site), yes_provided (the user will paste the facts), and no (skip). NEVER invent facts, statistics, pricing, or competitor claims; these pages can only be built from content already on the site or details the user provides. If there are no genuinely valuable missing pages, return an empty newPages array.
 
 The user can ONLY reply with text. NEVER ask them to upload or attach a file, document, or image (it is not supported). If a check needs an image (Open Graph image, logo, favicon), ask the user to paste an image URL in their note, or offer to generate one. Always request a URL or plain text, never an upload.`;
 
@@ -88,9 +100,18 @@ interface ParsedPlanItem {
   question?: string | null;
   options?: { id: string; label: string; description?: string }[] | null;
 }
+interface ParsedNewPage {
+  title?: string;
+  kind?: string; // comparison | faq | glossary | about | data | guide
+  path?: string;
+  reason?: string;
+  question?: string | null;
+  options?: { id: string; label: string; description?: string }[] | null;
+}
 interface ParsedPlan {
   summary?: string;
   plans?: ParsedPlanItem[];
+  newPages?: ParsedNewPage[];
   manual?: { rubricId: string; reason: string }[];
 }
 
@@ -171,6 +192,61 @@ function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): Plann
   for (const c of checks) {
     if (!seen.has(c.rubricId)) out.push(planCheck(c));
   }
+
+  // Net-new page proposals (Tier C, gated). Not scan checks — they get a unique
+  // synthetic rubricId (unique per plan is required by the DB), weight 0 (not
+  // scored), and are always NEEDS_INPUT so the user explicitly approves them.
+  const usedIds = new Set(out.map((p) => p.rubricId));
+  for (const np of parsed.newPages ?? []) {
+    if (!np.title && !np.path) continue;
+    const kind = (np.kind ?? "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "page";
+    let id = `new-page-${kind}`;
+    let n = 2;
+    while (usedIds.has(id)) id = `new-page-${kind}-${n++}`;
+    usedIds.add(id);
+
+    const title = np.title ?? `New ${kind} page`;
+    const path = np.path ?? "";
+    const reason = np.reason ?? `A new ${kind} page would improve how often AI engines cite this site.`;
+    const options =
+      np.options && np.options.length
+        ? np.options
+        : [
+            {
+              id: "yes_existing",
+              label: "Yes, build it from content already on my site",
+              description: "Only uses facts already published here; nothing invented.",
+            },
+            {
+              id: "yes_provided",
+              label: "Yes, and I'll provide the details",
+              description: "Paste the facts/numbers in your note; the agent writes it in your voice.",
+            },
+            {
+              id: "no",
+              label: "No, skip this page",
+              description: "Recorded as declined; nothing is created.",
+            },
+          ];
+
+    out.push({
+      kind: "check",
+      rubricId: id,
+      category: "Content",
+      tier: "C",
+      weight: 0,
+      scanStatus: "FAILED",
+      fixableByAgent: "true",
+      evidence: null,
+      recommendation: reason,
+      mode: "NEEDS_INPUT",
+      approach: `Create "${title}"${path ? ` at ${path}` : ""}. ${reason}`,
+      targetPages: path ? [{ url: path, action: "create", reason }] : [],
+      question: np.question ?? `Create a new "${title}" page? It can increase how often AI engines cite you.`,
+      options,
+    });
+  }
+
   return out;
 }
 

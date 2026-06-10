@@ -153,3 +153,40 @@ export async function withSandbox<T>(
     await killSandbox(sandbox);
   }
 }
+
+// --- Background server (for in-sandbox build verification) -------------------
+
+export interface BackgroundHandle {
+  pid: number;
+  kill: () => Promise<void>;
+}
+
+// Start a long-running command (e.g. a dev/preview server) in the background.
+// Returns the pid + a kill fn. Never throws on startup; check the host instead.
+export async function startBackground(
+  sandbox: Sandbox,
+  command: string,
+  opts: RunOptions = {}
+): Promise<BackgroundHandle> {
+  const handle = await sandbox.commands.run(command, {
+    background: true,
+    cwd: opts.cwd,
+    envs: opts.envs,
+  });
+  return {
+    pid: handle.pid,
+    kill: async () => {
+      try {
+        await sandbox.commands.kill(handle.pid);
+      } catch {
+        /* already gone */
+      }
+    },
+  };
+}
+
+// Public host (over HTTPS) to reach a port running inside the sandbox, e.g.
+// `https://<getSandboxHost(sandbox, 3000)>`.
+export function getSandboxHost(sandbox: Sandbox, port: number): string {
+  return sandbox.getHost(port);
+}

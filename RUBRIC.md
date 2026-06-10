@@ -203,8 +203,16 @@ land. Add them here first, then to `@repo/checker` and the agent playbook.
 
 | ID | Category | Tier | Notes |
 |----|----------|------|-------|
-| `comparison-pages` | Content | C | Net-new competitor comparison; interview-gated, no unverifiable claims. |
+| `comparison-pages` | Content | C | Net-new competitor comparison; interview-gated, no unverifiable claims. ~32% more AI citations than prose. |
 | `keywords` | Content | C | Keyword copy; gated; never invent lists. |
+
+> **Net-new page proposals (planner, gated).** The planner may proactively propose creating
+> high-value pages that don't exist yet (comparison / "X vs Y", FAQ, glossary, original-data,
+> about/contact) as gated NEEDS_INPUT items (`yes_existing` / `yes_provided` / `no`). They are
+> persisted as Tier C `AgentPlanCheck` rows with a synthetic `new-page-<kind>` id and **weight 0
+> (never scored)** — they lift the scored checks (answerability, definitions, internal-linking,
+> markdown-twin) indirectly. Honesty rule: built only from existing site content or user-provided
+> facts, never invented claims/stats.
 | `mobile-responsive` | Rendering | Out of scope | Measured, flag-only (CSS layout — not agent-safe). |
 
 ## Off-site citation placement (diagnostic — not scored, not fixable by a PR)

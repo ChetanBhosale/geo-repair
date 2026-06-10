@@ -20,8 +20,25 @@ export interface FixCheckInput {
   userSuggestion: string | null;
 }
 
+// A batch of related checks fixed in ONE agent session (they touch the same
+// surface — e.g. the shared <head>/layout, the crawl files, or the page body).
+// Batching collapses N per-check sessions into a handful, so the agent reads
+// the shared files once instead of re-exploring the repo per check.
+export interface FixGroup {
+  id: string;
+  label: string;
+  // Model id for this group (cheap for mechanical groups, default otherwise).
+  model: string;
+  checks: FixCheckInput[];
+}
+
 export interface FixSetup {
   sandboxId: string;
   workdir: string;
+  // Batched groups (preferred). `checks` kept for back-compat / flat access.
+  groups: FixGroup[];
   checks: FixCheckInput[];
+  // The planner's summary of the stack, reused as fix-agent context so it does
+  // not re-discover the framework/layout/content sources.
+  repoSummary: string;
 }
