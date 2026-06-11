@@ -3,10 +3,34 @@ import express, { type Request, type Response, type NextFunction } from "express
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import { z } from "zod";
 
 import { runScrape } from "../temporal/worker/scraper/run";
 
-const PORT = Number(process.env.PORT ?? process.env.FREE_PORT ?? 4100);
+// Validate that the caller actually sent a website URL. We accept bare hosts
+// (example.com) by defaulting the scheme to https, then require a real http(s)
+// host with a dotted, multi-label hostname so junk like "foo" is rejected.
+const ScanRequestSchema = z.object({
+  url: z
+    .string({ error: "Provide a website URL." })
+    .trim()
+    .min(1, "Provide a website URL.")
+    .transform((value) => (/^https?:\/\//i.test(value) ? value : `https://${value}`))
+    .refine((value) => {
+      try {
+        const parsed = new URL(value);
+        const isHttp = parsed.protocol === "http:" || parsed.protocol === "https:";
+        const host = parsed.hostname;
+        return isHttp && host.includes(".") && !host.startsWith(".") && !host.endsWith(".");
+      } catch {
+        return false;
+      }
+    }, "Enter a valid website URL, for example https://example.com."),
+  singlePage: z.boolean().optional(),
+  maxPages: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const PORT = 4100;
 
 const app = express();
 
@@ -25,7 +49,7 @@ const scanLimiter = rateLimit({
 });
 
 app.get("/", (_req: Request, res: Response) => {
-  res.json({ ok: true, service: "geo-repair-free", endpoint: "POST /scan-website { url }" });
+  res.json({ ok: true, service: "geo-repair" });
 });
 
 app.get("/health", (_req: Request, res: Response) => {
@@ -33,14 +57,19 @@ app.get("/health", (_req: Request, res: Response) => {
 });
 
 async function handleScan(req: Request, res: Response) {
-  const url = (req.body?.url ?? req.query.url) as string | undefined;
-  if (!url || typeof url !== "string" || !url.trim()) {
-    return res.status(400).json({ error: "Provide a website URL via { url } or ?url=." });
+  const singleQuery = req.query.single === "true" ? true : undefined;
+  const parsed = ScanRequestSchema.safeParse({
+    url: req.body?.url ?? req.query.url,
+    singlePage: req.body?.singlePage ?? singleQuery,
+    maxPages: req.body?.maxPages ?? req.query.maxPages,
+  });
+
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message ?? "Invalid request.";
+    return res.status(400).json({ error: message });
   }
 
-  const singlePage = req.body?.singlePage === true || req.query.single === "true";
-  const requested = Number(req.body?.maxPages ?? req.query.maxPages);
-  const maxPages = Number.isFinite(requested) ? Math.max(1, requested) : undefined;
+  const { url, singlePage, maxPages } = parsed.data;
 
   try {
     const result = await runScrape(url, { singlePage, maxPages });
@@ -52,6 +81,7 @@ async function handleScan(req: Request, res: Response) {
 }
 
 app.get("/scan-website", scanLimiter, handleScan);
+app.post("/scan-website", scanLimiter, handleScan);
 
 // 404 + error handlers.
 app.use((_req: Request, res: Response) => {

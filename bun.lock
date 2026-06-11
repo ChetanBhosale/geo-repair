@@ -28,6 +28,7 @@
         "express-rate-limit": "^8.5.2",
         "helmet": "^8.2.0",
         "jsonwebtoken": "^9.0.3",
+        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -93,6 +94,7 @@
         "@next/mdx": "^16.2.7",
         "@paper-design/shaders-react": "^0.0.76",
         "@phosphor-icons/react": "^2.1.10",
+        "@repo/secrets": "*",
         "@repo/types": "*",
         "@types/mdx": "^2.0.13",
         "class-variance-authority": "^0.7.1",

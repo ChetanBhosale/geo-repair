@@ -271,3 +271,24 @@ Done:
 
 Deploy: ship `apps/backend-v2` with start command `bun run free/index.ts` on its own host; the
 platform's PORT is honored. No DB/Temporal/secrets required for this endpoint.
+
+## Free scan wired into the landing page (apps/web) + zod validation (free server)
+
+Done:
+- `free/index.ts`: added zod request validation (`ScanRequestSchema`) — normalizes bare hosts to
+  https, rejects non-http(s) / dotless hostnames with a friendly message, coerces `maxPages` (1-50),
+  optional `singlePage`. Applied to both `GET` and a new `POST /scan-website`. Added `GET /health`
+  (status/uptime/timestamp, not rate-limited). Added `zod` to backend-v2 deps.
+- `@repo/secrets/frontend`: added `OPEN_BACKEND = NEXT_PUBLIC_OPEN_BACKEND_API`. Documented the var
+  in `apps/web/.env.example`. Added `@repo/secrets` to apps/web deps.
+- New `apps/web/components/checkup/free-scan-form.tsx` (client): URL input -> `POST {OPEN_BACKEND}/scan-website`
+  -> renders ScoreRing (overall), category bars (from `score.byCategory`), and top issues (FAILED/MID
+  checks by weight). Loading + error + "run another" states. PostHog events reuse
+  checkup_started/completed/failed. Replaced the "Free scan coming soon" block in
+  `components/sections/landing.tsx` with this form (re-enabled CornerMarks).
+- Verified: backend-v2 check-types clean, web typecheck clean, new files lint clean; live smoke —
+  invalid url -> 400 zod message, `/health` OK, `POST /scan-website {linkrunner.io, singlePage}` ->
+  completed, score 94.
+
+Note: pre-existing lint error in `apps/web/app/(marketing)/blog/[slug]/page.tsx:90` (no-explicit-any)
+is unrelated to this change but will fail `next build`/the web deploy until fixed.

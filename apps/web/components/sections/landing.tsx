@@ -5,8 +5,8 @@ import { type LandingContent, LANDING_FEATURES } from "@/lib/landing-content"
 import { DASHBOARD_ONBOARDING_HREF } from "@/lib/dashboard-url"
 import { AsciiOverlay } from "@/components/ascii/ascii-overlay"
 import { Reveal } from "@/components/ui/reveal"
-// import { CheckupForm } from "@/components/checkup/checkup-form" // disabled: scan "coming soon"
-// import { CornerMarks } from "./frame" // disabled: scan "coming soon"
+import { FreeScanForm } from "@/components/checkup/free-scan-form"
+import { CornerMarks } from "./frame"
 import { HowItWorks } from "./how-it-works"
 import { CategoriesGrid } from "./categories-grid"
 import { FeatureSection } from "./feature-section"
@@ -64,29 +64,16 @@ export function LandingPage({ content }: { content: LandingContent }) {
               <ArrowRightIcon className="size-4" aria-hidden />
             </CtaButton>
 
-            {/* TODO: scan form temporarily disabled — showing "coming soon".
-                Restore by uncommenting the block below (and the CheckupForm /
-                CornerMarks imports above). */}
+            {/* Free AI search readiness scan. Interactive tool (client) that
+                calls the open backend /scan-website endpoint and renders the
+                score, category breakdown, and top issues inline. */}
             <div
-              id="checkup"
-              className="relative w-full max-w-xl scroll-mt-24 border border-black/5 bg-white p-6 text-center sm:p-8"
-            >
-              <p className="font-heading text-lg font-medium text-primary">
-                Free scan coming soon
-              </p>
-              <p className="mt-2 text-sm text-secondary">
-                Our AI search scan is almost ready. Get started to be first in
-                line when it goes live.
-              </p>
-            </div>
-
-            {/* <div
               id="checkup"
               className="relative w-full max-w-xl scroll-mt-24 border border-black/5 bg-white p-4 text-left sm:p-5"
             >
               <CornerMarks />
-              <CheckupForm inputId={content.inputId} />
-            </div> */}
+              <FreeScanForm inputId={content.inputId} />
+            </div>
 
             <ul className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-white/70">
               {content.trustChips.map((chip, index) => (
