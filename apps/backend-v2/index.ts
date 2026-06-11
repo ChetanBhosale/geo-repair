@@ -13,11 +13,18 @@ import projectRoutes from "./routes/projects.routes";
 import scrapingRoutes from "./routes/scrapings.routes";
 import agentRunRoutes from "./routes/agent-runs.routes";
 import workerStatusRoutes from "./routes/worker-status.routes";
+import { createScanRouter } from "./routes/scan.routes";
 
 const app = express();
 
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+
+// Public, unauthenticated scan API. Mounted BEFORE the restrictive global CORS
+// so agents on any origin (and server-side callers) can reach it at
+// api.geo.repair/scan-website. Carries its own open CORS, JSON parser, and rate
+// limit — the same handler the standalone `free/` service exposes.
+app.use("/scan-website", createScanRouter());
 
 app.use(
   cors({

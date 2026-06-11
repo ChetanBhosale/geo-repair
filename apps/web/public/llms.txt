@@ -6,6 +6,15 @@ GEO Repair (publicly: "AI Search Optimization") scores a site across 23 checks i
 
 Every page on this site has a clean Markdown twin: append `.md` to its URL (the home page is at /index.md) for a faithful text copy. The `.md` links below point to those twins.
 
+## Scan API
+
+Run the same free AI search readiness scan programmatically — no API key, no signup. Send any website URL and get the full checkup report back as JSON.
+
+- `POST https://api.geo.repair/scan-website` with body `{"url": "example.com"}`. A bare host is fine; the scheme defaults to https. Optional: `"singlePage": true` to scan only that URL, or `"maxPages": 20` to bound the multi-page crawl (1–50, default 20).
+- `GET https://api.geo.repair/scan-website?url=example.com` for a one-shot call (add `&single=true` for single-page).
+- Rate limit: 3 requests per minute per IP.
+- Response JSON includes: `score.overall` (0–100) and `score.status` band; `score.byCategory` for the 7 categories (rendering, structured data, metadata, crawl surface, semantics, content, answerability); `crawl.pagesChecked`; and `checks[]` — one entry per check with `name`, `category`, `status` (SUCCESS / MID / FAILED / NOT_APPLICABLE / INCONCLUSIVE), `summary`, `recommendation`, and `affectedPages`.
+
 ## Core pages
 
 - [Home](https://geo.repair/) ([.md](https://geo.repair/index.md)): Free AI search audit that runs an AEO and GEO scan, returns a checkup report, and creates fix PRs.
