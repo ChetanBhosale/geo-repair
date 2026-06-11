@@ -4,7 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-
+import {config} from "../config"
 import { runScrape } from "../temporal/worker/scraper/run";
 
 // Validate that the caller actually sent a website URL. We accept bare hosts
@@ -30,7 +30,7 @@ const ScanRequestSchema = z.object({
   maxPages: z.coerce.number().int().min(1).max(50).optional(),
 });
 
-const PORT = 4100;
+const PORT = config.port || 4000
 
 const app = express();
 
