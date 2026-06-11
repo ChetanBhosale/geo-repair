@@ -1,4 +1,15 @@
 
+## Marketing image fallbacks
+
+Done:
+- Baked halftone fallback assets for the indexed homepage feature panels so crawlers see the stylized graphics, while real users still get the live shader overlay.
+
+## Local Mac services
+
+Done:
+- Added a user-level macOS Quick Action, `Rewrite for geo.repair`, for selected text in any app. It calls Vertex Gemini using the shared local credential environment from `vertex-image-gen`, rewrites the selected Twitter/LinkedIn-style post into a geo.repair variant, and copies the output to the clipboard.
+- Added a second user-level macOS Quick Action, `Generate thoughtful reply`, for selected social posts. It calls Vertex Gemini through the same local credentials, writes `generating...` while it runs, runs a humanizer-style pass for everyday verbal language / humor / mild sarcasm / disappointment when appropriate, and copies a non-promotional reply to the clipboard without mentioning geo.repair unless the selected post is directly related.
+
 there is cdn that provides old cache after deployment too
 
 ## Scan run (backend-v2 + dashboard-v2)

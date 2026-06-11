@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils"
 type HalftoneOverrides = Partial<React.ComponentProps<typeof HalftoneDots>>
 
 type HalftoneImageProps = {
-  /** Image to halftone. Same-origin (served from /public) sidesteps WebGL CORS
-   *  tainting — external hosts must send permissive CORS headers. */
+  /** SSR/fallback image. Use a baked halftone asset when the surface is indexed. */
   src: string
+  /** Optional original image for the live WebGL shader. Same-origin assets
+   * sidestep WebGL CORS tainting. */
+  shaderSrc?: string
   alt?: string
   className?: string
   style?: CSSProperties
@@ -33,6 +35,7 @@ const DEFAULTS = {
 
 export function HalftoneImage({
   src,
+  shaderSrc,
   alt = "",
   className,
   style,
@@ -71,7 +74,7 @@ export function HalftoneImage({
       />
       {active && (
         <HalftoneDots
-          image={src}
+          image={shaderSrc ?? src}
           style={{
             position: "absolute",
             inset: 0,

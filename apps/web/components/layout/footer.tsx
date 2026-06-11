@@ -17,6 +17,10 @@ const SOCIAL_ICONS = {
   X: XLogoIcon,
 } as const
 
+// Underline that expands from 0 → full width, anchored left, on hover.
+const FOOTER_LINK_CLASS =
+  "relative inline-block text-xs text-muted-foreground transition-colors hover:text-foreground after:absolute after:-bottom-0.5 after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-foreground after:transition-transform after:duration-300 after:content-[''] hover:after:scale-x-100"
+
 export function Footer() {
   return (
     <footer className="border-t border-border bg-muted/30">
@@ -57,10 +61,7 @@ export function Footer() {
               <ul className="mt-3 flex flex-col gap-2">
                 {section.links.map((link) => (
                   <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-                    >
+                    <Link href={link.href} className={FOOTER_LINK_CLASS}>
                       {link.label}
                     </Link>
                   </li>

@@ -18,6 +18,10 @@ import { Logo } from "./logo"
 
 const PRIMARY_CTA_LABEL = "Get started"
 
+// Underline that expands from 0 → full width, anchored left, on hover.
+const NAV_LINK_CLASS =
+  "relative inline-block text-sm text-muted-foreground transition-colors hover:text-foreground after:absolute after:-bottom-0.5 after:left-0 after:h-px after:w-full after:origin-left after:scale-x-0 after:bg-foreground after:transition-transform after:duration-300 after:content-[''] hover:after:scale-x-100"
+
 export function TopNav() {
   const [open, setOpen] = useState(false)
 
@@ -25,19 +29,16 @@ export function TopNav() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60">
       <nav
         aria-label="Primary"
-        className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6"
+        className="mx-auto flex h-[4.5rem] max-w-6xl items-center justify-between gap-4 px-4 sm:px-6"
       >
         <Link href="/" aria-label="GEO Repair home" className="shrink-0">
-          <Logo />
+          <Logo className="text-base [&_svg]:size-6" />
         </Link>
 
-        <ul className="hidden items-center gap-7 md:flex">
+        <ul className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
             <li key={link.href}>
-              <Link
-                href={link.href}
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
+              <Link href={link.href} className={NAV_LINK_CLASS}>
                 {link.label}
               </Link>
             </li>
@@ -45,10 +46,10 @@ export function TopNav() {
         </ul>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="ghost">
             <Link href="/contact">Contact</Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild>
             <Link
               href={DASHBOARD_ONBOARDING_HREF}
               onClick={() =>

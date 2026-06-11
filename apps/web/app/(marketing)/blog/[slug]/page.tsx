@@ -4,7 +4,12 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeftIcon } from "@phosphor-icons/react/ssr"
 
-import { buildMetadata, breadcrumbJsonLd, definedTermsJsonLd, SITE } from "@/lib/seo"
+import {
+  buildMetadata,
+  breadcrumbJsonLd,
+  definedTermsJsonLd,
+  SITE,
+} from "@/lib/seo"
 import {
   getAllSlugs,
   getPostBySlug,
@@ -87,7 +92,7 @@ export default async function BlogPostPage({
   const { default: Post } = await import(`@/content/blog/${slug}.mdx`)
   const jsonLd = articleJsonLd(slug)
 
-  const jsonLdData: any[] = [
+  const jsonLdData: Record<string, unknown>[] = [
     breadcrumbJsonLd([
       { name: "Home", path: "/" },
       { name: "Blog", path: "/blog" },

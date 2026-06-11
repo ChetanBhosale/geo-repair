@@ -14,6 +14,8 @@ type FeatureSectionProps = {
   /** Background photo for the graphic panel, rendered as a halftone-dot
    * texture. Falls back to a gradient when omitted. */
   image?: string
+  /** Optional original source for the live shader when `image` is a baked fallback. */
+  shaderImage?: string
   imageAlt?: string
   reverse?: boolean
 }
@@ -26,6 +28,7 @@ export function FeatureSection({
   points,
   graphic,
   image,
+  shaderImage,
   imageAlt = "",
   reverse = false,
 }: FeatureSectionProps) {
@@ -72,6 +75,7 @@ export function FeatureSection({
           {image ? (
             <HalftoneImage
               src={image}
+              shaderSrc={shaderImage}
               alt={imageAlt}
               className="absolute inset-0 -z-20"
             />

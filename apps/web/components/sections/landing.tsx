@@ -101,7 +101,8 @@ export function LandingPage({ content }: { content: LandingContent }) {
         description={LANDING_FEATURES[0].description}
         points={LANDING_FEATURES[0].points}
         graphic={<ScoreGraphic />}
-        image="/images/features/floral-silhouette.jpg"
+        image="/images/features/floral-silhouette-halftone.jpg"
+        shaderImage="/images/features/floral-silhouette.jpg"
         imageAlt="Stylized emerald floral silhouette background texture"
       />
 
@@ -112,7 +113,8 @@ export function LandingPage({ content }: { content: LandingContent }) {
         description={LANDING_FEATURES[1].description}
         points={LANDING_FEATURES[1].points}
         graphic={<PrGraphic />}
-        image="/images/features/foggy-scene.jpg"
+        image="/images/features/foggy-scene-halftone.jpg"
+        shaderImage="/images/features/foggy-scene.jpg"
         imageAlt="Stylized smoky foggy forest landscape background texture"
       />
 
