@@ -3,6 +3,7 @@ import type { Prisma } from "@repo/db/generated/prisma/client";
 import { runScrape } from "./run";
 import type { LogEntry, RepoInput, ScrapeResult } from "./types";
 import { projectBrandDataFromScan } from "../../../lib/brand-identity";
+import { sendScrapingFinishedEmail } from "../../../lib/email-notifications";
 
 function logLevel(level: LogEntry["level"]): "INFO" | "WARN" | "ERROR" {
   return level === "warn" ? "WARN" : level === "error" ? "ERROR" : "INFO";
@@ -82,6 +83,10 @@ export async function persistScrapeRun(
       });
     }
 
+    await sendScrapingFinishedEmail(scrapingId).catch((err) => {
+      console.error("[email] scraping finished notification failed:", err);
+    });
+
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -103,6 +108,9 @@ export async function persistScrapeRun(
     await prisma.workerStatus.updateMany({
       where: { scrapingId },
       data: { status: "FAILED", error: message, finishedAt: new Date() },
+    });
+    await sendScrapingFinishedEmail(scrapingId).catch((sendErr) => {
+      console.error("[email] scraping failed notification failed:", sendErr);
     });
     throw err;
   }

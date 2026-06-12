@@ -15,6 +15,7 @@
     "@repo/agent": "*",
     "@repo/ai": "*",
     "@repo/db": "*",
+    "@repo/email": "*",
     "@repo/sandbox": "*",
     "@repo/secrets": "*",
     "@repo/types": "*",

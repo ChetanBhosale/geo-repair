@@ -14,9 +14,7 @@ import ContactNotification, {
   type ContactNotificationProps,
 } from "./templates/ContactNotification"
 import FixFailed, { type FixFailedProps } from "./templates/FixFailed"
-import FixPlanReady, {
-  type FixPlanReadyProps,
-} from "./templates/FixPlanReady"
+import FixPlanReady, { type FixPlanReadyProps } from "./templates/FixPlanReady"
 import FixPrOpened, { type FixPrOpenedProps } from "./templates/FixPrOpened"
 import PaymentFailed, {
   type PaymentFailedProps,
@@ -116,7 +114,10 @@ export const TEMPLATES: {
   },
   fixPrOpened: {
     component: FixPrOpened,
-    subject: (p) => `Your pull request for ${p.projectName} is open`,
+    subject: (p) =>
+      p.prUrl
+        ? `Your pull request for ${p.projectName} is open`
+        : `Your fix run for ${p.projectName} is complete`,
     sample: FixPrOpened.PreviewProps,
   },
   fixFailed: {

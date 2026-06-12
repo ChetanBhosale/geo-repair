@@ -13,7 +13,6 @@ import {
 import { toast } from "sonner"
 import type {
   CheckStatus,
-  ScrapingDetail,
   ScrapingStatus,
   ScrapingSummary,
   SiteCheck,
@@ -44,8 +43,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { PageLoader } from "@/components/page-loader"
 import { ProjectFavicon } from "@/components/dashboard/project-favicon"
+import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
+import {
+  CategoryScoreRows,
+  ScoreBlockStrip,
+  ScoreSummary,
+  type ScoreCategoryRow,
+} from "@/components/dashboard/score-block-strip"
 import { useWorkerStatus } from "@/context/worker-status"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import {
@@ -64,19 +69,33 @@ import { useCreateFixCheckout } from "@/query/billing.query"
 import type { AgentRunSummary } from "@repo/types/agent"
 
 const CHECK_STYLES: Record<CheckStatus, string> = {
-  SUCCESS: "bg-primary/10 text-primary",
-  MID: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  SUCCESS: "bg-success/10 text-success",
+  MID: "bg-warning/15 text-warning",
   FAILED: "bg-destructive/10 text-destructive",
   NOT_APPLICABLE: "bg-muted text-muted-foreground",
   INCONCLUSIVE: "bg-muted text-muted-foreground",
 }
 
 const RUN_STYLES: Record<ScrapingStatus, string> = {
-  COMPLETED: "bg-primary/10 text-primary",
-  RUNNING: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  COMPLETED: "bg-success/10 text-success",
+  RUNNING: "bg-warning/15 text-warning",
   QUEUED: "bg-muted text-muted-foreground",
   FAILED: "bg-destructive/10 text-destructive",
   CANCELED: "bg-muted text-muted-foreground",
+}
+
+const RUBRIC_CATEGORY_ORDER = [
+  "Rendering",
+  "Structured data",
+  "Metadata",
+  "Crawl surface",
+  "Semantics",
+  "Content",
+  "Answerability",
+] as const
+
+function selectedRunStorageKey(projectId: string): string {
+  return `geo-repair.dashboard.selected-run.${projectId}`
 }
 
 function timeAgo(iso: string): string {
@@ -124,13 +143,65 @@ export default function ProjectDetailPage() {
     { label: project.data?.name ?? "Project" },
   ])
 
-  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const [selectedId, setSelectedIdState] = React.useState<string | null>(null)
+  const setSelectedId = React.useCallback(
+    (id: string | null) => {
+      setSelectedIdState(id)
+      if (typeof window === "undefined") return
+      const key = selectedRunStorageKey(projectId)
+      if (id) window.sessionStorage.setItem(key, id)
+      else window.sessionStorage.removeItem(key)
+    },
+    [projectId]
+  )
   const [confirmOpen, setConfirmOpen] = React.useState(false)
 
-  const effectiveSelectedId = selectedId ?? runs.data?.[0]?.id ?? null
+  React.useEffect(() => {
+    const stored = window.sessionStorage.getItem(selectedRunStorageKey(projectId))
+    if (!stored) return
+
+    const timeout = window.setTimeout(() => setSelectedIdState(stored), 0)
+    return () => window.clearTimeout(timeout)
+  }, [projectId])
+
+  const selectedIdExists = !!selectedId && runs.data?.some((run) => run.id === selectedId)
+  const effectiveSelectedId = selectedIdExists
+    ? selectedId
+    : (runs.data?.[0]?.id ?? null)
   const detail = useScraping(effectiveSelectedId)
   const data = detail.data ?? null
   const result = data?.result ?? null
+  const categoryRows = React.useMemo<ScoreCategoryRow[]>(() => {
+    if (!result) return []
+
+    const grouped = new Map<string, SiteCheck[]>()
+    for (const check of result.checks) {
+      const list = grouped.get(check.category) ?? []
+      list.push(check)
+      grouped.set(check.category, list)
+    }
+
+    const orderedCategories = [
+      ...RUBRIC_CATEGORY_ORDER.filter((category) => grouped.has(category)),
+      ...[...grouped.keys()].filter(
+        (category) => !RUBRIC_CATEGORY_ORDER.includes(category as never)
+      ),
+    ]
+
+    return orderedCategories.map((category) => {
+      const checks = (grouped.get(category) ?? []).sort(
+        (a, b) => b.weight - a.weight
+      )
+      const sub = result.score.byCategory[category]
+      return {
+        category,
+        score:
+          sub && sub.status !== "NOT_APPLICABLE" ? Math.round(sub.score) : null,
+        status: sub?.status ?? "INCONCLUSIVE",
+        checks,
+      }
+    })
+  }, [result])
   const isRunning = data?.status === "RUNNING" || data?.status === "QUEUED"
   // Cannot delete while any scan/job is in flight for this project.
   const busy = isRunning || live.hasActive
@@ -189,7 +260,13 @@ export default function ProjectDetailPage() {
     router.push("/dashboard/projects")
   }
 
-  if (project.isLoading) return <PageLoader />
+  if (project.isLoading) {
+    return (
+      <div className="mx-auto max-w-5xl px-6 py-6">
+        <DashboardInlineLoading rows={4} />
+      </div>
+    )
+  }
 
   const runList = runs.data ?? []
 
@@ -435,6 +512,22 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
+        {result ? (
+          <div className="border-t border-border bg-card px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-[11px] tracking-wide text-muted-foreground uppercase">
+                Score
+              </p>
+              <ScoreSummary score={result.score.overall} />
+            </div>
+            <ScoreBlockStrip
+              score={result.score.overall}
+              className="mt-3"
+              barClassName="h-8"
+            />
+          </div>
+        ) : null}
+
         {data?.error ? (
           <div className="border-t border-border bg-destructive/5 px-5 py-3 text-sm text-destructive">
             {data.error}
@@ -450,24 +543,9 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Category strip */}
-      {result ? (
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-          {Object.entries(result.score.byCategory).map(([cat, v]) => (
-            <div
-              key={cat}
-              className="rounded-lg border border-border bg-card p-3"
-            >
-              <p
-                className="truncate text-[11px] text-muted-foreground"
-                title={cat}
-              >
-                {cat}
-              </p>
-              <p className="mt-0.5 text-lg font-semibold">
-                {v.status === "NOT_APPLICABLE" ? "n/a" : v.score}
-              </p>
-            </div>
-          ))}
+      {categoryRows.length > 0 ? (
+        <div className="mt-4 overflow-hidden rounded-xl bg-border">
+          <CategoryScoreRows rows={categoryRows} />
         </div>
       ) : null}
 
@@ -475,16 +553,17 @@ export default function ProjectDetailPage() {
       {data ? (
         <Accordion
           type="multiple"
-          defaultValue={["logs", "checks"]}
+          defaultValue={["checks", "recommendations"]}
           className="mt-5 space-y-2"
         >
-          <Section value="logs" title="Activity logs" count={data.logs.length}>
-            <LogStream detail={data} />
-          </Section>
-
           {result ? (
-            <Section value="checks" title="Checks" count={result.checks.length}>
-              <div className="space-y-2 pt-1">
+            <Section
+              value="checks"
+              title="Checks"
+              count={result.checks.length}
+              contentClassName="pb-2"
+            >
+              <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                 {result.checks.map((c) => (
                   <CheckRow key={c.name} check={c} />
                 ))}
@@ -497,8 +576,9 @@ export default function ProjectDetailPage() {
               value="recommendations"
               title="Recommendations"
               count={result.notes.length}
+              compact
             >
-              <ul className="space-y-1.5 pt-1 text-sm text-muted-foreground">
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
                 {result.notes.map((n, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
@@ -529,9 +609,9 @@ function AgentRunRow({
       ? run.status.replace("_", " ").toLowerCase()
       : run.status.toLowerCase()
   const style = run.prMerged
-    ? "bg-primary/10 text-primary"
+    ? "bg-success/10 text-success"
     : run.isOpen
-      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      ? "bg-warning/15 text-warning"
       : run.status === "FAILED"
         ? "bg-destructive/10 text-destructive"
         : "bg-muted text-muted-foreground"
@@ -641,19 +721,31 @@ function Section({
   value,
   title,
   count,
+  compact = false,
+  contentClassName,
   children,
 }: {
   value: string
   title: string
   count?: number
+  compact?: boolean
+  contentClassName?: string
   children: React.ReactNode
 }) {
   return (
     <AccordionItem
       value={value}
-      className="overflow-hidden rounded-xl border border-border bg-card px-4"
+      className={cn(
+        "overflow-hidden rounded-xl border border-border bg-card",
+        compact ? "px-3" : "px-4"
+      )}
     >
-      <AccordionTrigger className="py-3.5 hover:no-underline">
+      <AccordionTrigger
+        className={cn(
+          "hover:no-underline",
+          compact ? "py-2.5" : "py-3.5"
+        )}
+      >
         <span className="flex items-center gap-2 text-sm font-medium">
           {title}
           {count != null ? (
@@ -663,40 +755,12 @@ function Section({
           ) : null}
         </span>
       </AccordionTrigger>
-      <AccordionContent className="pb-4">{children}</AccordionContent>
+      <AccordionContent
+        className={cn(compact ? "pb-2" : "pb-4", contentClassName)}
+      >
+        {children}
+      </AccordionContent>
     </AccordionItem>
-  )
-}
-
-function LogStream({ detail }: { detail: ScrapingDetail }) {
-  if (detail.logs.length === 0) {
-    return (
-      <p className="py-2 text-sm text-muted-foreground">No activity yet.</p>
-    )
-  }
-  return (
-    <div className="max-h-80 space-y-1 overflow-y-auto rounded-lg bg-background/60 p-3 font-mono text-xs">
-      {detail.logs.map((l) => (
-        <div key={l.seq} className="flex gap-2">
-          <span className="shrink-0 text-muted-foreground/60">
-            {String(l.seq).padStart(3, "0")}
-          </span>
-          <span
-            className={cn(
-              "shrink-0",
-              l.level === "error"
-                ? "text-destructive"
-                : l.level === "warn"
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-primary/70"
-            )}
-          >
-            [{l.event}]
-          </span>
-          <span className="text-foreground/80">{l.message}</span>
-        </div>
-      ))}
-    </div>
   )
 }
 

@@ -5,6 +5,7 @@ import { runAgent, DEFAULT_MODEL, type AgentTool, type AgentStepLog } from "@rep
 import { planCheck } from "./planner";
 import type { PlanCheckInput, PlannedCheck } from "./types";
 import type { AgentPlanWorkflowInput } from "./workflow-types";
+import { sendFixFailedEmail, sendFixPlanReadyEmail } from "../../../lib/email-notifications";
 
 // ---------------------------------------------------------------------------
 // Logging: append a chat/activity row. A monotonic seq per run keeps order even
@@ -319,6 +320,10 @@ async function persistPlan(args: {
     data: { status: "COMPLETED", finishedAt: new Date() },
   });
 
+  await sendFixPlanReadyEmail(args.agentRunId, checks.length).catch((err) => {
+    console.error("[email] fix plan notification failed:", err);
+  });
+
   return { checks: checks.length, manual: manual.length };
 }
 
@@ -347,6 +352,9 @@ async function failPlan(ref: LogRef & { agentPlanId: string }, message: string) 
       },
     })
     .catch(() => {});
+  await sendFixFailedEmail(ref.agentRunId, message).catch((err) => {
+    console.error("[email] plan failure notification failed:", err);
+  });
 }
 
 function hasAiKey(): boolean {

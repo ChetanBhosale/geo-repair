@@ -14,7 +14,7 @@ import { type ScanResult, loadStoredScan } from "@/lib/scan-result"
 
 const PRINT_CSS = `@media print {
   @page { margin: 14mm; }
-  html, body { background: #fff !important; }
+  html, body { background: var(--background) !important; }
 }`
 
 const subscribeReportReady = () => () => {}
@@ -75,7 +75,7 @@ export default function ReportPage() {
         </Button>
       </div>
 
-      <div className="mx-auto w-full max-w-3xl overflow-hidden bg-background shadow-sm print:max-w-none print:shadow-none">
+      <div className="mx-auto w-full max-w-3xl overflow-hidden bg-background print:max-w-none">
         <ScanReport result={result} />
       </div>
     </div>

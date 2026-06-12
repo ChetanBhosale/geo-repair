@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { sendWaitlistWelcome } from "@/lib/email"
+import { sendEmail } from "@repo/email"
 
 // Waitlist signups land here. There's no datastore yet, so a durable list still
 // depends on the DB-storage task; for now we send a welcome email via Resend and
@@ -28,7 +28,9 @@ export async function POST(request: Request) {
   console.log(`[waitlist] signup: ${address}`)
 
   // Best-effort: a failed welcome email shouldn't reject an accepted signup.
-  await sendWaitlistWelcome(address)
+  await sendEmail("waitlistWelcome", {}, { to: address }).catch((err) => {
+    console.error("[email] waitlist welcome failed:", err)
+  })
 
   return NextResponse.json({ ok: true })
 }

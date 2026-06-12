@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import type { NormalizedProfile } from "@repo/types/auth";
+import { sendAccountWelcomeEmail } from "../lib/email-notifications";
 
 function accountTokenData(profile: NormalizedProfile) {
   return {
@@ -53,6 +54,8 @@ export async function upsertUserFromProfile(
     user = await prisma.user.findUnique({ where: { email: profile.email } });
   }
 
+  let createdUser = false;
+
   if (!user) {
     user = await prisma.user.create({
       data: {
@@ -63,6 +66,7 @@ export async function upsertUserFromProfile(
         avatarUrl: profile.avatarUrl,
       },
     });
+    createdUser = true;
   }
 
   await prisma.account.create({
@@ -73,6 +77,10 @@ export async function upsertUserFromProfile(
       ...accountTokenData(profile),
     },
   });
+
+  if (createdUser) {
+    await sendAccountWelcomeEmail(user);
+  }
 
   return user;
 }

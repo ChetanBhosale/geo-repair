@@ -5,6 +5,7 @@ import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 import { getPrStatus } from "../lib/github";
 import type { AgentChatWorkflowInput } from "../temporal/worker/agent-chat/workflow-types";
+import { sendChatLimitReachedEmail } from "../lib/email-notifications";
 
 export class ChatError extends Error {
   constructor(
@@ -130,6 +131,12 @@ export async function startChat(
       data: { chatMessagesUsed: { decrement: 1 } },
     });
     throw new ChatError(502, `Could not start the chat: ${m}`);
+  }
+
+  if (updated.chatMessagesLeft === 0) {
+    await sendChatLimitReachedEmail(run.id).catch((sendErr) => {
+      console.error("[email] chat limit notification failed:", sendErr);
+    });
   }
 
   return {

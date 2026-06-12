@@ -19,6 +19,10 @@ workflow activities, providers, and persistence models.
   the `Project` brand fields. The database stores URLs only, not image files.
 - Payments: Dodo one-time checkout, with webhooks as the payment source of
   truth and checkout-return reconciliation as a backup.
+- Transactional email: `@repo/email` renders React Email templates and sends
+  through Resend best-effort. Live notifications cover new accounts, scan
+  completion/failure, billing receipt/failure/refund, fix plan ready, PR/no-change
+  completion, fix failure, chat limit reached, waitlist, and contact.
 - Entitlements: a paid `Order` grants a bounded number of fix attempts
   (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`) and post-PR agent chat messages
   (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`). Free scans are bounded in the
@@ -54,18 +58,25 @@ flowchart TD
   Result["Score, findings, page count,<br/>brand identity, website type, quote tier"]
   Unsupported["Unsupported no-code platform<br/>waitlist or contact"]
   DownloadReport["Download scan report"]
-  DashboardScan["dashboard.geo.repair /website-scan"]
-  NeedRepo{"Repo selected?"}
-  Settings["Dashboard /settings<br/>choose GitHub repo"]
+  DashboardScan["dashboard.geo.repair<br/>/dashboard/projects?website=..."]
+  NeedAuth{"Signed in?"}
+  GoogleOAuth["Google OAuth<br/>/api/auth/google?redirect_to=..."]
+  NeedRepo{"GitHub connected?"}
+  Settings["Connect GitHub<br/>preserve website handoff"]
   OAuth["GitHub OAuth<br/>/api/auth/github"]
   GitHub["GitHub API"]
   UserDB["User, Account, Project"]
+  RepoMatch{"One safe repo match?"}
+  RepoPicker["Repo picker<br/>website prefilled"]
   RepoConfirmed["Repo and website confirmed"]
+  ProjectCreate["POST /api/projects<br/>create project and enqueue scan"]
+  ProjectScan["Project scan<br/>scrapeWorkflow"]
   CheckoutDialog["Project buy-fix CTA<br/>Starter, Growth, Scale, custom"]
   BillingAPI["Billing API<br/>POST /api/billing/fix-checkout"]
   OrderDB["Plan, Order, PaymentWebhookEvent<br/>projectId, scrapingId, tier, amount, status"]
   Dodo["Dodo hosted checkout"]
   DodoWebhook["Dodo webhook<br/>/api/webhooks/dodo"]
+  Email["Transactional email<br/>@repo/email via Resend"]
   ReturnPage["Checkout return page<br/>/checkout/return"]
   PaidOrder["Order PAID<br/>Start fix unlocked"]
   FixWorkspace["Dashboard purchase / project agent screen"]
@@ -96,13 +107,21 @@ flowchart TD
   Result -->|"Framer, Webflow, Wix, WordPress, Shopify, unsupported"| Unsupported
   Result -->|"custom-coded site"| DownloadReport
   Result --> DashboardScan
-  DashboardScan --> NeedRepo
-  NeedRepo -->|"no"| Settings --> OAuth --> GitHub --> UserDB --> RepoConfirmed
-  NeedRepo -->|"yes"| RepoConfirmed
-  RepoConfirmed --> CheckoutDialog --> BillingAPI --> OrderDB --> Dodo
+  DashboardScan --> NeedAuth
+  NeedAuth -->|"no"| GoogleOAuth --> UserDB --> NeedRepo
+  UserDB -->|"new User"| Email
+  NeedAuth -->|"yes"| NeedRepo
+  NeedRepo -->|"no"| Settings --> OAuth --> GitHub --> UserDB --> RepoMatch
+  NeedRepo -->|"yes"| RepoMatch
+  RepoMatch -->|"yes"| RepoConfirmed
+  RepoMatch -->|"no"| RepoPicker --> RepoConfirmed
+  RepoConfirmed --> ProjectCreate --> ProjectScan --> CheckoutDialog --> BillingAPI --> OrderDB --> Dodo
+  ProjectScan -->|"completed or failed"| Email
   Dodo --> DodoWebhook --> OrderDB
   Dodo --> ReturnPage --> OrderDB
+  OrderDB -->|"paid, failed, refunded"| Email
   OrderDB --> PaidOrder --> FixWorkspace --> StartFix --> FixRunDB --> TemporalFix
+  FixRunDB -->|"plan ready or failed"| Email
   TemporalFix --> PlanRun --> Clarify
   Clarify -->|"yes"| Intake --> TemporalFix
   Clarify -->|"no"| Sandbox
@@ -111,6 +130,9 @@ flowchart TD
   Commit -->|"no"| NoChanges
   Agent -->|"error"| Failed
   PushPR -->|"error"| Failed
+  PRReady --> Email
+  NoChanges --> Email
+  Failed --> Email
   PRReady --> Teardown
   NoChanges --> Teardown
   Failed --> Teardown
@@ -130,8 +152,10 @@ sequenceDiagram
   participant Worker as Temporal workers
   participant Target as Customer website
   participant DB as Neon/Postgres via Prisma
+  participant Google as Google OAuth
   participant GitHub as GitHub
   participant Dodo as Dodo Payments
+  participant Email as Resend via @repo/email
   participant E2B as E2B sandbox
   participant AI as OpenRouter model via @repo/ai
 
@@ -164,22 +188,43 @@ sequenceDiagram
     Web-->>User: Show score, quote, report download, fix CTA
   end
 
-  User->>Dashboard: Continue to dashboard/fix flow
+  User->>Dashboard: Continue to /dashboard/projects?website=...
   alt Not authenticated
-    Dashboard->>API: GET /api/auth/github
+    Dashboard-->>User: Redirect to /sign-in?next=/dashboard/projects?website=...
+    Dashboard->>API: GET /api/auth/google?redirect_to=...
+    API->>Google: OAuth authorization and token exchange
+    Google-->>API: Google profile
+    API->>DB: Upsert User and Account
+    opt First User row created
+      API->>Email: Send accountWelcome
+    end
+    API-->>Dashboard: Set auth cookie, redirect to preserved dashboard path
+  end
+
+  alt GitHub not connected
+    Dashboard->>API: GET /api/auth/github?redirect_to=...
     API->>GitHub: OAuth authorization and token exchange
     GitHub-->>API: GitHub profile and token
-    API->>DB: Upsert User and Account
-    API-->>Dashboard: Set auth cookie, redirect
+    API->>DB: Link GitHub Account to current User
+    API-->>Dashboard: Redirect to preserved dashboard path
   end
 
   Dashboard->>API: GET /api/github/repos
   API->>GitHub: List accessible repos
   GitHub-->>API: Repos
   API-->>Dashboard: Repo list
-  User->>Dashboard: Select repo and bind website
-  Dashboard->>API: POST /api/projects
+  alt One deterministic repo match for website
+    Dashboard->>API: POST /api/projects
+  else No safe match
+    User->>Dashboard: Select repo and bind website
+    Dashboard->>API: POST /api/projects
+  end
   API->>DB: Save Project
+  API->>Temporal: Start scrapeWorkflow best-effort
+  API-->>Dashboard: Created project, scan starts in background
+  Temporal->>Worker: scrapeWorkflow
+  Worker->>DB: Save Scraping COMPLETED or FAILED
+  Worker->>Email: Send checkupComplete or scanFailed
 
   User->>Dashboard: Buy fix from completed project scan
   Dashboard->>API: POST /api/billing/fix-checkout
@@ -195,10 +240,12 @@ sequenceDiagram
   par Source of truth webhook
     Dodo->>API: POST /api/webhooks/dodo with raw signed body
     API->>DB: Store PaymentWebhookEvent and update Order
+    API->>Email: Send paymentReceipt, paymentFailed, or refund
   and Return-page reconciliation
     Web->>API: POST /api/billing/public/orders/:id/reconcile when payment_id exists
     API->>Dodo: Retrieve payment
     API->>DB: Update Order if verified
+    API->>Email: Send paymentReceipt when newly marked PAID
   end
   Web->>API: GET /api/billing/public/orders/:id
   API->>DB: Read order status
@@ -217,6 +264,7 @@ sequenceDiagram
   Temporal->>Worker: planRun
   Worker->>Target: Fresh checkSite scan
   Worker->>DB: Upsert FixCheck rows and RunEvent transcript
+  Worker->>Email: Send fixPlanReady when AgentRun awaits input
   alt Clarification required
     Worker->>DB: Write agent_clarification_requested event
     Dashboard->>API: GET /api/fix/:fixRunId
@@ -251,13 +299,20 @@ sequenceDiagram
     Worker->>GitHub: Push branch and open pull request
     GitHub-->>Worker: PR URL and number
     Worker->>DB: Mark PR_OPENED and append pr_opened event
+    Worker->>Email: Send fixPrOpened
   else No commit
     Worker->>DB: Mark COMPLETED and append no_changes event
+    Worker->>Email: Send fixPrOpened no-change variant
   end
 
   Temporal->>Worker: teardownSandbox
   Worker->>E2B: Kill sandbox
   Worker->>DB: Record sandbox seconds and cost
+
+  opt Planning or fix run fails
+    Worker->>DB: Mark AgentRun FAILED
+    Worker->>Email: Send fixFailed
+  end
 
   loop Dashboard polling
     Dashboard->>API: GET /api/fix-runs and GET /api/fix/:fixRunId
@@ -309,6 +364,7 @@ sequenceDiagram
   participant Dashboard
   participant API as apps/backend
   participant Temporal
+  participant Email as Resend via @repo/email
   participant E2B
   participant GitHub
 
@@ -316,6 +372,9 @@ sequenceDiagram
   Dashboard->>API: POST /api/fix/:id/messages
   API->>API: Lock order, check CHAT_MESSAGE_LIMIT, +1, log user_message
   API->>Temporal: Start fixChatWorkflow (run -> CHATTING)
+  opt Chat messages left hits 0
+    API->>Email: Send chatLimitReached
+  end
   Temporal->>E2B: Reopen sandbox, fetch + checkout the PR branch
   Temporal->>E2B: Agent applies the request, commits
   Temporal->>GitHub: Push branch (same target) -> existing PR updates

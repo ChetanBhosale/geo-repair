@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { PageLoader } from "@/components/page-loader"
+import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import { AgentProvider, useAgent } from "@/context/agent"
 import { useSendChat, useStartFix } from "@/query/agent.query"
@@ -75,7 +75,13 @@ function AgentScreen() {
     { label: "Agent run" },
   ])
 
-  if (isLoading && !run) return <PageLoader />
+  if (isLoading && !run) {
+    return (
+      <div className="px-6 py-6">
+        <DashboardInlineLoading rows={2} />
+      </div>
+    )
+  }
   if (!run) {
     return (
       <div className="grid h-[calc(100svh-3.5rem)] place-items-center px-6 text-center text-sm text-muted-foreground">

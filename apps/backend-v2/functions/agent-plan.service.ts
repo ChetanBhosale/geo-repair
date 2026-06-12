@@ -16,6 +16,7 @@ import { CHAT_MESSAGE_LIMIT } from "@repo/types/entitlements";
 import type { PlanCheckInput } from "../temporal/worker/agent-plan/types";
 import type { AgentPlanWorkflowInput } from "../temporal/worker/agent-plan/workflow-types";
 import { getPaidOrderForAgentPlan } from "./billing.service";
+import { sendFixFailedEmail } from "../lib/email-notifications";
 
 export class AgentPlanError extends Error {
   constructor(
@@ -229,6 +230,9 @@ export async function startAgentPlan(
         projectId: project.id,
         userId,
       },
+    });
+    await sendFixFailedEmail(run.id, message).catch((sendErr) => {
+      console.error("[email] plan enqueue failure notification failed:", sendErr);
     });
     throw new AgentPlanError(502, `Could not queue the plan: ${message}`);
   }

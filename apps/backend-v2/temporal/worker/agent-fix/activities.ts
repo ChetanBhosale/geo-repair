@@ -18,6 +18,7 @@ import type {
   FixGroup,
   FixSetup,
 } from "./workflow-types";
+import { sendFixFailedEmail, sendFixPrOpenedEmail } from "../../../lib/email-notifications";
 
 interface LogRef {
   agentRunId: string;
@@ -584,6 +585,9 @@ export async function fixOpenPrActivity(args: {
       data: { status: "COMPLETED", finishedAt: new Date() },
     });
     await writeLog(ref, "AGENT", "INFO", "no_changes", "Nothing needed changing — no PR opened.");
+    await sendFixPrOpenedEmail(input.agentRunId).catch((err) => {
+      console.error("[email] no-change fix notification failed:", err);
+    });
     return;
   }
 
@@ -646,6 +650,9 @@ export async function fixOpenPrActivity(args: {
     },
   });
   await writeLog(ref, "AGENT", "INFO", "pr_opened", `Opened a pull request: ${pr.html_url}`, { prUrl: pr.html_url, branch });
+  await sendFixPrOpenedEmail(input.agentRunId).catch((err) => {
+    console.error("[email] PR opened notification failed:", err);
+  });
 }
 
 // 5. Tear down the sandbox and clear its id (always runs).
@@ -679,6 +686,9 @@ export async function failFixActivity(input: AgentFixWorkflowInput, message: str
     })
     .catch(() => {});
   await writeLog(ref, "AGENT", "ERROR", "fix_failed", message);
+  await sendFixFailedEmail(input.agentRunId, message).catch((err) => {
+    console.error("[email] fix failure notification failed:", err);
+  });
 }
 
 export async function fixCompleteActivity(input: AgentFixWorkflowInput): Promise<void> {

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   GithubLogoIcon,
   MagnifyingGlassIcon,
@@ -12,16 +12,17 @@ import type { Project } from "@repo/types/project"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { PageLoader } from "@/components/page-loader"
 import { loginWithGithub } from "@/hooks/use-auth"
 import { useIsGithubConnected, useProjects } from "@/query/project.query"
 import { useWorkerStatus } from "@/context/worker-status"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog"
 import { ProjectFavicon } from "@/components/dashboard/project-favicon"
+import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
 
 export default function ProjectsPage() {
   useBreadcrumbs([{ label: "Projects" }])
+  const router = useRouter()
   const searchParams = useSearchParams()
   const websiteParam = searchParams.get("website")
   const github = useIsGithubConnected()
@@ -39,6 +40,10 @@ export default function ProjectsPage() {
       : null
   const createOpen = manualCreateOpen || !!handoffWebsite
   const initialWebsite = handoffWebsite
+  const currentPath = React.useMemo(() => {
+    const query = searchParams.toString()
+    return `/dashboard/projects${query ? `?${query}` : ""}`
+  }, [searchParams])
 
   const filtered = React.useMemo(() => {
     const list = projects.data ?? []
@@ -62,13 +67,11 @@ export default function ProjectsPage() {
     setManualCreateOpen(next)
   }
 
-  if (github.isLoading) {
-    return <PageLoader />
-  }
-
   return (
     <div className="mx-auto max-w-5xl px-6 py-6">
-      {github.isConnected ? (
+      {github.isLoading ? (
+        <DashboardInlineLoading rows={3} />
+      ) : github.isConnected ? (
         <div className="mb-5 flex items-center justify-between gap-3">
           <div className="relative w-72 max-w-[55vw]">
             <MagnifyingGlassIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -79,20 +82,17 @@ export default function ProjectsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button
-            size="sm"
-            onClick={openBlankCreateDialog}
-          >
+          <Button size="sm" onClick={openBlankCreateDialog}>
             <PlusIcon className="size-4" />
             Add New
           </Button>
         </div>
       ) : null}
 
-      {!github.isConnected ? (
-        <ConnectGithub />
+      {github.isLoading ? null : !github.isConnected ? (
+        <ConnectGithub redirectTo={currentPath} />
       ) : projects.isLoading ? (
-        <PageLoader />
+        <DashboardInlineLoading rows={6} />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <CreateProjectCard
@@ -109,13 +109,19 @@ export default function ProjectsPage() {
         key={initialWebsite ?? "blank"}
         open={createOpen}
         initialWebsite={initialWebsite}
+        autoCreate={!!handoffWebsite}
+        onCreated={(project) => {
+          if (handoffWebsite) {
+            router.replace(`/dashboard/projects/${project.id}`)
+          }
+        }}
         onOpenChange={onCreateOpenChange}
       />
     </div>
   )
 }
 
-function ConnectGithub() {
+function ConnectGithub({ redirectTo }: { redirectTo: string }) {
   return (
     <div className="grid place-items-center rounded-xl border border-dashed border-border bg-card/40 px-6 py-20 text-center">
       <div className="grid size-12 place-items-center rounded-full bg-accent text-accent-foreground">
@@ -126,7 +132,7 @@ function ConnectGithub() {
         Connect GitHub so we can read the repository that builds your site and
         open a fix PR. Only the repo you pick is touched.
       </p>
-      <Button className="mt-5" onClick={() => loginWithGithub()}>
+      <Button className="mt-5" onClick={() => loginWithGithub(redirectTo)}>
         <GithubLogoIcon className="size-4" />
         Connect with GitHub
       </Button>

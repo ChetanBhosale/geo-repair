@@ -11,8 +11,6 @@ import { SITE } from "./theme"
 // Optional env:
 //   EMAIL_FROM        - verified sender, default "GEO Repair <hello@geo.repair>"
 
-const FROM = process.env.EMAIL_FROM ?? `${SITE.name} <hello@geo.repair>`
-
 // Lazy singleton: instantiating Resend reads the key once, and a missing key is
 // reported as "not configured" rather than throwing at import time (which would
 // take down any route in environments where email isn't set up yet).
@@ -39,8 +37,9 @@ export async function send(opts: {
     return { ok: false, skipped: true }
   }
   try {
+    const from = process.env.EMAIL_FROM ?? `${SITE.name} <hello@geo.repair>`
     const { error } = await r.emails.send({
-      from: FROM,
+      from,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { PageLoader } from "@/components/page-loader"
+import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
 
 // /dashboard always lands on the projects view.
 export default function DashboardPage() {
@@ -10,5 +10,9 @@ export default function DashboardPage() {
   React.useEffect(() => {
     router.replace("/dashboard/projects")
   }, [router])
-  return <PageLoader />
+  return (
+    <div className="mx-auto max-w-5xl px-6 py-6">
+      <DashboardInlineLoading rows={3} />
+    </div>
+  )
 }

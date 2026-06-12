@@ -17,6 +17,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScoreRing } from "@/components/demo/score-ring"
 import { SiteFavicon } from "@/components/checkup/site-favicon"
+import {
+  ScoreBlockStrip,
+  ScoreSummary,
+} from "@/components/checkup/score-block-strip"
 import { capture } from "@/lib/analytics"
 import { dashboardFixHref } from "@/lib/dashboard-url"
 import {
@@ -281,6 +285,20 @@ export function FreeScanForm({
                 {result.crawl.pagesChecked === 1 ? "page" : "pages"} checked
               </span>
             </div>
+          </div>
+
+          <div className="bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                Score
+              </p>
+              <ScoreSummary score={result.score.overall} />
+            </div>
+            <ScoreBlockStrip
+              score={result.score.overall}
+              className="mt-3"
+              barClassName="h-7"
+            />
           </div>
 
           <div className="flex flex-col gap-2 bg-card p-4 sm:flex-row">

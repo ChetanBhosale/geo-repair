@@ -4,6 +4,7 @@ import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 import type { AgentFixWorkflowInput } from "../temporal/worker/agent-fix/workflow-types";
 import { markFixAttemptStarted } from "./billing.service";
+import { sendFixFailedEmail } from "../lib/email-notifications";
 
 export class FixError extends Error {
   constructor(
@@ -107,6 +108,9 @@ export async function startFix(
     await prisma.workerStatus.updateMany({
       where: { temporalWorkflowId: workflowId },
       data: { status: "FAILED", error: message, finishedAt: new Date() },
+    });
+    await sendFixFailedEmail(run.id, message).catch((sendErr) => {
+      console.error("[email] fix enqueue failure notification failed:", sendErr);
     });
     throw new FixError(502, `Could not queue the fix run: ${message}`);
   }

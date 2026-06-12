@@ -13,6 +13,7 @@ import {
 } from "@repo/types/entitlements";
 
 import { getTemporalClient } from "../temporal/client";
+import { sendBillingOrderEmail } from "../lib/email-notifications";
 import {
   BillingError,
   getFixTierForPageCount,
@@ -607,6 +608,10 @@ export async function reconcileFixCheckoutReturn(input: {
     },
   });
 
+  await sendBillingOrderEmail(updated.id).catch((err) => {
+    console.error("[email] payment receipt notification failed:", err);
+  });
+
   await prisma.paymentWebhookEvent.upsert({
     where: {
       provider_providerEventId: {
@@ -861,7 +866,7 @@ export async function processDodoWebhook(input: {
         payload.type.startsWith("dispute.");
 
       if (canMutate) {
-        await prisma.order.update({
+        const updatedOrder = await prisma.order.update({
           where: { id: order.id },
           data: {
             ...update,
@@ -873,6 +878,9 @@ export async function processDodoWebhook(input: {
               eventPaymentData(payload).customer?.customer_id ??
               order.providerCustomerId,
           },
+        });
+        await sendBillingOrderEmail(updatedOrder.id).catch((err) => {
+          console.error("[email] billing status notification failed:", err);
         });
       }
 

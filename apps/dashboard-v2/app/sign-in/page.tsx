@@ -9,14 +9,22 @@ import { BrandLogo } from "@/components/brand-logo"
 import { useAuth, loginWithGoogle } from "@/hooks/use-auth"
 import { PageLoader } from "@/components/page-loader"
 import { GoogleIcon } from "@/components/icons/google-icon"
+import { safeDashboardRedirectPath } from "@/lib/auth-redirect"
 
 export default function SignInPage() {
   const router = useRouter()
   const { isLoading, isSignedIn } = useAuth()
 
+  function redirectPath() {
+    if (typeof window === "undefined") return "/dashboard"
+    return safeDashboardRedirectPath(
+      new URLSearchParams(window.location.search).get("next")
+    )
+  }
+
   React.useEffect(() => {
     if (!isLoading && isSignedIn) {
-      router.replace("/dashboard")
+      router.replace(redirectPath())
     }
   }, [isLoading, isSignedIn, router])
 
@@ -61,7 +69,7 @@ export default function SignInPage() {
             className="mt-6 w-full"
             size="lg"
             variant="outline"
-            onClick={() => loginWithGoogle()}
+            onClick={() => loginWithGoogle(redirectPath())}
           >
             <GoogleIcon className="size-4" />
             Sign in with Google

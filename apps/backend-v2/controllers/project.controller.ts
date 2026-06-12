@@ -31,9 +31,8 @@ export async function postProject(req: Request, res: Response) {
     if (err instanceof ProjectError) {
       return res.status(err.status).json({ error: err.message });
     }
-    return res.status(400).json({
-      error: err instanceof Error ? err.message : "Failed to create project",
-    });
+    console.error("[projects] Failed to create project:", err);
+    return res.status(500).json({ error: "Failed to create project." });
   }
 }
 

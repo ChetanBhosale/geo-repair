@@ -11,6 +11,7 @@ import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
 import type { ScrapeWorkflowInput } from "../temporal/worker/scraper/workflow-types";
 import { projectBrandDataFromScan } from "../lib/brand-identity";
+import { sendScrapingFinishedEmail } from "../lib/email-notifications";
 
 export class ScrapingError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -133,6 +134,9 @@ export async function startScan(
         projectId: project.id,
         userId,
       },
+    });
+    await sendScrapingFinishedEmail(scraping.id).catch((sendErr) => {
+      console.error("[email] scan enqueue failure notification failed:", sendErr);
     });
     throw new ScrapingError(502, `Could not queue the scan: ${message}`);
   }
@@ -300,6 +304,9 @@ async function syncScrapingFromTemporal(row: {
           data: brandData,
         });
       }
+      await sendScrapingFinishedEmail(row.id).catch((sendErr) => {
+        console.error("[email] scan reconcile notification failed:", sendErr);
+      });
     } else if (
       desc.status.name === "FAILED" ||
       desc.status.name === "TERMINATED" ||
@@ -332,6 +339,9 @@ async function syncScrapingFromTemporal(row: {
           message,
           scrapingId: row.id,
         },
+      });
+      await sendScrapingFinishedEmail(row.id).catch((sendErr) => {
+        console.error("[email] scan reconcile failure notification failed:", sendErr);
       });
     }
     // RUNNING -> leave as-is.

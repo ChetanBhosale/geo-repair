@@ -1,6 +1,12 @@
 import { Logo } from "@/components/layout/logo"
 import { ScoreRing } from "@/components/demo/score-ring"
 import { SiteFavicon } from "@/components/checkup/site-favicon"
+import {
+  CategoryScoreRows,
+  ScoreBlockStrip,
+  ScoreSummary,
+  type ScoreCategoryRow,
+} from "@/components/checkup/score-block-strip"
 import { DASHBOARD_DISPLAY_HOST } from "@/lib/dashboard-url"
 import { cn } from "@/lib/utils"
 import {
@@ -8,7 +14,6 @@ import {
   type ScanResult,
   type SiteCheck,
   RUBRIC_CATEGORY_ORDER,
-  categoryColor,
   checkLabel,
   hostnameOf,
   isAutoFixable,
@@ -19,8 +24,8 @@ import {
 function verdict(overall: number): string {
   if (overall >= 80) return "Strong AI search readiness."
   if (overall >= 50)
-    return "Partial readiness — fixable gaps are holding the site back."
-  return "Low readiness — AI engines struggle to read and cite this site."
+    return "Partial readiness, fixable gaps are holding the site back."
+  return "Low readiness, AI engines struggle to read and cite this site."
 }
 
 const TONE_PILL: Record<ReturnType<typeof statusTone>, string> = {
@@ -91,10 +96,6 @@ export function ScanReport({ result }: { result: ScanResult }) {
     { pass: 0, partial: 0, fail: 0 }
   )
 
-  const categories = Object.entries(result.score.byCategory)
-    .filter(([, v]) => v.status !== "NOT_APPLICABLE")
-    .map(([category, v]) => ({ category, score: Math.round(v.score) }))
-
   // Group checks by canonical category order; trailing buckets first, then any
   // category the scanner returned that isn't in the canonical list.
   const grouped = new Map<string, SiteCheck[]>()
@@ -109,6 +110,19 @@ export function ScanReport({ result }: { result: ScanResult }) {
       (c) => !RUBRIC_CATEGORY_ORDER.includes(c as never)
     ),
   ]
+  const categoryRows: ScoreCategoryRow[] = orderedCategories.map((category) => {
+    const checks = (grouped.get(category) ?? []).sort(
+      (a, b) => b.weight - a.weight
+    )
+    const sub = result.score.byCategory[category]
+    return {
+      category,
+      score:
+        sub && sub.status !== "NOT_APPLICABLE" ? Math.round(sub.score) : null,
+      status: sub?.status ?? "INCONCLUSIVE",
+      checks,
+    }
+  })
 
   const generatedAt = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -174,38 +188,30 @@ export function ScanReport({ result }: { result: ScanResult }) {
               <span className="text-destructive">{counts.fail}</span> failing
             </span>
           </div>
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                Score
+              </p>
+              <ScoreSummary score={overall} />
+            </div>
+            <ScoreBlockStrip
+              score={overall}
+              className="mt-3"
+              barClassName="h-9"
+            />
+          </div>
         </div>
       </section>
 
       {/* Category breakdown */}
-      {categories.length > 0 && (
+      {categoryRows.length > 0 && (
         <section className="bg-card px-8 py-7">
           <p className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
             Category scores
           </p>
-          <div className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-2">
-            {categories.map((c) => (
-              <div key={c.category} className="break-inside-avoid">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-xs font-medium text-foreground">
-                    {c.category}
-                  </span>
-                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                    {c.score}
-                  </span>
-                </div>
-                <div
-                  className="mt-1.5 h-1.5 w-full bg-muted"
-                  role="img"
-                  aria-label={`${c.category}: ${c.score} out of 100`}
-                >
-                  <div
-                    className={cn("h-full", categoryColor(c.score))}
-                    style={{ width: `${c.score}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+          <div className="mt-4">
+            <CategoryScoreRows rows={categoryRows} />
           </div>
         </section>
       )}
@@ -217,10 +223,7 @@ export function ScanReport({ result }: { result: ScanResult }) {
             All checks
           </p>
         </div>
-        {orderedCategories.map((category) => {
-          const checks = (grouped.get(category) ?? []).sort(
-            (a, b) => b.weight - a.weight
-          )
+        {categoryRows.map(({ category, checks }) => {
           const sub = result.score.byCategory[category]
           return (
             <div key={category} className="break-inside-avoid bg-card px-8 py-6">

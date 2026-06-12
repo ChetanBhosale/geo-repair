@@ -1,3 +1,14 @@
+## Transactional Resend emails
+
+Done:
+
+- Wired `@repo/email` into the live waitlist/contact routes, backend auth, scan,
+  billing, agent plan/fix, and chat-limit lifecycle triggers.
+- Retired the old app-local Resend helper so user-facing emails now go through
+  the shared React Email templates.
+- Updated `docs/system-flow.md` to show Resend notifications as best-effort
+  user handoffs.
+
 ## Marketing image fallbacks
 
 Done:
@@ -22,10 +33,12 @@ Done:
 - Added backend-v2 billing routes: `GET /api/billing/plans`, `POST /api/billing/fix-checkout`, `GET /api/billing/history`, `GET /api/billing/orders/:id`, `POST /api/billing/orders/:id/reconcile`, and raw-body `POST /api/webhooks/dodo`.
 - Gated agent planning and fixing behind a paid matching order. Refunds and disputes cancel active agent runs best-effort.
 - Dashboard project page now creates checkout from a completed scan before starting the agent. Checkout return sends users to `/dashboard/purchase?order_id=...`.
+- Applied the billing tables/enums to the currently connected Neon DB while
+  repairing migration drift.
 
 Pending:
 
-- Run the billing migration and Prisma generate in the deploy environment.
+- Verify the same billing migration state in production/Vercel if it uses a different DB.
 - Confirm Dodo live product IDs match the same one-time products for Starter, Growth, and Scale.
 - Smoke test a test-mode checkout, Dodo return reconciliation, and webhook delivery before public launch.
 
@@ -36,28 +49,48 @@ Done:
 - Added the `AI Visibility` dashboard sidebar tab and `/dashboard/ai-visibility` coming-soon page.
 - Added authenticated interest capture through `feature_interests` with the `AI_VISIBILITY` feature key.
 - Documented the future product goal, sample-based reporting guardrails, and intended architecture in `docs/ai-visibility.md`.
+- Applied the `feature_interests` migration to the currently connected Neon DB.
 
 Pending:
 
-- Run the feature-interest DB migration in the deploy environment.
+- Verify the same feature-interest migration state in production/Vercel if it uses a different DB.
 - Replace the interest CTA with the first real snapshot workflow when prompt monitoring starts.
 
 ## Scan run (backend-v2 + dashboard-v2)
 
 Done:
 
+- Free scan "Start the fix" handoff now carries
+  `/dashboard/projects?website=...` through Google sign-in and GitHub connect.
+  When exactly one safe repo match exists, the dashboard creates the project and
+  relies on the backend's first-scan enqueue. Otherwise, the repo picker opens
+  with the scanned website prefilled.
+- Repo picker now behaves like one attached dropdown input: selected repos show
+  a checkmark, options collapse after selection/outside clicks/focus loss, and
+  keyboard navigation supports arrows, Enter, Escape, Home, and End.
+- Repaired the currently connected Neon DB migration state so `projects`,
+  `scrapings`, `logs`, `worker_status`, agent, billing, feature-interest, and
+  project brand-identity tables/columns exist.
+- Create-project API now keeps unexpected Prisma failures out of the UI and
+  returns a generic error while logging the server-side detail.
 - API scan (`POST /api/projects/:id/scan`) always enqueues the Temporal `scrapeWorkflow`; CLI (`bun run scraper`) still runs inline, no queue.
 - Worker activity persists logs + result + status via `persist.ts` (shared with the inline/CLI path).
 - Completed scans now extract site identity from homepage icons and JSON-LD: brand name, favicon URL, and logo URL. Project scans persist those URLs on `Project`; free scans return them in the scan result.
 - Endpoints: `GET /api/projects/:id/scrapings` (history), `GET /api/scrapings/:id/reconcile` (sync DB with Temporal), `GET /api/worker-status?projectId=` (active QUEUED/RUNNING).
 - Dashboard project list/detail now use the discovered favicon when available, with the globe fallback preserved.
 - Web free-scan and `/report` surfaces now show the scanned site's favicon for personalization.
-- Dashboard project detail rebuilt (Vercel-style): run-history dropdown, status/score/pages/started meta grid, category strip, collapsible activity logs + checks + recommendations.
+- Homepage results, `/report`, and dashboard scan detail now show 100-block
+  score strips for overall and category scores.
+- Dashboard project detail rebuilt (Vercel-style): run-history dropdown, status/score/pages/started meta grid, category status rows, internally scrollable checks, and compact recommendations. Technical activity logs stay internal.
+- Dashboard query data and the selected scan run persist across hard refreshes in
+  the current tab, then refetch in the background for fresh data.
+- Dashboard auth and route loading now use the existing app shell with inline
+  skeletons instead of blanking the whole app with the full-screen loader.
 - `useWorkerStatus` hook + `LiveActivity` panel (per-project now, reusable globally).
 
 Pending:
 
-- Run the DB migration for `Scraping` / `Log` / `WorkerStatus` / `Project.websiteError` / project brand identity fields (owner runs migrations).
+- Verify the same scan/project migration state in production/Vercel if it uses a different DB.
 - LLM-assisted heuristic checks not wired yet.
 
 ## Worker status reconcile flow (done)

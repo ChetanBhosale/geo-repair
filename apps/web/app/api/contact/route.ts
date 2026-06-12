@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { sendContactAck, sendContactNotification } from "@/lib/email"
+import { sendEmail } from "@repo/email"
 
 // Contact form submissions land here. There's no datastore yet, so we notify the
 // team inbox via Resend and send the submitter an acknowledgement; the message is
@@ -8,6 +8,8 @@ import { sendContactAck, sendContactNotification } from "@/lib/email"
 // sends are best-effort and never fail the request. Client contract:
 // POST { name?, email, message } → 200 { ok: true }.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const CONTACT_NOTIFY_TO =
+  process.env.CONTACT_NOTIFY_TO ?? "ajayveyron9@gmail.com"
 
 export async function POST(request: Request) {
   let body: { name?: unknown; email?: unknown; message?: unknown }
@@ -44,12 +46,16 @@ export async function POST(request: Request) {
   // Best-effort: notify the team and acknowledge the sender. A failed email
   // shouldn't reject a submission the form has already accepted.
   await Promise.allSettled([
-    sendContactNotification({
-      name: cleanName,
-      email: cleanEmail,
-      message: cleanMessage,
-    }),
-    sendContactAck({ name: cleanName, email: cleanEmail }),
+    sendEmail(
+      "contactNotification",
+      {
+        name: cleanName,
+        email: cleanEmail,
+        message: cleanMessage,
+      },
+      { to: CONTACT_NOTIFY_TO, replyTo: cleanEmail }
+    ),
+    sendEmail("contactAck", { name: cleanName }, { to: cleanEmail }),
   ])
 
   return NextResponse.json({ ok: true })
