@@ -20,11 +20,18 @@ export async function GET(
     })
   }
 
+  const tokenCount = Math.ceil(markdown.split(/\s+/).filter(Boolean).length * 1.3)
+
   return new Response(markdown, {
     status: 200,
     headers: {
       "content-type": "text/markdown; charset=utf-8",
       "cache-control": "public, max-age=3600, s-maxage=86400",
+      "X-Robots-Tag": "noindex",
+      "Vary": "Accept",
+      "X-Markdown-Tokens": String(tokenCount),
+      "X-Content-Type-Options": "nosniff",
+      "X-AEO-Version": "1.0",
     },
   })
 }
