@@ -16,6 +16,7 @@ import FrontendSecrets from "@repo/secrets/frontend"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScoreRing } from "@/components/demo/score-ring"
+import { SiteFavicon } from "@/components/checkup/site-favicon"
 import { capture } from "@/lib/analytics"
 import { dashboardFixHref } from "@/lib/dashboard-url"
 import {
@@ -138,6 +139,7 @@ export function FreeScanForm({
   }
 
   const isBusy = state === "running"
+  const host = result ? hostnameOf(result.finalUrl) : ""
   const issues = result ? topIssues(result) : []
   const categories = result
     ? Object.entries(result.score.byCategory)
@@ -232,13 +234,16 @@ export function FreeScanForm({
               <ScoreRing score={Math.round(result.score.overall)} size={104} />
             </div>
             <div className="flex flex-col justify-center gap-3 bg-card p-4">
-              <div>
-                <p className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-                  Analyzed site
-                </p>
-                <p className="break-all text-sm font-medium text-foreground">
-                  {hostnameOf(result.finalUrl)}
-                </p>
+              <div className="flex items-center gap-3">
+                <SiteFavicon src={result.brand?.faviconUrl} />
+                <div className="min-w-0">
+                  <p className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+                    Analyzed site
+                  </p>
+                  <p className="break-all text-sm font-medium text-foreground">
+                    {host}
+                  </p>
+                </div>
               </div>
               <span className="w-fit border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
                 {result.crawl.pagesChecked}{" "}

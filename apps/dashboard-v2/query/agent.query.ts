@@ -51,7 +51,9 @@ export function useProjectAgentRuns(projectId: string, enabled = true) {
     enabled: enabled && !!projectId,
     refetchOnMount: "always",
     refetchInterval: (query) =>
-      (query.state.data ?? []).some((r) => isAgentRunWorking(r.status)) ? 4000 : false,
+      (query.state.data ?? []).some((r) => isAgentRunWorking(r.status))
+        ? 4000
+        : false,
   })
 }
 
@@ -71,7 +73,7 @@ export function useAgentRun(agentRunId: string | null | undefined) {
 export function useStartAgentPlan(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => startAgentPlan(projectId),
+    mutationFn: (orderId: string) => startAgentPlan(projectId, { orderId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-runs", projectId] })
       qc.invalidateQueries({ queryKey: ["worker-status"] })

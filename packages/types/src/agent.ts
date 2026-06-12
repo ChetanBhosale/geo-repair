@@ -33,7 +33,12 @@ export type AgentPlanOutcome =
   | "ALREADY_OK"
   | "FAILED";
 
-export type SandboxStatus = "NONE" | "CREATING" | "RUNNING" | "STOPPED" | "KILLED";
+export type SandboxStatus =
+  | "NONE"
+  | "CREATING"
+  | "RUNNING"
+  | "STOPPED"
+  | "KILLED";
 
 export type PrState = "NONE" | "OPEN" | "MERGED" | "CLOSED";
 
@@ -135,6 +140,10 @@ export interface StartAgentPlanResponse {
   agentPlanId: string;
   status: AgentRunStatus;
   plannedChecks: number;
+}
+
+export interface StartAgentPlanRequest {
+  orderId: string;
 }
 
 // One per-check answer the user submits with the plan.

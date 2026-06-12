@@ -27,6 +27,10 @@ type ProjectRow = {
   language: string | null;
   websiteUrl: string | null;
   websiteVerified: boolean;
+  brandName: string | null;
+  faviconUrl: string | null;
+  logoUrl: string | null;
+  brandUpdatedAt: Date | null;
   selected: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -47,6 +51,10 @@ function toProject(row: ProjectRow): Project {
     language: row.language,
     websiteUrl: row.websiteUrl,
     websiteVerified: row.websiteVerified,
+    brandName: row.brandName,
+    faviconUrl: row.faviconUrl,
+    logoUrl: row.logoUrl,
+    brandUpdatedAt: row.brandUpdatedAt?.toISOString() ?? null,
     selected: row.selected,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

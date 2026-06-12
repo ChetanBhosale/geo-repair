@@ -8,10 +8,12 @@ import {
 } from "./activities";
 import { rawFetch, detectBlock, fetchDomainFiles, probeTwin, type DomainFiles } from "./fetcher";
 import { parsePage } from "./parser";
+import { detectBrandIdentity } from "./brand";
 import { classifyPage } from "./pagetype";
 import { discoverPages } from "./discover";
 import { bandFor, scoreChecks } from "./score";
 import type {
+  BrandIdentity,
   CategoryScoreOut,
   CheckResultOut,
   LogEntry,
@@ -24,6 +26,12 @@ import type {
 const CATEGORIES: CheckCategory[] = [
   "Rendering", "Structured data", "Metadata", "Crawl surface", "Semantics", "Content", "Answerability",
 ];
+
+const EMPTY_BRAND: BrandIdentity = {
+  name: null,
+  faviconUrl: null,
+  logoUrl: null,
+};
 
 function normalizeUrl(input: string): URL {
   let raw = input.trim();
@@ -118,9 +126,10 @@ export async function runScrape(websiteUrl: string, options: RunScrapeOptions = 
   if (homeBlock || !homeRaw.ok) {
     const reason = homeBlock ?? `HTTP ${homeRaw.status}`;
     await log({ level: "error", event: "homepage_failed", message: `Could not read homepage: ${reason}` });
-    return finalize(url, startedAt, repoMatch, [], 0, { source: "single", sections: {}, totalDiscovered: 1 }, [reason], logs, "failed", `Could not read the page: ${reason}`);
+    return finalize(url, startedAt, repoMatch, EMPTY_BRAND, [], 0, { source: "single", sections: {}, totalDiscovered: 1 }, [reason], logs, "failed", `Could not read the page: ${reason}`);
   }
 
+  const brand = detectBrandIdentity(parsePage(homeRaw));
   const domain = await fetchDomainFiles(homeRaw.finalUrl);
   await log({ level: "info", event: "crawl_files_read", message: "Read robots.txt, sitemap.xml, llms.txt." });
 
@@ -162,7 +171,7 @@ export async function runScrape(websiteUrl: string, options: RunScrapeOptions = 
     }
   }
 
-  return finalize(url, startedAt, repoMatch, siteChecks, okReports.length, discovery, notes, logs, "completed", null);
+  return finalize(url, startedAt, repoMatch, brand, siteChecks, okReports.length, discovery, notes, logs, "completed", null);
 }
 
 function aggregateCheck(name: string, instances: CheckResultOut[], reports: PageReport[]): SiteCheck {
@@ -226,6 +235,7 @@ function finalize(
   url: URL,
   startedAt: Date,
   repoMatch: ScrapeResult["repoMatch"],
+  brand: BrandIdentity,
   siteChecks: SiteCheck[],
   pagesChecked: number,
   discovery: { source: string; sections: Record<string, number>; totalDiscovered: number },
@@ -257,6 +267,7 @@ function finalize(
     finishedAt: finishedAt.toISOString(),
     durationMs: finishedAt.getTime() - startedAt.getTime(),
     repoMatch,
+    brand,
     score: { overall, status: bandFor(overall), pointsEarned: earned, pointsPossible: possible, byCategory },
     crawl: {
       source: discovery.source,

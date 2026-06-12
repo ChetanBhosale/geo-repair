@@ -21,7 +21,7 @@ Run the same free AI search readiness scan programmatically — no API key, no s
 - [Free GEO tools](https://geo.repair/free-geo-tools) ([.md](https://geo.repair/free-geo-tools.md)): Free GEO tools for AI search readiness: crawler access, raw HTML visibility, metadata, schema, llms.txt, sitemap, answerability, and fix handoff.
 - [GEO & AEO checker](https://geo.repair/geo-aeo-checker) ([.md](https://geo.repair/geo-aeo-checker.md)): Free GEO and AEO audit for answer engine optimization and generative engine optimization, with a scan report, checkup score, and fix plan.
 - [Security](https://geo.repair/security) ([.md](https://geo.repair/security.md)): Zero data retention, no model training, ephemeral sandbox, least-privilege single-repo scope.
-- [Pricing](https://geo.repair/pricing) ([.md](https://geo.repair/pricing.md)): Free checkup, a one-time fix sized to your sitemap (from $49), and optional $19/mo Autopilot.
+- [Pricing](https://geo.repair/pricing) ([.md](https://geo.repair/pricing.md)): Free checkup and one-time AI Search Fix tiers sized to your sitemap, from $49.
 - [Contact](https://geo.repair/contact) ([.md](https://geo.repair/contact.md)): Get in touch with the GEO Repair team.
 
 ## Resources

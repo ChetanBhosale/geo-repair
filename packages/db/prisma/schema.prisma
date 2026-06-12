@@ -17,6 +17,47 @@ enum AuthProvider {
   WORDPRESS
 }
 
+enum OrderKind {
+  FIX
+}
+
+enum OrderTier {
+  STARTER
+  GROWTH
+  SCALE
+  ENTERPRISE_CUSTOM
+}
+
+enum OrderStatus {
+  PENDING
+  CHECKOUT_CREATED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+  DISPUTED
+}
+
+enum OrderResolutionState {
+  OPEN
+  SUPPORT_REQUIRED
+  REFUND_PENDING
+  REFUNDED
+  CLOSED
+}
+
+enum PaymentProvider {
+  DODO
+}
+
+enum WebhookProcessingStatus {
+  PROCESSING
+  PROCESSED
+  FAILED
+  DUPLICATE
+}
+
 enum FeatureInterestKey {
   AI_VISIBILITY
 }
@@ -139,6 +180,7 @@ model User {
   agentRuns    AgentRun[]
   logs         Log[]
   workerStatus WorkerStatus[]
+  orders       Order[]
   featureInterests FeatureInterest[]
 
   @@map("users")
@@ -214,6 +256,11 @@ model Project {
   websiteVerified Boolean @default(false)
   // Why verification failed (repo does not match the website), if it did.
   websiteError    String?
+  // Site identity discovered from scans. URLs only; image binaries are never stored.
+  brandName       String?
+  faviconUrl      String?
+  logoUrl         String?
+  brandUpdatedAt  DateTime?
 
   // The repo currently chosen for fixing.
   selected Boolean @default(true)
@@ -225,6 +272,7 @@ model Project {
   agentRuns    AgentRun[]
   logs         Log[]
   workerStatus WorkerStatus[]
+  orders       Order[]
 
   @@unique([userId, githubRepoId])
   @@index([userId])
@@ -266,11 +314,114 @@ model Scraping {
   logs         Log[]
   workerStatus WorkerStatus?
   agentRuns    AgentRun[]
+  orders       Order[]
 
   @@index([projectId])
   @@index([userId])
   @@index([status])
   @@map("scrapings")
+}
+
+model Plan {
+  id   String    @id @default(cuid())
+  tier OrderTier @unique
+  name String
+
+  maxPages          Int?
+  amountCents       Int
+  currency          String  @default("USD")
+  providerProductId String?
+  details           Json?
+  active            Boolean @default(true)
+  sortOrder         Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([active])
+  @@map("plans")
+}
+
+model Order {
+  id              String               @id @default(cuid())
+  kind            OrderKind            @default(FIX)
+  tier            OrderTier
+  status          OrderStatus          @default(PENDING)
+  resolutionState OrderResolutionState @default(OPEN)
+  provider        PaymentProvider      @default(DODO)
+
+  planId String?
+  plan   Plan?   @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  scrapingId String?
+  scraping   Scraping? @relation(fields: [scrapingId], references: [id], onDelete: SetNull)
+
+  amountCents      Int
+  currency         String @default("USD")
+  sitemapPageCount Int
+  website          String
+  repoFullName     String?
+  repoConfirmed    Boolean @default(false)
+  feasibilityPassed Boolean @default(false)
+
+  checkoutUrl        String?
+  providerProductId  String
+  providerSessionId  String? @unique
+  providerPaymentId  String? @unique
+  providerCustomerId String?
+
+  paidAt     DateTime?
+  failedAt   DateTime?
+  canceledAt DateTime?
+  refundedAt DateTime?
+  disputedAt DateTime?
+
+  fixAttemptsUsed  Int @default(0)
+  chatMessagesUsed Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  webhookEvents PaymentWebhookEvent[]
+  agentRuns     AgentRun[]
+
+  @@index([userId, status])
+  @@index([projectId])
+  @@index([scrapingId])
+  @@index([planId])
+  @@index([provider, providerPaymentId])
+  @@index([provider, providerSessionId])
+  @@map("orders")
+}
+
+model PaymentWebhookEvent {
+  id                String                  @id @default(cuid())
+  provider          PaymentProvider         @default(DODO)
+  providerEventId   String
+  eventType         String
+  processingStatus  WebhookProcessingStatus @default(PROCESSING)
+  providerPaymentId String?
+  orderId           String?
+  order             Order?                  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  rawPayload        Json
+  error             String?
+  processedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@unique([provider, providerEventId])
+  @@index([provider, eventType])
+  @@index([providerPaymentId])
+  @@index([orderId])
+  @@map("paymentWebhookEvents")
 }
 
 model WorkerStatus {
@@ -366,7 +517,10 @@ model AgentRun {
   prMergedAt DateTime?
   prClosedAt DateTime?
   prMerged   Boolean   @default(false)
-  chatMessagesLeft Int @default(10)
+  chatMessagesLeft Int @default(20)
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   temporalWorkflowId String? @unique
 
@@ -399,6 +553,7 @@ model AgentRun {
   @@index([projectId])
   @@index([userId, status])
   @@index([scrapingId])
+  @@index([orderId])
   @@map("agent_runs")
 }
 

@@ -41,6 +41,11 @@ export type ScanResult = {
   status: "completed" | "failed"
   error: string | null
   rubricVersion?: string
+  brand?: {
+    name: string | null
+    faviconUrl: string | null
+    logoUrl: string | null
+  }
   score: {
     overall: number
     status: CheckStatus

@@ -12,7 +12,7 @@ const RUBRIC = join(SKILLS_DIR, "..", "..", "..", "RUBRIC.md");
 /** Parse the "Canonical checks (v1)" table and return ids whose fixable_by_agent is not "false". */
 function fixableRubricIds(): string[] {
   const md = readFileSync(RUBRIC, "utf8");
-  const start = md.indexOf("## Canonical checks (v1)");
+  const start = md.search(/^## Canonical checks \(/m);
   const end = md.indexOf("## Planned expansions", start);
   const section = md.slice(start, end === -1 ? undefined : end);
 

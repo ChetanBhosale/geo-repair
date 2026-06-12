@@ -15,8 +15,13 @@ import { ChatError, startChat } from "../functions/chat.service";
 export async function postAgentPlan(req: Request, res: Response) {
   const userId = req.userId!;
   const projectId = String(req.params.id ?? "");
+  const orderId = String(req.body?.orderId ?? "").trim();
+  if (!orderId) {
+    return res.status(400).json({ error: "orderId is required." });
+  }
+
   try {
-    const result = await startAgentPlan(userId, projectId);
+    const result = await startAgentPlan(userId, projectId, orderId);
     return res.status(202).json(result);
   } catch (err) {
     if (err instanceof AgentPlanError) {

@@ -36,7 +36,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   return proxyBackendJson(
     request,
-    `/api/billing/orders/${encodeURIComponent(id)}/reconcile`,
+    `/api/billing/public/orders/${encodeURIComponent(id)}/reconcile`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

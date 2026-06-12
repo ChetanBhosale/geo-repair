@@ -15,6 +15,12 @@ export const ENDPOINTS = {
 
   githubRepos: `${BACKEND_URL}/api/github/repos`,
 
+  billingPlans: `${BACKEND_URL}/api/billing/plans`,
+  billingHistory: `${BACKEND_URL}/api/billing/history`,
+  billingCheckout: `${BACKEND_URL}/api/billing/fix-checkout`,
+  billingOrder: (id: string) =>
+    `${BACKEND_URL}/api/billing/orders/${encodeURIComponent(id)}`,
+
   projects: `${BACKEND_URL}/api/projects`,
   project: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}`,

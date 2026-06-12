@@ -26,13 +26,17 @@ export async function POST(request: Request) {
   }
 
   const orderId = parsed.data.orderId?.trim()
+  const projectId = parsed.data.projectId?.trim()
   const repositoryId = parsed.data.repositoryId?.trim()
   const checkupReportKey = parsed.data.checkupReportKey?.trim()
   const selectedTier = parsed.data.selectedTier
 
-  if (!orderId && (!repositoryId || !checkupReportKey)) {
+  if (!orderId && !projectId && (!repositoryId || !checkupReportKey)) {
     return NextResponse.json(
-      { error: "orderId or repositoryId and checkupReportKey are required." },
+      {
+        error:
+          "orderId, projectId, or repositoryId and checkupReportKey are required.",
+      },
       { status: 400 }
     )
   }
@@ -42,6 +46,7 @@ export async function POST(request: Request) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       orderId,
+      projectId,
       repositoryId,
       checkupReportKey,
       selectedTier,

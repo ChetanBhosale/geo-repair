@@ -10,6 +10,7 @@ import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
 import type { ScrapeWorkflowInput } from "../temporal/worker/scraper/workflow-types";
+import { projectBrandDataFromScan } from "../lib/brand-identity";
 
 export class ScrapingError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -257,6 +258,7 @@ export async function reconcileWorkerByWorkflowId(
 // workflow id, or Temporal is unreachable.
 async function syncScrapingFromTemporal(row: {
   id: string;
+  projectId: string;
   status: string;
   temporalWorkflowId: string | null;
 }): Promise<void> {
@@ -291,6 +293,13 @@ async function syncScrapingFromTemporal(row: {
           finishedAt: new Date(),
         },
       });
+      const brandData = projectBrandDataFromScan(result);
+      if (result.status === "completed" && brandData) {
+        await prisma.project.update({
+          where: { id: row.projectId },
+          data: brandData,
+        });
+      }
     } else if (
       desc.status.name === "FAILED" ||
       desc.status.name === "TERMINATED" ||

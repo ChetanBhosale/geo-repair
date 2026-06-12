@@ -4,7 +4,7 @@ import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ClockIcon,
-  GlobeIcon,
+  CreditCardIcon,
   PlayIcon,
   RobotIcon,
   SpinnerGapIcon,
@@ -45,6 +45,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PageLoader } from "@/components/page-loader"
+import { ProjectFavicon } from "@/components/dashboard/project-favicon"
 import { useWorkerStatus } from "@/context/worker-status"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import {
@@ -59,6 +60,7 @@ import {
   useProjectAgentRuns,
   useStartAgentPlan,
 } from "@/query/agent.query"
+import { useCreateFixCheckout } from "@/query/billing.query"
 import type { AgentRunSummary } from "@repo/types/agent"
 
 const CHECK_STYLES: Record<CheckStatus, string> = {
@@ -102,6 +104,7 @@ export default function ProjectDetailPage() {
   const agentRuns = useProjectAgentRuns(projectId)
   const startAgentPlan = useStartAgentPlan(projectId)
   const completeRun = useCompleteRun(projectId)
+  const createCheckout = useCreateFixCheckout()
   // A planning worker is polling for this project.
   const agentRunning = live.workers.some((w) => w.service === "AGENT")
   // The agent fixes a completed scan, so only offer it once one exists.
@@ -124,13 +127,8 @@ export default function ProjectDetailPage() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
 
-  // Default selection follows the newest run until the user picks one.
-  React.useEffect(() => {
-    const list = runs.data
-    if (list && list.length > 0 && !selectedId) setSelectedId(list[0]!.id)
-  }, [runs.data, selectedId])
-
-  const detail = useScraping(selectedId)
+  const effectiveSelectedId = selectedId ?? runs.data?.[0]?.id ?? null
+  const detail = useScraping(effectiveSelectedId)
   const data = detail.data ?? null
   const result = data?.result ?? null
   const isRunning = data?.status === "RUNNING" || data?.status === "QUEUED"
@@ -142,17 +140,32 @@ export default function ProjectDetailPage() {
     setSelectedId(created.id)
   }
 
-  // Open the agent screen, or start a new plan run.
+  async function startPaidAgentRun() {
+    const checkout = await createCheckout.mutateAsync({ projectId })
+    if (checkout.checkoutUrl) {
+      window.location.assign(checkout.checkoutUrl)
+      return
+    }
+    if (!checkout.order.startFixUnlocked) {
+      toast.error("Payment is not confirmed yet.")
+      return
+    }
+
+    const created = await startAgentPlan.mutateAsync(checkout.order.id)
+    router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
+  }
+
   async function onAgent() {
     if (openAgentRun) {
       router.push(`/dashboard/projects/${projectId}/agent/${openAgentRun.id}`)
       return
     }
     try {
-      const created = await startAgentPlan.mutateAsync()
-      router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
+      await startPaidAgentRun()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start the agent.")
+      toast.error(
+        err instanceof Error ? err.message : "Could not start the agent."
+      )
     }
   }
 
@@ -161,11 +174,12 @@ export default function ProjectDetailPage() {
     if (!openAgentRun) return
     try {
       await completeRun.mutateAsync(openAgentRun.id)
-      const created = await startAgentPlan.mutateAsync()
       setCompleteConfirmOpen(false)
-      router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
+      await startPaidAgentRun()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start a new run.")
+      toast.error(
+        err instanceof Error ? err.message : "Could not start a new run."
+      )
     }
   }
 
@@ -184,9 +198,11 @@ export default function ProjectDetailPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-lg bg-accent text-accent-foreground">
-            <GlobeIcon className="size-4.5" />
-          </div>
+          <ProjectFavicon
+            src={project.data?.faviconUrl}
+            className="size-9"
+            imgClassName="size-5"
+          />
           <div className="min-w-0">
             <h1 className="text-base font-semibold tracking-tight">
               {project.data?.name}
@@ -239,14 +255,14 @@ export default function ProjectDetailPage() {
                 size="sm"
                 variant="outline"
                 onClick={onAgent}
-                disabled={startAgentPlan.isPending}
+                disabled={startAgentPlan.isPending || createCheckout.isPending}
               >
-                {startAgentPlan.isPending ? (
+                {startAgentPlan.isPending || createCheckout.isPending ? (
                   <SpinnerGapIcon className="size-4 animate-spin" />
                 ) : (
-                  <RobotIcon className="size-4" />
+                  <CreditCardIcon className="size-4" />
                 )}
-                Agent Run
+                Buy fix
               </Button>
             )
           ) : null}
@@ -267,8 +283,8 @@ export default function ProjectDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this project?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the project and all of its scans and logs. You can add
-              the repository again later. This cannot be undone.
+              This removes the project and all of its scans and logs. You can
+              add the repository again later. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteProject.isError ? (
@@ -295,18 +311,27 @@ export default function ProjectDetailPage() {
       </AlertDialog>
 
       {/* Complete-current-run confirm (to start a new one) */}
-      <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+      <AlertDialog
+        open={completeConfirmOpen}
+        onOpenChange={setCompleteConfirmOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Complete the current agent run?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have an open agent run. Mark it complete (e.g. its PR is merged
-              or no longer needed) to start a fresh run. This closes the current
-              run and its chat.
+              You have an open agent run. Mark it complete (e.g. its PR is
+              merged or no longer needed) to start a fresh run. This closes the
+              current run and its chat.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={completeRun.isPending || startAgentPlan.isPending}>
+            <AlertDialogCancel
+              disabled={
+                completeRun.isPending ||
+                startAgentPlan.isPending ||
+                createCheckout.isPending
+              }
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
@@ -314,9 +339,15 @@ export default function ProjectDetailPage() {
                 e.preventDefault()
                 void onCompleteThenNew()
               }}
-              disabled={completeRun.isPending || startAgentPlan.isPending}
+              disabled={
+                completeRun.isPending ||
+                startAgentPlan.isPending ||
+                createCheckout.isPending
+              }
             >
-              {completeRun.isPending || startAgentPlan.isPending
+              {completeRun.isPending ||
+              startAgentPlan.isPending ||
+              createCheckout.isPending
                 ? "Starting..."
                 : "Complete & start new"}
             </AlertDialogAction>
@@ -337,7 +368,9 @@ export default function ProjectDetailPage() {
                 run={run}
                 first={i === 0}
                 onOpen={() =>
-                  router.push(`/dashboard/projects/${projectId}/agent/${run.id}`)
+                  router.push(
+                    `/dashboard/projects/${projectId}/agent/${run.id}`
+                  )
                 }
               />
             ))}
@@ -351,7 +384,7 @@ export default function ProjectDetailPage() {
           <h2 className="text-sm font-medium">Scan details</h2>
           {runList.length > 0 ? (
             <Select
-              value={selectedId ?? undefined}
+              value={effectiveSelectedId ?? undefined}
               onValueChange={setSelectedId}
             >
               <SelectTrigger className="h-8 w-[220px] text-xs">
@@ -420,8 +453,14 @@ export default function ProjectDetailPage() {
       {result ? (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
           {Object.entries(result.score.byCategory).map(([cat, v]) => (
-            <div key={cat} className="rounded-lg border border-border bg-card p-3">
-              <p className="truncate text-[11px] text-muted-foreground" title={cat}>
+            <div
+              key={cat}
+              className="rounded-lg border border-border bg-card p-3"
+            >
+              <p
+                className="truncate text-[11px] text-muted-foreground"
+                title={cat}
+              >
                 {cat}
               </p>
               <p className="mt-0.5 text-lg font-semibold">
@@ -507,19 +546,33 @@ function AgentRunRow({
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", style)}>
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[11px] font-medium",
+              style
+            )}
+          >
             {label}
           </span>
           {run.isOpen ? (
             <span className="text-[11px] text-muted-foreground">active</span>
           ) : null}
-          <span className="text-xs text-muted-foreground">{timeAgo(run.createdAt)}</span>
+          <span className="text-xs text-muted-foreground">
+            {timeAgo(run.createdAt)}
+          </span>
         </div>
-        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/70">{run.id}</p>
+        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/70">
+          {run.id}
+        </p>
       </div>
       <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
         {run.prUrl ? <span className="text-primary">PR</span> : null}
-        {run.scoreBefore != null ? <span>{run.scoreBefore}{run.scoreAfter != null ? ` -> ${run.scoreAfter}` : ""}</span> : null}
+        {run.scoreBefore != null ? (
+          <span>
+            {run.scoreBefore}
+            {run.scoreAfter != null ? ` -> ${run.scoreAfter}` : ""}
+          </span>
+        ) : null}
       </div>
     </button>
   )
@@ -529,7 +582,7 @@ function RunOption({ run }: { run: ScrapingSummary }) {
   return (
     <SelectItem value={run.id}>
       <span className="inline-flex items-center gap-2">
-        <span className="font-mono text-[11px] uppercase text-muted-foreground">
+        <span className="font-mono text-[11px] text-muted-foreground uppercase">
           {run.status.toLowerCase()}
         </span>
         <span>{timeAgo(run.createdAt)}</span>
@@ -550,7 +603,7 @@ function Meta({
 }) {
   return (
     <div className="bg-card px-5 py-4">
-      <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+      <p className="font-mono text-[11px] tracking-wide text-muted-foreground uppercase">
         {label}
       </p>
       <div className="mt-1.5">{children}</div>
@@ -617,7 +670,9 @@ function Section({
 
 function LogStream({ detail }: { detail: ScrapingDetail }) {
   if (detail.logs.length === 0) {
-    return <p className="py-2 text-sm text-muted-foreground">No activity yet.</p>
+    return (
+      <p className="py-2 text-sm text-muted-foreground">No activity yet.</p>
+    )
   }
   return (
     <div className="max-h-80 space-y-1 overflow-y-auto rounded-lg bg-background/60 p-3 font-mono text-xs">
@@ -682,7 +737,9 @@ function CheckRow({ check }: { check: SiteCheck }) {
         <div className="space-y-2 border-t border-border px-4 py-3">
           {check.affectedPages.map((p, i) => (
             <div key={i} className="text-xs">
-              <p className="truncate font-medium text-foreground/80">{p.page}</p>
+              <p className="truncate font-medium text-foreground/80">
+                {p.page}
+              </p>
               <p className="text-muted-foreground">{p.issue}</p>
               {p.recommendation ? (
                 <p className="mt-0.5 text-primary">{p.recommendation}</p>

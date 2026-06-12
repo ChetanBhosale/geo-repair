@@ -110,6 +110,12 @@ export interface LogEntry {
   status?: CheckStatus;
 }
 
+export interface BrandIdentity {
+  name: string | null;
+  faviconUrl: string | null;
+  logoUrl: string | null;
+}
+
 export interface ScrapeResult {
   url: string;
   finalUrl: string;
@@ -121,6 +127,7 @@ export interface ScrapeResult {
 
   // Repo <-> website verification (the first activity). "none" when no repo given.
   repoMatch: RepoMatchOut;
+  brand: BrandIdentity;
 
   score: {
     overall: number;

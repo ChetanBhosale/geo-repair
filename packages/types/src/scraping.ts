@@ -57,6 +57,11 @@ export interface ScanResult {
   rubricVersion: string;
   status: "completed" | "failed";
   durationMs: number;
+  brand: {
+    name: string | null;
+    faviconUrl: string | null;
+    logoUrl: string | null;
+  };
   repoMatch: {
     status: CheckStatus;
     confidence: number;

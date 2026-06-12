@@ -1,5 +1,6 @@
 import { Logo } from "@/components/layout/logo"
 import { ScoreRing } from "@/components/demo/score-ring"
+import { SiteFavicon } from "@/components/checkup/site-favicon"
 import { cn } from "@/lib/utils"
 import {
   type CheckStatus,
@@ -130,18 +131,25 @@ export function ScanReport({ result }: { result: ScanResult }) {
             AI Search Readiness Report
           </span>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <p className="font-mono text-[11px] tracking-widest text-white/70 uppercase">
-            Analyzed site
-          </p>
-          <h1 className="font-heading text-3xl font-medium tracking-tight break-all">
-            {host}
-          </h1>
-          <p className="text-sm text-white/70">
-            {generatedAt} · {result.crawl.pagesChecked}{" "}
-            {result.crawl.pagesChecked === 1 ? "page" : "pages"} checked
-            {result.rubricVersion ? ` · rubric ${result.rubricVersion}` : ""}
-          </p>
+        <div className="flex items-start gap-4">
+          <SiteFavicon
+            src={result.brand?.faviconUrl}
+            className="mt-1 size-12 bg-white"
+            imgClassName="size-8"
+          />
+          <div className="min-w-0 flex flex-col gap-1.5">
+            <p className="font-mono text-[11px] tracking-widest text-white/70 uppercase">
+              Analyzed site
+            </p>
+            <h1 className="font-heading text-3xl font-medium tracking-tight break-all">
+              {host}
+            </h1>
+            <p className="text-sm text-white/70">
+              {generatedAt} · {result.crawl.pagesChecked}{" "}
+              {result.crawl.pagesChecked === 1 ? "page" : "pages"} checked
+              {result.rubricVersion ? ` · rubric ${result.rubricVersion}` : ""}
+            </p>
+          </div>
         </div>
       </header>
 

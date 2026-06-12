@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import type { ChatResponse } from "@repo/types/agent";
+import { CHAT_MESSAGE_LIMIT } from "@repo/types/entitlements";
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 import { getPrStatus } from "../lib/github";
@@ -29,19 +30,33 @@ export async function startChat(
 
   const run = await prisma.agentRun.findFirst({
     where: { id: agentRunId, userId },
-    include: { project: { include: { account: { select: { accessToken: true } } } } },
+    include: {
+      order: true,
+      project: { include: { account: { select: { accessToken: true } } } },
+    },
   });
   if (!run) throw new ChatError(404, "Agent run not found.");
+  if (!run.order || run.order.status !== "PAID") {
+    throw new ChatError(402, "A paid AI Search Fix order is required.");
+  }
   if (!run.prUrl || !run.prNumber) {
     throw new ChatError(409, "Chat opens once the fix PR is created.");
   }
   if (run.status === "CHATTING") {
-    throw new ChatError(409, "The agent is still working on your last message.");
+    throw new ChatError(
+      409,
+      "The agent is still working on your last message.",
+    );
   }
 
   // Live merge check — if merged, close chat for good.
   if (run.project) {
-    const pr = await getPrStatus(run.project.owner, run.project.name, run.prNumber, run.project.account?.accessToken);
+    const pr = await getPrStatus(
+      run.project.owner,
+      run.project.name,
+      run.prNumber,
+      run.project.account?.accessToken,
+    );
     if (pr?.merged && !run.prMerged) {
       await prisma.agentRun.update({
         where: { id: run.id },
@@ -52,9 +67,19 @@ export async function startChat(
       throw new ChatError(409, "The PR has been merged. This run is complete.");
     }
   }
-  if (run.prMerged) throw new ChatError(409, "The PR has been merged. This run is complete.");
+  if (run.prMerged)
+    throw new ChatError(409, "The PR has been merged. This run is complete.");
   if (run.chatMessagesLeft <= 0) {
-    throw new ChatError(409, "You've used all your chat messages for this run.");
+    throw new ChatError(
+      409,
+      "You've used all your chat messages for this run.",
+    );
+  }
+  if (run.order.chatMessagesUsed >= CHAT_MESSAGE_LIMIT) {
+    throw new ChatError(
+      409,
+      "You've used all your chat messages for this order.",
+    );
   }
 
   // Persist the user's message and spend one from the budget.
@@ -73,6 +98,10 @@ export async function startChat(
     where: { id: run.id },
     data: { chatMessagesLeft: { decrement: 1 }, status: "CHATTING" },
     select: { chatMessagesLeft: true },
+  });
+  await prisma.order.update({
+    where: { id: run.order.id },
+    data: { chatMessagesUsed: { increment: 1 } },
   });
 
   const workflowId = `agent-chat-${run.id}-${Date.now()}`;
@@ -96,8 +125,16 @@ export async function startChat(
       where: { id: run.id },
       data: { status: "PR_OPENED", chatMessagesLeft: { increment: 1 } },
     });
+    await prisma.order.update({
+      where: { id: run.order.id },
+      data: { chatMessagesUsed: { decrement: 1 } },
+    });
     throw new ChatError(502, `Could not start the chat: ${m}`);
   }
 
-  return { agentRunId: run.id, status: "CHATTING", chatMessagesLeft: updated.chatMessagesLeft };
+  return {
+    agentRunId: run.id,
+    status: "CHATTING",
+    chatMessagesLeft: updated.chatMessagesLeft,
+  };
 }

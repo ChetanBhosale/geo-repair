@@ -6,10 +6,17 @@ import { MoonIcon, SunIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 
+const subscribeMounted = () => () => {}
+const getClientMounted = () => true
+const getServerMounted = () => false
+
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => setMounted(true), [])
+  const mounted = React.useSyncExternalStore(
+    subscribeMounted,
+    getClientMounted,
+    getServerMounted
+  )
 
   const isDark = resolvedTheme === "dark"
 

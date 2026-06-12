@@ -12,8 +12,10 @@ import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
 import { getPrStatus } from "../lib/github";
 import type { CompleteRunResponse } from "@repo/types/agent";
+import { CHAT_MESSAGE_LIMIT } from "@repo/types/entitlements";
 import type { PlanCheckInput } from "../temporal/worker/agent-plan/types";
 import type { AgentPlanWorkflowInput } from "../temporal/worker/agent-plan/workflow-types";
+import { getPaidOrderForAgentPlan } from "./billing.service";
 
 export class AgentPlanError extends Error {
   constructor(
@@ -86,11 +88,14 @@ function toPlanInputs(checks: StoredSiteCheck[]): PlanCheckInput[] {
 export async function startAgentPlan(
   userId: string,
   projectId: string,
+  orderId: string,
 ): Promise<StartAgentPlanResponse> {
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId },
   });
   if (!project) throw new AgentPlanError(404, "Project not found.");
+
+  const order = await getPaidOrderForAgentPlan({ orderId, userId, projectId });
 
   // Only one open run per project. The user must complete/merge the current run
   // (or it must fail) before starting a new one.
@@ -124,7 +129,10 @@ export async function startAgentPlan(
     orderBy: { createdAt: "desc" },
   });
   if (!scraping || !scraping.result) {
-    throw new AgentPlanError(400, "No completed scan to plan from. Run a scan first.");
+    throw new AgentPlanError(
+      400,
+      "No completed scan to plan from. Run a scan first.",
+    );
   }
 
   const result = scraping.result as unknown as StoredScanResult;
@@ -141,7 +149,9 @@ export async function startAgentPlan(
       projectId: project.id,
       userId,
       scrapingId: scraping.id,
+      orderId: order.id,
       status: "PLANNING",
+      chatMessagesLeft: CHAT_MESSAGE_LIMIT,
       scoreBefore: scraping.score,
       rubricVersion: result.rubricVersion ?? null,
       startedAt: new Date(),
@@ -368,7 +378,9 @@ export async function completeAgentRun(
 ): Promise<CompleteRunResponse> {
   const run = await prisma.agentRun.findFirst({
     where: { id: agentRunId, userId },
-    include: { project: { include: { account: { select: { accessToken: true } } } } },
+    include: {
+      project: { include: { account: { select: { accessToken: true } } } },
+    },
   });
   if (!run) throw new AgentPlanError(404, "Agent run not found.");
 

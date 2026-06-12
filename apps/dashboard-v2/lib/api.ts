@@ -25,9 +25,16 @@ import type {
   ChatResponse,
   CompleteRunResponse,
   ListAgentRunsResponse,
+  StartAgentPlanRequest,
   StartAgentPlanResponse,
   StartFixResponse,
 } from "@repo/types/agent"
+import type {
+  BillingHistoryResponse,
+  CreateFixCheckoutResponse,
+  ListPlansResponse,
+  OrderSummary,
+} from "@repo/types/billing"
 import type {
   FeatureInterestResponse,
   FeatureInterestState,
@@ -97,6 +104,34 @@ export async function getRepos(): Promise<GithubRepo[]> {
   return data.repos
 }
 
+// --- Billing ---
+
+export async function getBillingPlans(): Promise<ListPlansResponse["plans"]> {
+  const data = await request<ListPlansResponse>(ENDPOINTS.billingPlans)
+  return data.plans
+}
+
+export async function getBillingHistory(): Promise<BillingHistoryResponse> {
+  return request<BillingHistoryResponse>(ENDPOINTS.billingHistory)
+}
+
+export async function getBillingOrder(orderId: string): Promise<OrderSummary> {
+  const data = await request<{ order: OrderSummary }>(
+    ENDPOINTS.billingOrder(orderId)
+  )
+  return data.order
+}
+
+export async function createFixCheckout(payload: {
+  projectId?: string
+  orderId?: string
+}): Promise<CreateFixCheckoutResponse> {
+  return request<CreateFixCheckoutResponse>(ENDPOINTS.billingCheckout, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
 // --- Projects ---
 
 export async function getProjects(): Promise<Project[]> {
@@ -128,9 +163,12 @@ export async function deleteProject(id: string): Promise<void> {
 // --- Scraping ---
 
 export async function startScan(projectId: string): Promise<ScrapingSummary> {
-  const data = await request<StartScanResponse>(ENDPOINTS.projectScan(projectId), {
-    method: "POST",
-  })
+  const data = await request<StartScanResponse>(
+    ENDPOINTS.projectScan(projectId),
+    {
+      method: "POST",
+    }
+  )
   return data.scraping
 }
 
@@ -144,7 +182,9 @@ export async function getProjectScraping(
   if (res.status === 404) return null
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`)
+    throw new Error(
+      (body as { error?: string }).error ?? `Request failed (${res.status})`
+    )
   }
   return (body as ScrapingDetailResponse).scraping
 }
@@ -173,11 +213,16 @@ export async function reconcileScraping(id: string): Promise<ScrapingDetail> {
 // --- Agent (fix-plan runs) ---
 
 export async function startAgentPlan(
-  projectId: string
+  projectId: string,
+  payload: StartAgentPlanRequest
 ): Promise<StartAgentPlanResponse> {
-  return request<StartAgentPlanResponse>(ENDPOINTS.projectAgentPlan(projectId), {
-    method: "POST",
-  })
+  return request<StartAgentPlanResponse>(
+    ENDPOINTS.projectAgentPlan(projectId),
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  )
 }
 
 export async function getProjectAgentRuns(

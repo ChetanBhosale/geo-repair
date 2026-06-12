@@ -14,6 +14,11 @@ import scrapingRoutes from "./routes/scrapings.routes";
 import agentRunRoutes from "./routes/agent-runs.routes";
 import workerStatusRoutes from "./routes/worker-status.routes";
 import featureInterestRoutes from "./routes/feature-interest.routes";
+import {
+  billingRoutes,
+  devBillingRoutes,
+  dodoWebhookRoutes,
+} from "./routes/billing.routes";
 import { createScanRouter } from "./routes/scan.routes";
 
 const app = express();
@@ -39,11 +44,19 @@ app.use(
   }),
 );
 
+app.use(
+  "/api/webhooks/dodo",
+  express.raw({ type: "application/json" }),
+  dodoWebhookRoutes,
+);
+
 app.use(express.json({ limit: "64kb" }));
 app.use(cookieParser());
 app.use(globalRateLimiter);
 
 app.use(healthRoutes);
+app.use("/api", billingRoutes);
+app.use("/api", devBillingRoutes);
 app.use("/api/auth", authRateLimiter, authRoutes);
 app.use("/api/github", githubRoutes);
 app.use("/api/projects", projectRoutes);

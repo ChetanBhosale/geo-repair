@@ -17,6 +17,6 @@ export async function GET(request: Request, context: RouteContext) {
 
   return proxyBackendJson(
     request,
-    `/api/billing/orders/${encodeURIComponent(id)}`
+    `/api/billing/public/orders/${encodeURIComponent(id)}`
   )
 }

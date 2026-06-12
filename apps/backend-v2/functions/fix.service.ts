@@ -3,6 +3,7 @@ import type { AgentPlanAnswer, StartFixResponse } from "@repo/types/agent";
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 import type { AgentFixWorkflowInput } from "../temporal/worker/agent-fix/workflow-types";
+import { markFixAttemptStarted } from "./billing.service";
 
 export class FixError extends Error {
   constructor(
@@ -24,10 +25,13 @@ export async function startFix(
 ): Promise<StartFixResponse> {
   const run = await prisma.agentRun.findFirst({
     where: { id: agentRunId, userId },
-    include: { plan: { include: { checks: true } } },
+    include: { order: true, plan: { include: { checks: true } } },
   });
   if (!run) throw new FixError(404, "Agent run not found.");
   if (!run.plan) throw new FixError(400, "This run has no plan yet.");
+  if (!run.order || run.order.status !== "PAID") {
+    throw new FixError(402, "A paid AI Search Fix order is required.");
+  }
   if (run.status !== "AWAITING_INPUT") {
     throw new FixError(409, "This plan was already submitted.");
   }
@@ -39,7 +43,10 @@ export async function startFix(
     const a = byRubric.get(c.rubricId);
     if (!a) throw new FixError(400, `Missing an answer for "${c.rubricId}".`);
     if (a.choice !== "APPROVED" && a.choice !== "DECLINED") {
-      throw new FixError(400, `Answer for "${c.rubricId}" must be approved or declined.`);
+      throw new FixError(
+        400,
+        `Answer for "${c.rubricId}" must be approved or declined.`,
+      );
     }
     await prisma.agentPlanCheck.update({
       where: { id: c.id },
@@ -90,6 +97,7 @@ export async function startFix(
       where: { id: run.id },
       data: { temporalWorkflowId: workflowId },
     });
+    await markFixAttemptStarted(run.order.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await prisma.agentRun.update({

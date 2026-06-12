@@ -2,6 +2,7 @@ import { prisma } from "@repo/db";
 import type { Prisma } from "@repo/db/generated/prisma/client";
 import { runScrape } from "./run";
 import type { LogEntry, RepoInput, ScrapeResult } from "./types";
+import { projectBrandDataFromScan } from "../../../lib/brand-identity";
 
 function logLevel(level: LogEntry["level"]): "INFO" | "WARN" | "ERROR" {
   return level === "warn" ? "WARN" : level === "error" ? "ERROR" : "INFO";
@@ -72,6 +73,14 @@ export async function persistScrapeRun(
         finishedAt: new Date(),
       },
     });
+
+    const brandData = projectBrandDataFromScan(result);
+    if (result.status === "completed" && brandData) {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: brandData,
+      });
+    }
 
     return result;
   } catch (err) {

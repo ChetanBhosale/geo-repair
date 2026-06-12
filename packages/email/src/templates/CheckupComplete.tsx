@@ -73,8 +73,8 @@ export default function CheckupComplete({
         <Button href={reportUrl}>View the full report</Button>
       </Section>
       <Text style={{ margin: "16px 0 0", fontSize: "13px", color: MUTED }}>
-        Want the fixes done for you? GEO Repair can open a pull request that
-        raises your score automatically.
+        Ready to ship the fixes? GEO Repair can open a pull request that raises
+        your score automatically.
       </Text>
     </Layout>
   )

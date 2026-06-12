@@ -712,7 +712,7 @@ function Composer({ run }: { run: AgentRunDetail }) {
     return (
       <div className="border-t border-border p-3">
         <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
-          You've used all your chat messages for this run.
+          You&apos;ve used all your chat messages for this run.
         </div>
       </div>
     )

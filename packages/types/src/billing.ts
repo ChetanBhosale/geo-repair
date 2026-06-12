@@ -22,6 +22,7 @@ export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
 export const CreateFixCheckoutRequestSchema = z.object({
   orderId: z.string().optional(),
+  projectId: z.string().optional(),
   repositoryId: z.string().optional(),
   checkupReportKey: z.string().optional(),
   selectedTier: FixTierSchema.optional(),
@@ -37,6 +38,7 @@ export const OrderSummarySchema = z.object({
   amountCents: z.number().int().nonnegative(),
   currency: z.string(),
   website: z.string(),
+  projectId: z.string().nullable(),
   repoFullName: z.string().nullable(),
   checkoutUrl: z.string().url().nullable(),
   startFixUnlocked: z.boolean(),
@@ -96,6 +98,7 @@ export interface BillingOrder {
   amountCents: number;
   currency: string;
   website: string;
+  projectId: string | null;
   repoFullName: string | null;
   provider: "DODO";
   providerPaymentId: string | null;

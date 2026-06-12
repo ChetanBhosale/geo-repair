@@ -248,7 +248,6 @@ function pricingTwin(): string {
     "## Core Concepts & Definitions",
     "",
     "- **AI Search Fix**: A targeted, sandbox-validated code change that corrects technical crawl, structured data, and rendering issues directly in your repository.",
-    "- **Autopilot**: A system that continually scans your sitemap, identifies new pages or content drift, and automates new fix pull requests.",
     "",
     "## Technical Standards & Authority Sourcing",
     "",

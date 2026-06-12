@@ -16,6 +16,10 @@ export interface Project {
   language: string | null;
   websiteUrl: string | null;
   websiteVerified: boolean;
+  brandName: string | null;
+  faviconUrl: string | null;
+  logoUrl: string | null;
+  brandUpdatedAt: string | null;
   selected: boolean;
   createdAt: string;
   updatedAt: string;

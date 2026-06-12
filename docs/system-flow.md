@@ -7,22 +7,26 @@ workflow activities, providers, and persistence models.
 ## Current System Shape
 
 - Public website: `apps/web` on `geo.repair`.
-- Authenticated dashboard: `apps/dashboard` on `dashboard.geo.repair`.
-- Backend API: `apps/backend`, Express routes under `/api`.
-- Job plane today: Temporal workflows and workers in `apps/backend/src/temporal`.
+- Authenticated dashboard: `apps/dashboard-v2` on `dashboard.geo.repair`.
+- Backend API: `apps/backend-v2`, Express routes under `/api`.
+- Job plane today: Temporal workflows and workers in `apps/backend-v2/temporal`.
 - Execution plane: E2B sandbox via `@repo/sandbox`, with the model/tool loop in
   `@repo/ai`.
 - Persistence: Prisma models in `packages/db/prisma/schema.prisma`.
+- Scan brand identity: the scraper extracts brand name, favicon URL, and logo
+  URL from the scanned homepage's icons, metadata, and JSON-LD. Free scans
+  return this identity in the scan result; completed project scans also update
+  the `Project` brand fields. The database stores URLs only, not image files.
 - Payments: Dodo one-time checkout, with webhooks as the payment source of
   truth and checkout-return reconciliation as a backup.
-- Entitlements: a paid `Order` grants a bounded number of fix-run attempts
+- Entitlements: a paid `Order` grants a bounded number of fix attempts
   (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`) and post-PR agent chat messages
-  (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`). Free scans are bounded per day
-  (per signed-in user, else per IP) via the `ScanUsage` table, with a 24h report
-  cache so a re-scan of the same site costs no quota. Limits live in
-  `@repo/types/entitlements` and are enforced in `apps/backend/src/temporal/fix.ts`
-  (attempts), `apps/backend/src/fix/fix.service.ts` (chat), and
-  `apps/backend/src/checkup/checkup.controller.ts` (scans).
+  (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`). Free scans are bounded in the
+  public scan API. Paid-order enforcement lives in
+  `apps/backend-v2/functions/billing.service.ts`,
+  `apps/backend-v2/functions/agent-plan.service.ts`,
+  `apps/backend-v2/functions/fix.service.ts`, and
+  `apps/backend-v2/functions/chat.service.ts`.
 - AI Visibility: dashboard route `/dashboard/ai-visibility` is a coming-soon
   surface. Today it only records authenticated user interest in
   `feature_interests`; no monitoring workflow, AI platform call, report, or
@@ -46,7 +50,8 @@ flowchart TD
   TargetSite["Customer website<br/>robots, sitemap, pages, markdown twins"]
   Checker["Crawler and rubric scoring<br/>apps/backend/src/temporal/functions/checkup/crawler"]
   CheckupDB["CheckupRun, CheckupRunEvent,<br/>CheckupReport"]
-  Result["Score, findings, page count,<br/>website type, quote tier"]
+  BrandIdentity["Brand identity<br/>name, favicon URL, logo URL"]
+  Result["Score, findings, page count,<br/>brand identity, website type, quote tier"]
   Unsupported["Unsupported no-code platform<br/>waitlist or contact"]
   DownloadReport["Download scan report"]
   DashboardScan["dashboard.geo.repair /website-scan"]
@@ -54,18 +59,18 @@ flowchart TD
   Settings["Dashboard /settings<br/>choose GitHub repo"]
   OAuth["GitHub OAuth<br/>/api/auth/github"]
   GitHub["GitHub API"]
-  UserDB["User, Account, Repository"]
+  UserDB["User, Account, Project"]
   RepoConfirmed["Repo and website confirmed"]
-  CheckoutDialog["Tier checkout dialog<br/>Starter, Growth, Scale, custom"]
+  CheckoutDialog["Project buy-fix CTA<br/>Starter, Growth, Scale, custom"]
   BillingAPI["Billing API<br/>POST /api/billing/fix-checkout"]
-  OrderDB["Order<br/>repoConfirmed, feasibilityPassed,<br/>tier, amount, status"]
+  OrderDB["Plan, Order, PaymentWebhookEvent<br/>projectId, scrapingId, tier, amount, status"]
   Dodo["Dodo hosted checkout"]
   DodoWebhook["Dodo webhook<br/>/api/webhooks/dodo"]
   ReturnPage["Checkout return page<br/>/checkout/return"]
   PaidOrder["Order PAID<br/>Start fix unlocked"]
-  FixWorkspace["Dashboard /fix-agent"]
-  StartFix["POST /api/fix<br/>requires auth, repo, paid matching order"]
-  FixRunDB["FixRun, FixCheck, RunEvent"]
+  FixWorkspace["Dashboard purchase / project agent screen"]
+  StartFix["POST /api/projects/:id/agent-plan<br/>requires paid matching order"]
+  FixRunDB["AgentRun, AgentPlan,<br/>AgentPlanCheck, Log"]
   TemporalFix["Temporal fixSiteWorkflow"]
   PlanRun["planRun<br/>fresh scan, build fix plan,<br/>persist checks"]
   Clarify{"Clarification needed?"}
@@ -85,7 +90,9 @@ flowchart TD
 
   Visitor --> Marketing --> CheckupForm --> WebProxy --> BackendCheckup
   BackendCheckup --> TemporalCheckup --> CheckupWorker
-  CheckupWorker --> TargetSite --> Checker --> CheckupDB --> Result
+  CheckupWorker --> TargetSite
+  TargetSite --> BrandIdentity --> CheckupDB
+  TargetSite --> Checker --> CheckupDB --> Result
   Result -->|"Framer, Webflow, Wix, WordPress, Shopify, unsupported"| Unsupported
   Result -->|"custom-coded site"| DownloadReport
   Result --> DashboardScan
@@ -117,8 +124,8 @@ flowchart TD
 sequenceDiagram
   actor User
   participant Web as geo.repair apps/web
-  participant Dashboard as dashboard.geo.repair apps/dashboard
-  participant API as apps/backend Express API
+  participant Dashboard as dashboard.geo.repair apps/dashboard-v2
+  participant API as apps/backend-v2 Express API
   participant Temporal as Temporal workflows
   participant Worker as Temporal workers
   participant Target as Customer website
@@ -143,8 +150,9 @@ sequenceDiagram
 
   Temporal->>Worker: runCheckup
   Worker->>Target: Fetch pages, robots, sitemap, twins
+  Worker->>Worker: Extract brand identity from homepage icons and JSON-LD
   Worker->>Worker: Crawl and score rubric findings
-  Worker->>DB: Save CheckupReport and progress events
+  Worker->>DB: Save report, progress events, and project brand URLs when applicable
   Worker-->>Temporal: CheckupResult
   Web->>API: GET /api/checkup-reports/:key
   API->>DB: Load saved report
@@ -170,12 +178,12 @@ sequenceDiagram
   GitHub-->>API: Repos
   API-->>Dashboard: Repo list
   User->>Dashboard: Select repo and bind website
-  Dashboard->>API: POST /api/github/repos/select or PATCH /api/github/repos/:id/website
-  API->>DB: Save Repository
+  Dashboard->>API: POST /api/projects
+  API->>DB: Save Project
 
-  User->>Dashboard: Choose fix tier
+  User->>Dashboard: Buy fix from completed project scan
   Dashboard->>API: POST /api/billing/fix-checkout
-  API->>DB: Create or reuse Order scoped to report and repo
+  API->>DB: Create or reuse Order scoped to project and latest completed scan
   API->>Dodo: Create checkout session
   Dodo-->>API: checkoutUrl, session/payment ids
   API->>DB: Mark order CHECKOUT_CREATED
@@ -188,21 +196,23 @@ sequenceDiagram
     Dodo->>API: POST /api/webhooks/dodo with raw signed body
     API->>DB: Store PaymentWebhookEvent and update Order
   and Return-page reconciliation
-    Web->>API: POST /api/billing/orders/:id/reconcile when payment_id exists
+    Web->>API: POST /api/billing/public/orders/:id/reconcile when payment_id exists
     API->>Dodo: Retrieve payment
     API->>DB: Update Order if verified
   end
-  Web->>API: GET /api/billing/orders/:id
+  Web->>API: GET /api/billing/public/orders/:id
   API->>DB: Read order status
-  API-->>Web: PAID unlock state
-  Web-->>User: Start fix link to dashboard
+  API-->>Web: Minimal PAID unlock state, no repo or project data
+  Web-->>User: Start fix link to dashboard purchase page
 
   User->>Dashboard: Start fix
-  Dashboard->>API: POST /api/fix with website, repositoryId, orderId
-  API->>DB: Verify paid order matches user, repo, website
-  API->>DB: Create FixRun
-  API->>Temporal: Start fixSiteWorkflow
-  API-->>Dashboard: fixRunId, temporalWorkflowId
+  Dashboard->>API: GET /api/billing/orders/:id
+  API->>DB: Read authenticated full order for user
+  Dashboard->>API: POST /api/projects/:id/agent-plan with orderId
+  API->>DB: Verify paid order matches user and project
+  API->>DB: Create AgentRun and AgentPlan
+  API->>Temporal: Start agentPlanWorkflow
+  API-->>Dashboard: agentRunId, agentPlanId
 
   Temporal->>Worker: planRun
   Worker->>Target: Fresh checkSite scan

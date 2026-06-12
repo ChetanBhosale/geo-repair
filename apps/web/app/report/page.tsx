@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
+import Link from "next/link"
 import {
   ArrowLeftIcon,
   DownloadSimpleIcon,
@@ -16,14 +17,17 @@ const PRINT_CSS = `@media print {
   html, body { background: #fff !important; }
 }`
 
-export default function ReportPage() {
-  const [result, setResult] = useState<ScanResult | null>(null)
-  const [loaded, setLoaded] = useState(false)
+const subscribeReportReady = () => () => {}
+const getClientReportReady = () => true
+const getServerReportReady = () => false
 
-  useEffect(() => {
-    setResult(loadStoredScan())
-    setLoaded(true)
-  }, [])
+export default function ReportPage() {
+  const loaded = useSyncExternalStore(
+    subscribeReportReady,
+    getClientReportReady,
+    getServerReportReady
+  )
+  const result: ScanResult | null = loaded ? loadStoredScan() : null
 
   // Avoid a flash of the empty state before localStorage is read.
   if (!loaded) {
@@ -46,7 +50,7 @@ export default function ReportPage() {
             a free scan, then choose &ldquo;Download full report.&rdquo;
           </p>
           <Button asChild className="mt-1">
-            <a href="/#checkup">Run a free scan</a>
+            <Link href="/#checkup">Run a free scan</Link>
           </Button>
         </div>
       </main>
@@ -60,10 +64,10 @@ export default function ReportPage() {
       {/* Screen-only action bar */}
       <div className="mx-auto mb-4 flex w-full max-w-3xl items-center justify-between gap-3 px-4 print:hidden">
         <Button asChild variant="ghost" size="sm">
-          <a href="/#checkup">
+          <Link href="/#checkup">
             <ArrowLeftIcon aria-hidden />
             Back to scan
-          </a>
+          </Link>
         </Button>
         <Button size="sm" onClick={() => window.print()}>
           <DownloadSimpleIcon aria-hidden />

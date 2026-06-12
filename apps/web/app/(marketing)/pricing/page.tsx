@@ -39,10 +39,6 @@ const PRICING_TERMS = [
     name: "AI Search Fix",
     definition: "A targeted, sandbox-validated code change that corrects technical crawl, structured data, and rendering issues directly in your repository.",
   },
-  {
-    name: "Autopilot",
-    definition: "A system that continually scans your sitemap, identifies new pages or content drift, and automates new fix pull requests.",
-  }
 ]
 
 const PRICING_REFERENCES = [

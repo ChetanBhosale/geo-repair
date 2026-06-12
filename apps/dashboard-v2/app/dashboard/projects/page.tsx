@@ -6,7 +6,6 @@ import {
   GithubLogoIcon,
   MagnifyingGlassIcon,
   PlusIcon,
-  GlobeIcon,
 } from "@phosphor-icons/react"
 import type { Project } from "@repo/types/project"
 
@@ -18,6 +17,7 @@ import { useIsGithubConnected, useProjects } from "@/query/project.query"
 import { useWorkerStatus } from "@/context/worker-status"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog"
+import { ProjectFavicon } from "@/components/dashboard/project-favicon"
 
 export default function ProjectsPage() {
   useBreadcrumbs([{ label: "Projects" }])
@@ -138,9 +138,7 @@ function ProjectCard({ project }: { project: Project }) {
       className="group flex min-h-[128px] flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/20"
     >
       <div className="flex items-center gap-2.5">
-        <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">
-          <GlobeIcon className="size-4" />
-        </div>
+        <ProjectFavicon src={project.faviconUrl} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{project.name}</p>
           <p className="truncate text-xs text-muted-foreground">

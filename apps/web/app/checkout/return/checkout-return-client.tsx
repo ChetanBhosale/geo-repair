@@ -60,7 +60,7 @@ function statusCopy(order: OrderSummary) {
 }
 
 function dashboardFixUrl(orderId: string): string {
-  return `${DASHBOARD_URL}/fix-agent?order_id=${encodeURIComponent(orderId)}`
+  return `${DASHBOARD_URL}/dashboard/purchase?order_id=${encodeURIComponent(orderId)}`
 }
 
 export function CheckoutReturnClient({

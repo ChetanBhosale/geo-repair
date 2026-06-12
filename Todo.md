@@ -1,16 +1,33 @@
-
 ## Marketing image fallbacks
 
 Done:
+
 - Baked halftone fallback assets for the indexed homepage feature panels so crawlers see the stylized graphics, while real users still get the live shader overlay.
 
 ## Local Mac services
 
 Done:
+
 - Added a user-level macOS Quick Action, `Rewrite for geo.repair`, for selected text in any app. It calls Vertex Gemini using the shared local credential environment from `vertex-image-gen`, rewrites the selected Twitter/LinkedIn-style post into a geo.repair variant, and copies the output to the clipboard.
 - Added a second user-level macOS Quick Action, `Generate thoughtful reply`, for selected social posts. It calls Vertex Gemini through the same local credentials, writes `generating...` while it runs, runs a humanizer-style pass for everyday verbal language / humor / mild sarcasm / disappointment when appropriate, and copies a non-promotional reply to the clipboard without mentioning geo.repair unless the selected post is directly related.
 
 there is cdn that provides old cache after deployment too
+
+## V1 pricing and Dodo payment gate
+
+Done:
+
+- Kept the v1 page-count pricing shape: Free Checkup, Starter $49 up to 25 pages, Growth $149 up to 100 pages, Scale $399 up to 250 pages, Enterprise custom contact-only.
+- Restored Prisma billing models for `Plan`, `Order`, and `PaymentWebhookEvent`, with `Order` linked to the current `Project`, latest `Scraping`, and `AgentRun`.
+- Added backend-v2 billing routes: `GET /api/billing/plans`, `POST /api/billing/fix-checkout`, `GET /api/billing/history`, `GET /api/billing/orders/:id`, `POST /api/billing/orders/:id/reconcile`, and raw-body `POST /api/webhooks/dodo`.
+- Gated agent planning and fixing behind a paid matching order. Refunds and disputes cancel active agent runs best-effort.
+- Dashboard project page now creates checkout from a completed scan before starting the agent. Checkout return sends users to `/dashboard/purchase?order_id=...`.
+
+Pending:
+
+- Run the billing migration and Prisma generate in the deploy environment.
+- Confirm Dodo live product IDs match the same one-time products for Starter, Growth, and Scale.
+- Smoke test a test-mode checkout, Dodo return reconciliation, and webhook delivery before public launch.
 
 ## AI Visibility placeholder
 
@@ -28,14 +45,19 @@ Pending:
 ## Scan run (backend-v2 + dashboard-v2)
 
 Done:
+
 - API scan (`POST /api/projects/:id/scan`) always enqueues the Temporal `scrapeWorkflow`; CLI (`bun run scraper`) still runs inline, no queue.
 - Worker activity persists logs + result + status via `persist.ts` (shared with the inline/CLI path).
+- Completed scans now extract site identity from homepage icons and JSON-LD: brand name, favicon URL, and logo URL. Project scans persist those URLs on `Project`; free scans return them in the scan result.
 - Endpoints: `GET /api/projects/:id/scrapings` (history), `GET /api/scrapings/:id/reconcile` (sync DB with Temporal), `GET /api/worker-status?projectId=` (active QUEUED/RUNNING).
+- Dashboard project list/detail now use the discovered favicon when available, with the globe fallback preserved.
+- Web free-scan and `/report` surfaces now show the scanned site's favicon for personalization.
 - Dashboard project detail rebuilt (Vercel-style): run-history dropdown, status/score/pages/started meta grid, category strip, collapsible activity logs + checks + recommendations.
 - `useWorkerStatus` hook + `LiveActivity` panel (per-project now, reusable globally).
 
 Pending:
-- Run the DB migration for `Scraping` / `Log` / `WorkerStatus` / `Project.websiteError` (owner runs migrations).
+
+- Run the DB migration for `Scraping` / `Log` / `WorkerStatus` / `Project.websiteError` / project brand identity fields (owner runs migrations).
 - LLM-assisted heuristic checks not wired yet.
 
 ## Worker status reconcile flow (done)
@@ -49,6 +71,7 @@ Pending:
 ## Agent plan run (backend-v2) — route 1 of 2
 
 Done:
+
 - Schema restructured: `AgentRun` (1:1) -> `AgentPlan` (the single plan container) -> `AgentPlanCheck[]` (one per rubric check). Exactly one `Log` (event `plan_proposed`) links to the plan via `agentPlanId` and is the interactive plan card the user answers + submits. Added `AgentPlanStatus` enum (DRAFTING / AWAITING_USER / SUBMITTED / FAILED).
 - New Temporal queue `agent-plan` (+ `agent-plan-worker`), registered in `temporal/worker/index.ts`.
 - Planning workflow `agentPlanWorkflow`: each failing check is its own activity (`planCheckActivity`, parallel), then `persistPlanActivity` writes the `AgentPlanCheck` rows + the single plan log and flips plan->AWAITING_USER, run->AWAITING_INPUT. `failPlanActivity` on error.
@@ -57,6 +80,7 @@ Done:
 - Updated `@repo/agent` prompts: `planner.md` emits a per-check `plans[]` aligned to `AgentPlanCheck`; `harness.md` aims each check at a full pass with GEO/AEO/SEO best-practice bar.
 
 Pending:
+
 - Run the DB migration for the agent tables (owner runs migrations). `prisma generate` already run locally.
 - Route 2: user answers each `AgentPlanCheck` (choice/selectedOption/userSuggestion) + Submit -> start the fix run (sandbox + harness + PR).
 - Worker-status reconcile for AGENT runs (mirror the scraping reconcile).
@@ -65,6 +89,7 @@ Pending:
 ## Agent UI + read APIs (dashboard-v2 + backend-v2)
 
 Done:
+
 - Shared types `@repo/types/agent` (AgentRunSummary/Detail, AgentPlanDTO, AgentPlanCheckDTO, AgentChatLog, responses).
 - Backend reads: `GET /api/projects/:id/agent-runs` (list) + `GET /api/agent-runs/:id` (run + plan + checks + chat logs). `startAgentPlan` now returns the typed `StartAgentPlanResponse`.
 - Frontend data layer: endpoints + `lib/api` (startAgentPlan/getProjectAgentRuns/getAgentRun), `query/agent.query.ts` (useProjectAgentRuns, useAgentRun polling while live, useStartAgentPlan), `context/agent.tsx` (AgentProvider/useAgent: run, plan, checks, logs, per-check answers + submit).
@@ -72,18 +97,21 @@ Done:
 - Agent screen (`.../agent/[agentId]`) now reads live data via AgentProvider: left = chat (activity logs + the single plan card with per-check Q&A + Submit), right = Checks / Changes (from targetPages) / Code (placeholder until fix run).
 
 Pending:
+
 - Submit currently sets local state only; the answer-persist + fix-run route (route 2) isn't built. Wire Submit -> PATCH answers + start fix workflow.
 - AGENT worker rows aren't reconciled via the worker-status fallback (only the activity writes their terminal status); fine for now since the worker writes it directly.
 
 ## Agent plan: AI-connected + live chat polling
 
 Done:
+
 - AI planner wired (`agent-plan/planner.ts` `aiPlanCheck`): one bounded OpenRouter call per check (scan-grounded, no repo clone) returns mode (AUTO/NEEDS_INPUT/MANUAL) + approach + targetPages + question/options + a chat narration. Deterministic `planCheck` is the fallback on any error (no key / bad JSON), so planning always completes.
 - `planCheckActivity` now streams the model's narration into `logs` as `agent_message` rows (per check) and `startSandboxActivity` posts an opening "reading the scan findings..." message, so the chat fills in for real. `plan_proposed` (with agentPlanId) still anchors the plan card.
 - Frontend polls `GET /api/agent-runs/:id` every 3s while the run is WORKING (QUEUED/PLANNING/FIXING/VERIFYING/OPENING_PR); stops at AWAITING_INPUT/terminal.
 - Agent screen shows real data when a run exists (dummy only as a no-run preview). Logs render as chat bubbles; the plan is one agent message with a numbered check list + inline options.
 
 Notes / pending:
+
 - Needs `OPEN_ROUTER_KEY` + `LLM_MODEL` set for real AI output; otherwise it cleanly falls back to deterministic planning.
 - Still requires the agent DB migration applied + `bun run worker` running.
 - Submit still local-only (route 2 not built).
@@ -91,16 +119,17 @@ Notes / pending:
 ## Agent planner reworked into a real agentic run
 
 Done:
+
 - Single activity `runPlannerAgentActivity` now does the full flow: (1) create sandbox + log, (2) clone the repo using the project's GitHub account token + log, (3) run the model via `runAgent` with read-only sandbox tools (list_dir/read_file/run_command) so it inspects the repo, (4) every assistant sentence -> `agent_message` log, every tool call -> `tool_call` log (e.g. `$ grep ...`, `Reading app/layout.tsx`), (5) parse the plan JSON -> persist AgentPlanCheck rows + the final `plan_proposed` message, (6) kill sandbox + clear `agentRun.sandboxId`. Token tracked on the run.
 - Fallbacks: clone fail or no OPEN_ROUTER_KEY -> deterministic scan-grounded plan (still persists). Workflow runs the activity once (no retry, to avoid duplicate clones/logs).
 - Frontend: dummy data removed. Agent screen renders real logs only — activity bubbles, `tool_call` rows shown as a terminal block, then the final plan message with the numbered checks + inline choices. Loading / "Building the plan..." / not-found / failed states added.
 
 Needs to actually run: agent DB migration applied, `bun run worker` up, and OPEN_ROUTER_KEY + LLM_MODEL + E2B_SANDBOX_API_KEY set, plus the project's GitHub account token (for cloning private repos).
 
-
 ## Fix run (route 2) — submit plan -> apply fixes -> open PR
 
 Done:
+
 - Schema: added `LogSource.AGENT_FILE` (code-change/build logs, shown on the right panel, not the chat). `prisma generate` run; needs migration.
 - New Temporal queue `agent-fix` (+ `agent-fix-worker`), registered in worker/index.ts.
 - `POST /api/agent-runs/:id/fix` -> `startFix`: guards `status === AWAITING_INPUT` (rejects double-submit with 409), persists each NEEDS_INPUT answer (choice/selectedOption/userSuggestion) onto AgentPlanCheck, sets plan SUBMITTED + run QUEUED, enqueues `agentFixWorkflow`.
@@ -110,10 +139,10 @@ Done:
 
 Needs: migration applied (agent tables + AGENT_FILE enum), worker on the SAME DATABASE_URL as the API, and OPEN_ROUTER_KEY/LLM_MODEL/E2B + the project's GitHub token (repo scope) for clone/push/PR.
 
-
 ## Image generation tool (@repo/ai) — OpenRouter (default) + Vertex
 
 Done:
+
 - `packages/ai/image.ts`: `generateImage({ prompt, aspectRatio, ..., provider })` with two providers:
   - `openrouter` (DEFAULT) — uses the SAME `OPEN_ROUTER_KEY` via chat completions with `modalities: ["image","text"]` on `google/gemini-2.5-flash-image`. No extra creds. Reads the base64 off `message.images`.
   - `vertex` — Imagen `:predict` (needs a GCP service account; secrets already added).
@@ -121,10 +150,10 @@ Done:
 - Wired into the fix agent: when `OPEN_ROUTER_KEY` is set, `fixCheckActivity` adds `generate_image`, writing the PNG into the cloned repo (e.g. a missing OG image) and logging it as an AGENT_FILE `file_change`.
 - (Replaced the earlier Vertex-only `vertex-image.ts` with the multi-provider `image.ts`.)
 
-
 ## Post-PR chat + run lifecycle (chat / complete / one-open-run / history)
 
 Done (backend):
+
 - `lib/github.ts` `getPrStatus()` — reads a PR's merged/closed state with the user's token.
 - `POST /api/agent-runs/:id/chat` -> `startChat`: guards (PR must exist, live GitHub merge check sets `prMerged`, blocked if merged or `chatMessagesLeft<=0`), persists the user message as a `USER` log, decrements `chatMessagesLeft`, sets status `CHATTING`, enqueues `agentChatWorkflow` (queue `agent-chat`, workflowId unique per turn).
 - `agent-chat` worker: `runChatActivity` revives the run's sandbox (or creates + re-clones the fix branch, keeps it ALIVE), rebuilds memory context from DB (plan summary, check outcomes, changed files, recent USER/AGENT transcript), runs the chat agent with edit/run tools + image tool, commits + pushes to update the PR, logs to AGENT/AGENT_FILE, then re-checks merge and returns status to PR_OPENED. Sandbox is NOT killed.
@@ -133,6 +162,7 @@ Done (backend):
 - Run summary DTO now includes `prMerged`, `branch`, `chatMessagesLeft`, `isOpen`.
 
 Done (frontend):
+
 - Agent screen: real chat composer (enabled once PR exists; shows "N messages left"; disabled while CHATTING / when merged / when budget 0). USER messages render right-aligned. Polls during CHATTING.
 - Project page: "Agent runs" history list (every run, status/merged badge, links to its screen); button shows "Resume agent" + "New run" (-> complete-confirm dialog -> complete + start new) when a run is open, else "Agent Run".
 - Composer PR-merged state: when `prMerged` is true the chat box is disabled with "This run is complete. The PR has been merged." placeholder, a "PR merged" label (filled GitPullRequest icon), and a disabled green-tinted "PR merged" send button (filled CheckCircle). Zero-budget is a separate muted box. Chat markdown rendering via `<Markdown>` (react-markdown + remark-gfm).
@@ -147,6 +177,7 @@ check (a regex for a `<link rel=alternate>` tag) barely touched. Deepened that a
 24-check breadth.
 
 Done:
+
 - RUBRIC.md: replaced check #23 `markdown-twins` with three checks — `markdown-twin` (Content, B,
   medium), `content-negotiation` (Crawl surface, A, medium, #25), `ai-delivery-headers` (Crawl
   surface, A, low, #26). Kept within existing categories (no new category, no frontend change).
@@ -161,12 +192,13 @@ Done:
 - Agent fix: skills replaced (markdown-twin.md, content-negotiation.md, ai-delivery-headers.md; deleted
   markdown-twins.md — skills.test still 1:1 with rubric). Fix system prompt (agent-fix), planner.md, and
   the inline planner AUTO rule (planner.ts) now plan/fix these as AUTO, **hand-written framework-idiomatic
-  code (route/handler + middleware + headers), never adding a third-party dep (@dualmark/*) to the user repo**.
+  code (route/handler + middleware + headers), never adding a third-party dep (@dualmark/\*) to the user repo**.
 - Verified: backend-v2 check-types clean; agent skills test passes; live smoke — dualmark.dev scores
   twin PASS / negotiation PASS / headers MID(3/4); linkrunner.io scores twin PASS / negotiation FAILED /
   headers PASS (accurate, discriminating per layer).
 
 Notes:
+
 - Scoring is now stricter: most sites FAIL the 3 delivery checks (no twins), which is intended (matches
   dualmark's stance) and gives the agent concrete fix targets.
 - apps/web demo-data.ts still shows the old `markdown-twins` id (marketing illustration only, not the
@@ -182,6 +214,7 @@ Research basis: prompt-cache/context reuse cuts cost 40-90%; batching shared con
 big lever; model routing to a cheaper tier keeps ~95% quality at 45-85% lower cost.
 
 Done (backend-v2 `agent-fix`):
+
 - **Batching**: `groupChecks()` buckets approved checks by shared surface into a few groups —
   `crawl` (robots/sitemap/llms.txt/indexability), `head` (meta/OG/canonical/JSON-LD/favicon/
   hreflang/charset/doctype/viewport/social-image-size), `semantics`, `content`, `aeo-delivery`
@@ -214,6 +247,7 @@ correcting coding agents (Socratic-SWE) keep improving and plateau around 3 pass
 makes cheap-model routing safe is re-verifying against the same checker.
 
 Done (backend-v2 `agent-fix`):
+
 - New `@repo/sandbox` helpers: `startBackground()` (E2B `commands.run({background:true})` -> pid +
   kill) and `getSandboxHost(sandbox, port)` (public HTTPS host for a port inside the microVM).
 - New `fixRescanActivity`: detects how to serve the repo (a `start` script, else a static dir via
@@ -231,6 +265,7 @@ Done (backend-v2 `agent-fix`):
   is real. Status shows VERIFYING during each re-scan (badge already existed).
 
 Notes / tradeoffs:
+
 - The re-scan serves the freshly-built FIXED code on localhost and scans that; before (live scan)
   vs after (built fixed code) is the right comparison. Small page-count difference (6 vs up to 20)
   can nudge the rollup slightly.
@@ -248,6 +283,7 @@ Y" pages earn ~32% more AI citations, original-data pages make you the cited sou
 give extractable Q&A + definitions, about/contact strengthens E-E-A-T.
 
 Done (backend-v2):
+
 - Planner agent (`PLANNER_AGENT_SYSTEM`): added a `newPages[]` array to its JSON output + guidance
   to propose 0-3 genuinely-missing high-value pages, prioritised by the citation evidence above.
   Strict honesty: gated yes/no, built only from existing site content or user-provided facts, never
@@ -284,6 +320,7 @@ so free traffic never touches the paid control plane. `runScrape` is pure (only 
 modules), so this is a thin wrapper.
 
 Done:
+
 - `apps/backend-v2/free/index.ts`: Express (helmet + open CORS + json 16kb + per-IP rate limit 20/15m).
   Routes: `GET /` (health), `POST /scan-website` and `GET /scan-website?url=` -> calls `runScrape`
   inline and returns the full result. Free bounds: maxPages 5 (hard cap 10), maxPerSection 2,
@@ -291,7 +328,7 @@ Done:
 - Scripts: `open` in backend-v2 (`bun run free/index.ts`) + root `backend:open`
   (`bun run --filter=@repo/backend-v2 open`). Run with `bun run backend:open` (or npm).
 - Verified: check-types clean; live smoke — health OK, `POST /scan-website {url:"linkrunner.io",
-  singlePage:true}` -> status completed, score 94, 27 checks.
+singlePage:true}` -> status completed, score 94, 27 checks.
 
 Deploy: ship `apps/backend-v2` with start command `bun run free/index.ts` on its own host; the
 platform's PORT is honored. No DB/Temporal/secrets required for this endpoint.
@@ -299,6 +336,7 @@ platform's PORT is honored. No DB/Temporal/secrets required for this endpoint.
 ## Free scan wired into the landing page (apps/web) + zod validation (free server)
 
 Done:
+
 - `free/index.ts`: added zod request validation (`ScanRequestSchema`) — normalizes bare hosts to
   https, rejects non-http(s) / dotless hostnames with a friendly message, coerces `maxPages` (1-50),
   optional `singlePage`. Applied to both `GET` and a new `POST /scan-website`. Added `GET /health`
