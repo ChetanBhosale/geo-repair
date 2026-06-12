@@ -25,6 +25,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: path === "/" ? 1 : 0.7,
   }))
 
+  const staticTwinEntries: MetadataRoute.Sitemap = STATIC_ROUTES.map((path) => {
+    const twinPath = path === "/" ? "/index.md" : `${path}.md`
+    return {
+      url: new URL(twinPath, SITE.url).toString(),
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: path === "/" ? 0.8 : 0.5,
+    }
+  })
+
   const postEntries: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
     url: new URL(`/blog/${post.slug}`, SITE.url).toString(),
     lastModified: new Date(getPostModifiedDate(post)),
@@ -32,5 +42,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }))
 
-  return [...staticEntries, ...postEntries]
+  const postTwinEntries: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
+    url: new URL(`/blog/${post.slug}.md`, SITE.url).toString(),
+    lastModified: new Date(getPostModifiedDate(post)),
+    changeFrequency: "monthly",
+    priority: 0.5,
+  }))
+
+  return [...staticEntries, ...staticTwinEntries, ...postEntries, ...postTwinEntries]
 }
