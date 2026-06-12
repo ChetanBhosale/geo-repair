@@ -62,7 +62,7 @@ function statusCopy(order: OrderSummary) {
     case "PAID":
       return {
         title: "Payment confirmed",
-        body: "Your AI Search Fix order is paid and the start step is unlocked.",
+        body: "Your AI Search Fix order is paid. Taking you back to your project.",
       }
     case "PROCESSING":
     case "CHECKOUT_CREATED":
@@ -94,8 +94,22 @@ function statusCopy(order: OrderSummary) {
   }
 }
 
-function dashboardFixUrl(orderId: string): string {
-  return `${DASHBOARD_URL}/dashboard/purchase?order_id=${encodeURIComponent(orderId)}`
+function dashboardFixUrl(
+  order: OrderSummary,
+  paymentId?: string,
+  returnStatus?: string
+): string {
+  const path = order.projectId
+    ? `/dashboard/projects/${encodeURIComponent(order.projectId)}`
+    : "/dashboard/purchase"
+  const url = new URL(path, `${DASHBOARD_URL}/`)
+
+  url.searchParams.set("order_id", order.id)
+  if (order.projectId) url.searchParams.set("start_fix", "1")
+  if (paymentId) url.searchParams.set("payment_id", paymentId)
+  if (returnStatus) url.searchParams.set("status", returnStatus)
+
+  return url.toString()
 }
 
 export function CheckoutReturnClient({
@@ -221,6 +235,23 @@ export function CheckoutReturnClient({
     if (loadState.state !== "ready") return null
     return statusCopy(loadState.order)
   }, [loadState])
+  const dashboardDestination = useMemo(() => {
+    if (loadState.state !== "ready" || !loadState.order.startFixUnlocked) {
+      return null
+    }
+
+    return dashboardFixUrl(loadState.order, paymentId, returnStatus)
+  }, [loadState, paymentId, returnStatus])
+
+  useEffect(() => {
+    if (!dashboardDestination) return
+
+    const timer = window.setTimeout(() => {
+      window.location.replace(dashboardDestination)
+    }, 900)
+
+    return () => window.clearTimeout(timer)
+  }, [dashboardDestination])
 
   if (loadState.state === "loading") {
     if (directTest) {
@@ -276,12 +307,16 @@ export function CheckoutReturnClient({
           </dt>
           <dd className="mt-2 text-foreground">{formatPrice(order)}</dd>
         </div>
-        <div className="bg-card p-5">
-          <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-            Site
-          </dt>
-          <dd className="mt-2 break-words text-foreground">{order.website}</dd>
-        </div>
+        {order.website ? (
+          <div className="bg-card p-5">
+            <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+              Site
+            </dt>
+            <dd className="mt-2 break-words text-foreground">
+              {order.website}
+            </dd>
+          </div>
+        ) : null}
         <div className="bg-card p-5">
           <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
             Status
@@ -292,11 +327,15 @@ export function CheckoutReturnClient({
 
       <div className="flex flex-col gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs/relaxed text-muted-foreground">
-          Payment status updates automatically.
+          {dashboardDestination
+            ? "Taking you back to your project."
+            : "Payment status updates automatically."}
         </p>
         {order.startFixUnlocked ? (
           <Button asChild>
-            <a href={dashboardFixUrl(order.id)}>Start fix</a>
+            <a href={dashboardDestination ?? dashboardFixUrl(order)}>
+              Open dashboard
+            </a>
           </Button>
         ) : (
           <Button disabled>Waiting for payment</Button>

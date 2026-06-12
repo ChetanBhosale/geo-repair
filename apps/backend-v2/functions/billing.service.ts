@@ -10,6 +10,7 @@ import type {
 import {
   CHAT_MESSAGE_LIMIT,
   FIX_ATTEMPT_LIMIT,
+  MANUAL_REVALIDATION_LIMIT,
 } from "@repo/types/entitlements";
 
 import { getTemporalClient } from "../temporal/client";
@@ -56,8 +57,27 @@ type DodoPayment = Awaited<ReturnType<typeof retrieveDodoPayment>> & {
   product_cart?: { product_id?: string | null }[] | null;
 };
 
-function checkoutReturnUrl(orderId: string): string {
+function webCheckoutReturnUrl(orderId: string): string {
   return `${Secrets.WEB_URL.replace(/\/+$/, "")}/checkout/return?order_id=${encodeURIComponent(orderId)}`;
+}
+
+function dashboardProjectReturnUrl(orderId: string, projectId: string): string {
+  const url = new URL(
+    `/dashboard/projects/${encodeURIComponent(projectId)}`,
+    `${Secrets.DASHBOARD_URL.replace(/\/+$/, "")}/`,
+  );
+  url.searchParams.set("order_id", orderId);
+  url.searchParams.set("start_fix", "1");
+  return url.toString();
+}
+
+function checkoutReturnUrl(order: {
+  id: string;
+  projectId: string | null;
+}): string {
+  return order.projectId
+    ? dashboardProjectReturnUrl(order.id, order.projectId)
+    : webCheckoutReturnUrl(order.id);
 }
 
 function normalizeWebsite(value: string): string | null {
@@ -86,6 +106,7 @@ function orderSummary(order: {
   checkoutUrl: string | null;
   fixAttemptsUsed: number;
   chatMessagesUsed: number;
+  manualRevalidationsUsed: number;
 }): OrderSummary {
   return {
     id: order.id,
@@ -102,6 +123,8 @@ function orderSummary(order: {
     fixAttemptLimit: FIX_ATTEMPT_LIMIT,
     chatMessagesUsed: order.chatMessagesUsed,
     chatMessageLimit: CHAT_MESSAGE_LIMIT,
+    manualRevalidationsUsed: order.manualRevalidationsUsed,
+    manualRevalidationLimit: MANUAL_REVALIDATION_LIMIT,
   };
 }
 
@@ -117,11 +140,12 @@ function publicOrderSummary(order: {
   checkoutUrl: string | null;
   fixAttemptsUsed: number;
   chatMessagesUsed: number;
+  manualRevalidationsUsed: number;
 }): OrderSummary {
   return {
     ...orderSummary(order),
     website: "",
-    projectId: null,
+    projectId: order.projectId,
     repoFullName: null,
     checkoutUrl: null,
   };
@@ -148,6 +172,7 @@ function toBillingOrder(order: {
   updatedAt: Date;
   fixAttemptsUsed: number;
   chatMessagesUsed: number;
+  manualRevalidationsUsed: number;
 }): BillingOrder {
   return {
     id: order.id,
@@ -172,6 +197,8 @@ function toBillingOrder(order: {
     fixAttemptLimit: FIX_ATTEMPT_LIMIT,
     chatMessagesUsed: order.chatMessagesUsed,
     chatMessageLimit: CHAT_MESSAGE_LIMIT,
+    manualRevalidationsUsed: order.manualRevalidationsUsed,
+    manualRevalidationLimit: MANUAL_REVALIDATION_LIMIT,
   };
 }
 
@@ -282,6 +309,7 @@ export async function getOrderById(
       checkoutUrl: true,
       fixAttemptsUsed: true,
       chatMessagesUsed: true,
+      manualRevalidationsUsed: true,
     },
   });
 
@@ -305,6 +333,7 @@ export async function getPublicOrderById(
       checkoutUrl: true,
       fixAttemptsUsed: true,
       chatMessagesUsed: true,
+      manualRevalidationsUsed: true,
     },
   });
 
@@ -338,6 +367,7 @@ export async function listBillingHistoryForUser(
       updatedAt: true,
       fixAttemptsUsed: true,
       chatMessagesUsed: true,
+      manualRevalidationsUsed: true,
     },
   });
 
@@ -479,8 +509,8 @@ async function createCheckoutForOrder(order: OrderForCheckout) {
       email: order.user?.email,
       name: order.user?.name,
     },
-    returnUrl: checkoutReturnUrl(order.id),
-    cancelUrl: checkoutReturnUrl(order.id),
+    returnUrl: checkoutReturnUrl(order),
+    cancelUrl: checkoutReturnUrl(order),
     metadata: metadataForOrder(order),
   });
 

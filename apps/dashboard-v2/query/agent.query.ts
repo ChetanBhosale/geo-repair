@@ -6,6 +6,7 @@ import {
   completeAgentRun,
   getAgentRun,
   getProjectAgentRuns,
+  revalidateAgentRun,
   sendAgentChat,
   startAgentPlan,
   startFix,
@@ -100,6 +101,19 @@ export function useSendChat(agentRunId: string) {
     mutationFn: (message: string) => sendAgentChat(agentRunId, message),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-run", agentRunId] })
+    },
+  })
+}
+
+// Re-run build/check verification on the open PR branch. This is separate from
+// chat and does not spend a chat message.
+export function useRevalidateAgentRun(agentRunId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => revalidateAgentRun(agentRunId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent-run", agentRunId] })
+      qc.invalidateQueries({ queryKey: ["worker-status"] })
     },
   })
 }

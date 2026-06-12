@@ -20,6 +20,8 @@ export const ENDPOINTS = {
   billingCheckout: `${BACKEND_URL}/api/billing/fix-checkout`,
   billingOrder: (id: string) =>
     `${BACKEND_URL}/api/billing/orders/${encodeURIComponent(id)}`,
+  billingOrderReconcile: (id: string) =>
+    `${BACKEND_URL}/api/billing/orders/${encodeURIComponent(id)}/reconcile`,
 
   projects: `${BACKEND_URL}/api/projects`,
   project: (id: string) =>
@@ -40,6 +42,8 @@ export const ENDPOINTS = {
     `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/fix`,
   agentRunChat: (id: string) =>
     `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/chat`,
+  agentRunRevalidate: (id: string) =>
+    `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/revalidate`,
   agentRunComplete: (id: string) =>
     `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/complete`,
   aiVisibilityInterest: `${BACKEND_URL}/api/feature-interests/ai-visibility`,

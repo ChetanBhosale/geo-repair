@@ -5,6 +5,7 @@
 // Per paid order.
 export const FIX_ATTEMPT_LIMIT = 3;
 export const CHAT_MESSAGE_LIMIT = 20;
+export const MANUAL_REVALIDATION_LIMIT = 3;
 
 // Free scans.
 export const SCAN_LIMIT_ANON_PER_DAY = 5;
@@ -17,6 +18,8 @@ export interface OrderEntitlements {
   fixAttemptLimit: number;
   chatMessagesUsed: number;
   chatMessageLimit: number;
+  manualRevalidationsUsed: number;
+  manualRevalidationLimit: number;
 }
 
 // Free-scan allowance for the current visitor (signed-in or anonymous).

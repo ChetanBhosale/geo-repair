@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import {
   ClockIcon,
   CreditCardIcon,
@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ProjectFavicon } from "@/components/dashboard/project-favicon"
 import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
+import { FixPlanDialog } from "@/components/dashboard/fix-plan-dialog"
 import {
   CategoryScoreRows,
   ScoreBlockStrip,
@@ -65,8 +66,13 @@ import {
   useProjectAgentRuns,
   useStartAgentPlan,
 } from "@/query/agent.query"
-import { useCreateFixCheckout } from "@/query/billing.query"
+import {
+  useBillingOrder,
+  useCreateFixCheckout,
+  useReconcileBillingOrder,
+} from "@/query/billing.query"
 import type { AgentRunSummary } from "@repo/types/agent"
+import type { FixTier } from "@repo/types/billing"
 
 const CHECK_STYLES: Record<CheckStatus, string> = {
   SUCCESS: "bg-success/10 text-success",
@@ -113,6 +119,11 @@ export default function ProjectDetailPage() {
   const params = useParams<{ projectId: string }>()
   const projectId = params.projectId
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const checkoutReturnOrderId = searchParams.get("order_id")
+  const checkoutReturnPaymentId = searchParams.get("payment_id")
+  const checkoutReturnStatus = searchParams.get("status")
+  const shouldStartReturnedFix = searchParams.get("start_fix") === "1"
 
   const project = useProject(projectId)
   const runs = useProjectScrapings(projectId)
@@ -124,19 +135,28 @@ export default function ProjectDetailPage() {
   const startAgentPlan = useStartAgentPlan(projectId)
   const completeRun = useCompleteRun(projectId)
   const createCheckout = useCreateFixCheckout()
+  const returnedOrder = useBillingOrder(
+    shouldStartReturnedFix ? checkoutReturnOrderId : null
+  )
+  const reconcileReturnedOrder = useReconcileBillingOrder()
   // A planning worker is polling for this project.
   const agentRunning = live.workers.some((w) => w.service === "AGENT")
-  // The agent fixes a completed scan, so only offer it once one exists.
-  const hasCompletedScan = React.useMemo(
-    () => (runs.data ?? []).some((r) => r.status === "COMPLETED"),
+  const latestCompletedScan = React.useMemo(
+    () => (runs.data ?? []).find((run) => run.status === "COMPLETED") ?? null,
     [runs.data]
   )
+  const checkoutPageCount = Math.max(1, latestCompletedScan?.pagesChecked || 25)
+  // The agent fixes a completed scan, so only offer it once one exists.
+  const hasCompletedScan = !!latestCompletedScan
   // The currently-open run (blocks starting a new one until it's merged/done).
   const openAgentRun = React.useMemo(
     () => (agentRuns.data ?? []).find((r) => r.isOpen) ?? null,
     [agentRuns.data]
   )
   const [completeConfirmOpen, setCompleteConfirmOpen] = React.useState(false)
+  const [planDialogOpen, setPlanDialogOpen] = React.useState(false)
+  const autoReconciledOrderRef = React.useRef<string | null>(null)
+  const startRequestedOrderRef = React.useRef<string | null>(null)
 
   useBreadcrumbs([
     { label: "Projects", href: "/dashboard/projects" },
@@ -155,6 +175,7 @@ export default function ProjectDetailPage() {
     [projectId]
   )
   const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [paymentConfirmOpen, setPaymentConfirmOpen] = React.useState(false)
 
   React.useEffect(() => {
     const stored = window.sessionStorage.getItem(selectedRunStorageKey(projectId))
@@ -163,6 +184,19 @@ export default function ProjectDetailPage() {
     const timeout = window.setTimeout(() => setSelectedIdState(stored), 0)
     return () => window.clearTimeout(timeout)
   }, [projectId])
+
+  const clearCheckoutReturnParams = React.useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("order_id")
+    nextParams.delete("payment_id")
+    nextParams.delete("status")
+    nextParams.delete("start_fix")
+
+    const nextQuery = nextParams.toString()
+    router.replace(
+      `/dashboard/projects/${projectId}${nextQuery ? `?${nextQuery}` : ""}`
+    )
+  }, [projectId, router, searchParams])
 
   const selectedIdExists = !!selectedId && runs.data?.some((run) => run.id === selectedId)
   const effectiveSelectedId = selectedIdExists
@@ -206,13 +240,112 @@ export default function ProjectDetailPage() {
   // Cannot delete while any scan/job is in flight for this project.
   const busy = isRunning || live.hasActive
 
+  React.useEffect(() => {
+    if (
+      !shouldStartReturnedFix ||
+      !checkoutReturnOrderId ||
+      !checkoutReturnPaymentId ||
+      checkoutReturnStatus !== "succeeded" ||
+      autoReconciledOrderRef.current === checkoutReturnOrderId
+    ) {
+      return
+    }
+
+    autoReconciledOrderRef.current = checkoutReturnOrderId
+    void reconcileReturnedOrder
+      .mutateAsync({
+        orderId: checkoutReturnOrderId,
+        paymentId: checkoutReturnPaymentId,
+        status: checkoutReturnStatus,
+      })
+      .catch((err) => {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Payment was received, but the order could not be verified."
+        )
+      })
+  }, [
+    checkoutReturnOrderId,
+    checkoutReturnPaymentId,
+    checkoutReturnStatus,
+    reconcileReturnedOrder,
+    shouldStartReturnedFix,
+  ])
+
+  React.useEffect(() => {
+    if (!shouldStartReturnedFix || !checkoutReturnOrderId) return
+    if (returnedOrder.isLoading || reconcileReturnedOrder.isPending) return
+
+    const order = returnedOrder.data
+    if (!order) return
+
+    if (order.projectId && order.projectId !== projectId) {
+      toast.error("This payment belongs to a different project.")
+      clearCheckoutReturnParams()
+      return
+    }
+
+    if (["FAILED", "CANCELED", "REFUNDED", "DISPUTED"].includes(order.status)) {
+      toast.error("Payment was not completed.")
+      clearCheckoutReturnParams()
+      return
+    }
+
+    if (!order.startFixUnlocked) return
+
+    const timeout = window.setTimeout(() => setPaymentConfirmOpen(true), 0)
+    return () => window.clearTimeout(timeout)
+  }, [
+    checkoutReturnOrderId,
+    clearCheckoutReturnParams,
+    projectId,
+    reconcileReturnedOrder.isPending,
+    returnedOrder.data,
+    returnedOrder.isLoading,
+    shouldStartReturnedFix,
+  ])
+
+  async function onConfirmPaidStart() {
+    if (openAgentRun) {
+      router.push(`/dashboard/projects/${projectId}/agent/${openAgentRun.id}`)
+      return
+    }
+
+    const order = returnedOrder.data
+    if (!order?.startFixUnlocked) {
+      toast.error("Payment is not confirmed yet.")
+      return
+    }
+
+    if (startRequestedOrderRef.current === order.id) return
+
+    try {
+      startRequestedOrderRef.current = order.id
+      const created = await startAgentPlan.mutateAsync(order.id)
+      setPaymentConfirmOpen(false)
+      router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
+    } catch (err) {
+      startRequestedOrderRef.current = null
+      toast.error(err instanceof Error ? err.message : "Could not start the fix.")
+    }
+  }
+
+  function onPaymentConfirmOpenChange(open: boolean) {
+    setPaymentConfirmOpen(open)
+    if (!open) clearCheckoutReturnParams()
+  }
+
   async function onScan() {
     const created = await startScan.mutateAsync()
     setSelectedId(created.id)
   }
 
-  async function startPaidAgentRun() {
-    const checkout = await createCheckout.mutateAsync({ projectId })
+  async function startPaidAgentRun(selectedTier: FixTier) {
+    const checkout = await createCheckout.mutateAsync({
+      projectId,
+      selectedTier,
+    })
     if (checkout.checkoutUrl) {
       window.location.assign(checkout.checkoutUrl)
       return
@@ -226,18 +359,23 @@ export default function ProjectDetailPage() {
     router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
   }
 
+  async function onPlanContinue(selectedTier: FixTier) {
+    try {
+      await startPaidAgentRun(selectedTier)
+      setPlanDialogOpen(false)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not start the checkout."
+      )
+    }
+  }
+
   async function onAgent() {
     if (openAgentRun) {
       router.push(`/dashboard/projects/${projectId}/agent/${openAgentRun.id}`)
       return
     }
-    try {
-      await startPaidAgentRun()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not start the agent."
-      )
-    }
+    setPlanDialogOpen(true)
   }
 
   // Complete the open run, then immediately start a fresh one.
@@ -246,7 +384,7 @@ export default function ProjectDetailPage() {
     try {
       await completeRun.mutateAsync(openAgentRun.id)
       setCompleteConfirmOpen(false)
-      await startPaidAgentRun()
+      setPlanDialogOpen(true)
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not start a new run."
@@ -339,7 +477,7 @@ export default function ProjectDetailPage() {
                 ) : (
                   <CreditCardIcon className="size-4" />
                 )}
-                Buy fix
+                Buy now
               </Button>
             )
           ) : null}
@@ -354,6 +492,48 @@ export default function ProjectDetailPage() {
           </Button>
         </div>
       </div>
+
+      <FixPlanDialog
+        open={planDialogOpen}
+        pageCount={checkoutPageCount}
+        pending={createCheckout.isPending || startAgentPlan.isPending}
+        onOpenChange={setPlanDialogOpen}
+        onContinue={(tier) => void onPlanContinue(tier)}
+      />
+
+      <AlertDialog
+        open={paymentConfirmOpen}
+        onOpenChange={onPaymentConfirmOpenChange}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Payment confirmed</AlertDialogTitle>
+            <AlertDialogDescription>
+              {openAgentRun
+                ? "An agent run is already active for this project."
+                : "Start the fix agent for this project now?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={startAgentPlan.isPending}>
+              Not now
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void onConfirmPaidStart()
+              }}
+              disabled={startAgentPlan.isPending}
+            >
+              {startAgentPlan.isPending
+                ? "Starting..."
+                : openAgentRun
+                  ? "Open agent run"
+                  : "Start fix"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>

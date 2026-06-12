@@ -32,14 +32,14 @@ Done:
 - Restored Prisma billing models for `Plan`, `Order`, and `PaymentWebhookEvent`, with `Order` linked to the current `Project`, latest `Scraping`, and `AgentRun`.
 - Added backend-v2 billing routes: `GET /api/billing/plans`, `POST /api/billing/fix-checkout`, `GET /api/billing/history`, `GET /api/billing/orders/:id`, `POST /api/billing/orders/:id/reconcile`, and raw-body `POST /api/webhooks/dodo`.
 - Gated agent planning and fixing behind a paid matching order. Refunds and disputes cancel active agent runs best-effort.
-- Dashboard project page now creates checkout from a completed scan before starting the agent. Checkout return sends users to `/dashboard/purchase?order_id=...`.
+- Dashboard project page now creates checkout from a completed scan before starting the agent. Project-linked checkout returns to `/dashboard/projects/:id?order_id=...&start_fix=1`, reconciles the payment, asks for confirmation, and then starts the agent run from the paid order.
 - Applied the billing tables/enums to the currently connected Neon DB while
   repairing migration drift.
 
 Pending:
 
 - Verify the same billing migration state in production/Vercel if it uses a different DB.
-- Confirm Dodo live product IDs match the same one-time products for Starter, Growth, and Scale.
+- Confirm Dodo live product IDs match Starter, Growth, and Scale.
 - Smoke test a test-mode checkout, Dodo return reconciliation, and webhook delivery before public launch.
 
 ## AI Visibility placeholder
@@ -86,6 +86,78 @@ Done:
   the current tab, then refetch in the background for fresh data.
 - Dashboard auth and route loading now use the existing app shell with inline
   skeletons instead of blanking the whole app with the full-screen loader.
+- Dashboard root now disables vertical overscroll bounce on `html` and `body`.
+- Added a repair migration for project-linked checkout orders, restoring
+  `orders.projectId` and `orders.scrapingId` on drifted databases.
+- Buy now opens a plan confirmation modal first. The applicable tier is
+  preselected, lower tiers are disabled, and higher self-serve tiers can be
+  selected before checkout starts. Enterprise stays out of the picker, and the
+  payment CTA is explicit. Plan cards highlight page-count coverage with a
+  compact less/more/most graphic and shared benefit bullets.
+- Dodo returns project-linked payments to the project detail page, where the
+  paid order is reconciled and the user confirms before the agent run starts.
+  The public checkout return page now acts as a fallback handoff to the dashboard.
+- Local Temporal task queues are suffixed in development, so local workflows do
+  not get consumed by another environment's worker while pointing at the wrong
+  database.
+- Agent-run reads reconcile failed Temporal workflows back into `AgentRun`,
+  `AgentPlan`, and `WorkerStatus`, preventing the dashboard from hanging in
+  planning when the workflow has already failed.
+- Failed agent-run screens now show a clear recovery state with retry and
+  project-return actions, instead of leaving users at an empty checks view.
+- Buttons now use pointer cursors across shared UI primitives and raw button
+  fallbacks in the web and dashboard apps.
+- Agent chat now groups agent activity under one header and renders messages,
+  commands, tool calls, file changes, repo clone, verification, and PR events
+  flat on the thread background: agent messages full opacity, tool/activity rows
+  faded, with no message bubbles or tool labels.
+- Agent plan previews now open read-only in the right-side artifact panel. The
+  chat thread keeps the confirmation/questions and submit action.
+- Agent-run checks stay hidden during plan approval and render as compact status
+  rows after the fix starts, with page/file detail kept in the Changes tab.
+- Agent-run contrast tightened across the chat thread, plan artifact, checks,
+  changes, and composer helper states so the screen is easier to read.
+- Plan confirmation cards now use stronger nested surfaces, readable radio
+  indicators, and a clearer note field.
+- Agent conversation scroll area now reserves scrollbar gutter space and has
+  extra right padding so content does not crowd the scrollbar.
+- Agent screen styling now has inline code comments around the chat width,
+  scrollbar padding, plan approval card, radio indicators, right artifact,
+  checks rows, and tool/activity rows for easier manual editing later.
+- Agent narration color now follows each individual message level instead of
+  inheriting warning/error color from nearby tool rows.
+- Agent conversation now shows a bottom "Agent is working..." indicator only
+  during active agent states, and hides it for user input, blocked, or done states.
+- Agent composer keeps the message-count helper visible while sending; the send
+  button spinner and thread-end indicator carry the working state.
+- Agent composer send control is icon-only: right arrow when ready, spinner
+  while sending.
+- Agent chat composer now uses a contentEditable textbox instead of a textarea,
+  avoiding password-manager autofill overlays on focus.
+- Agent chat now renders user-sent messages in right-aligned bubbles while
+  keeping agent messages flat.
+- Fix-run build verification now hard-fails before PR creation. If install/build
+  exits non-zero, the run is marked failed and no branch is pushed.
+- Fix-run PR creation now also requires at least one check verified as fixed, so
+  changed files alone cannot open a PR.
+- Fix-run PR creation now blocks partial-success PRs. Every approved check must
+  be verified fixed or explicitly skipped by the user before a PR opens.
+- Fix workflow now pauses after retrying unresolved checks and asks MCQs:
+  retry with bigger changes or skip the check. User decisions resume the same
+  Temporal workflow via signal.
+- Added a dedicated PR-branch revalidation action. The Checks tab can start
+  `POST /api/agent-runs/:id/revalidate`, which runs build/re-scan verification
+  on the saved PR branch, updates check outcomes, and does not consume chat
+  messages.
+- Manual PR-branch revalidation is now capped at 3 uses per paid order, tracked
+  on `Order.manualRevalidationsUsed`.
+- Post-PR chat continues to work on the saved PR branch and pushes updates into
+  the existing pull request, not the default branch. Chat sandboxes are kept
+  warm for 15 minutes after each turn, then E2B expires them.
+- Agent run page now centers the chat as the main surface, with a vertical
+  floating context toolbar and animated on-demand right preview for plan,
+  checks, and changes. The preview takes layout space and pushes the chat and
+  toolbar left; the run header spans the full agent page above those surfaces.
 - `useWorkerStatus` hook + `LiveActivity` panel (per-project now, reusable globally).
 
 Pending:

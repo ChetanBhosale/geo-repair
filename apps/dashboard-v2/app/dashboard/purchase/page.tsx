@@ -57,7 +57,7 @@ export default function PurchasePage() {
     <div className="mx-auto max-w-6xl px-6 py-6">
       <PageHeader
         title="Purchase"
-        description="One-time AI Search Fix orders and plan history."
+        description="AI Search Fix orders and plan history."
       />
 
       {orderId ? (

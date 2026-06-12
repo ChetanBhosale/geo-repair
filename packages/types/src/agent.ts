@@ -123,6 +123,7 @@ export interface AgentRunSummary {
   prMerged: boolean;
   branch: string | null;
   chatMessagesLeft: number;
+  orderId: string | null;
   // Convenience: the run is "open" (blocks a new run) until merged/terminal.
   isOpen: boolean;
   error: string | null;
@@ -173,6 +174,11 @@ export interface ChatResponse {
   agentRunId: string;
   status: AgentRunStatus;
   chatMessagesLeft: number;
+}
+
+export interface RevalidateRunResponse {
+  agentRunId: string;
+  status: AgentRunStatus;
 }
 
 export interface CompleteRunResponse {

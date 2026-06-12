@@ -57,7 +57,7 @@ describe("billing schemas", () => {
         amountCents: 14900,
         currency: "USD",
         website: "",
-        projectId: null,
+        projectId: "project_123",
         repoFullName: null,
         checkoutUrl: null,
         startFixUnlocked: true,
@@ -65,6 +65,8 @@ describe("billing schemas", () => {
         fixAttemptLimit: 3,
         chatMessagesUsed: 0,
         chatMessageLimit: 20,
+        manualRevalidationsUsed: 0,
+        manualRevalidationLimit: 3,
       }).success,
     ).toBe(true);
   });

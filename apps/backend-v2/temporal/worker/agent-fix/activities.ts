@@ -10,15 +10,33 @@ import {
   getSandboxHost,
   sandboxTools,
 } from "@repo/sandbox";
-import { runAgent, DEFAULT_MODEL, CHEAP_MODEL, imageTool, type AgentTool, type AgentStepLog } from "@repo/ai";
+import {
+  runAgent,
+  DEFAULT_MODEL,
+  CHEAP_MODEL,
+  imageTool,
+  type AgentTool,
+  type AgentStepLog,
+} from "@repo/ai";
 import { runScrape } from "../scraper/run";
 import type {
+  AgentFixDecisionSignal,
   AgentFixWorkflowInput,
   FixCheckInput,
   FixGroup,
+  RevalidateSetup,
   FixSetup,
 } from "./workflow-types";
-import { sendFixFailedEmail, sendFixPrOpenedEmail } from "../../../lib/email-notifications";
+import {
+  buildNoVerifiedFixesMessage,
+  buildPrBlockerMessage,
+  formatCommandFailure,
+  unresolvedCheckIdsForPr,
+} from "./verification";
+import {
+  sendFixFailedEmail,
+  sendFixPrOpenedEmail,
+} from "../../../lib/email-notifications";
 
 interface LogRef {
   agentRunId: string;
@@ -53,7 +71,11 @@ async function writeLog(
 }
 
 function refOf(input: AgentFixWorkflowInput): LogRef {
-  return { agentRunId: input.agentRunId, projectId: input.projectId, userId: input.userId };
+  return {
+    agentRunId: input.agentRunId,
+    projectId: input.projectId,
+    userId: input.userId,
+  };
 }
 
 // Which batch each check belongs to. Checks that touch the same surface are
@@ -92,11 +114,22 @@ const GROUP_OF: Record<string, string> = {
   "aeo-conformance": "aeo-delivery",
 };
 
-const GROUP_META: Record<string, { label: string; cheap: boolean; order: number }> = {
-  crawl: { label: "crawl files (robots, sitemap, llms.txt)", cheap: true, order: 1 },
+const GROUP_META: Record<
+  string,
+  { label: string; cheap: boolean; order: number }
+> = {
+  crawl: {
+    label: "crawl files (robots, sitemap, llms.txt)",
+    cheap: true,
+    order: 1,
+  },
   head: { label: "metadata & head tags", cheap: true, order: 2 },
   semantics: { label: "semantic HTML & accessibility", cheap: false, order: 3 },
-  content: { label: "content (answerability, definitions, citations)", cheap: false, order: 4 },
+  content: {
+    label: "content (answerability, definitions, citations)",
+    cheap: false,
+    order: 4,
+  },
   "aeo-delivery": { label: "Markdown-twin delivery", cheap: false, order: 5 },
 };
 
@@ -122,12 +155,16 @@ function groupChecks(checks: FixCheckInput[]): FixGroup[] {
     });
   }
   // Stable, sensible order: known groups by their order, singles last.
-  groups.sort((a, b) => (GROUP_META[a.id]?.order ?? 99) - (GROUP_META[b.id]?.order ?? 99));
+  groups.sort(
+    (a, b) => (GROUP_META[a.id]?.order ?? 99) - (GROUP_META[b.id]?.order ?? 99),
+  );
   return groups;
 }
 
 // 1. Create the sandbox, clone the repo, and resolve which checks to fix.
-export async function fixSetupActivity(input: AgentFixWorkflowInput): Promise<FixSetup> {
+export async function fixSetupActivity(
+  input: AgentFixWorkflowInput,
+): Promise<FixSetup> {
   const ref = refOf(input);
   const project = await prisma.project.findFirst({
     where: { id: input.projectId, userId: input.userId },
@@ -140,15 +177,33 @@ export async function fixSetupActivity(input: AgentFixWorkflowInput): Promise<Fi
     data: { status: "FIXING", startedAt: new Date() },
   });
 
-  await writeLog(ref, "AGENT", "INFO", "sandbox_creating", "Spinning up a sandbox to apply the fixes...");
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "sandbox_creating",
+    "Spinning up a sandbox to apply the fixes...",
+  );
   const sandbox = await createSandbox();
   await prisma.agentRun.update({
     where: { id: input.agentRunId },
     data: { sandboxId: sandbox.sandboxId, sandboxStatus: "RUNNING" },
   });
-  await writeLog(ref, "AGENT", "INFO", "sandbox_started", `Sandbox ready (${sandbox.sandboxId}).`);
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "sandbox_started",
+    `Sandbox ready (${sandbox.sandboxId}).`,
+  );
 
-  await writeLog(ref, "AGENT", "INFO", "cloning_repo", `Cloning ${project.fullName} (${project.defaultBranch})...`);
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "cloning_repo",
+    `Cloning ${project.fullName} (${project.defaultBranch})...`,
+  );
   const { dir, result } = await cloneRepo(sandbox, {
     cloneUrl: project.cloneUrl,
     branch: project.defaultBranch,
@@ -157,7 +212,13 @@ export async function fixSetupActivity(input: AgentFixWorkflowInput): Promise<Fi
   if (result.exitCode !== 0) {
     throw new Error(`Clone failed: ${result.stderr.slice(0, 300)}`);
   }
-  await writeLog(ref, "AGENT", "INFO", "repo_cloned", "Repository cloned. Starting the fixes...");
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "repo_cloned",
+    "Repository cloned. Starting the fixes...",
+  );
 
   // Checks to act on: AUTO, or NEEDS_INPUT the user APPROVED. Mark declined ones.
   const rows = await prisma.agentPlanCheck.findMany({
@@ -171,7 +232,9 @@ export async function fixSetupActivity(input: AgentFixWorkflowInput): Promise<Fi
     if (!approved) {
       await prisma.agentPlanCheck.update({
         where: { id: c.id },
-        data: { outcome: c.choice === "DECLINED" ? "SKIPPED_BY_USER" : "PENDING" },
+        data: {
+          outcome: c.choice === "DECLINED" ? "SKIPPED_BY_USER" : "PENDING",
+        },
       });
       continue;
     }
@@ -182,7 +245,8 @@ export async function fixSetupActivity(input: AgentFixWorkflowInput): Promise<Fi
       approach: c.approach,
       recommendation: c.recommendation,
       evidence: c.evidence,
-      targetPages: (c.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
+      targetPages:
+        (c.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
       userSuggestion: c.userSuggestion,
     });
   }
@@ -211,6 +275,74 @@ export async function fixSetupActivity(input: AgentFixWorkflowInput): Promise<Fi
   };
 }
 
+// Clone the already-open PR branch into a short-lived sandbox for an explicit
+// user-triggered revalidation. This must not touch the default branch.
+export async function revalidateSetupActivity(
+  input: AgentFixWorkflowInput,
+): Promise<RevalidateSetup> {
+  const ref = refOf(input);
+  const run = await prisma.agentRun.findFirst({
+    where: { id: input.agentRunId, userId: input.userId },
+    include: {
+      project: { include: { account: { select: { accessToken: true } } } },
+    },
+  });
+  if (!run?.project) throw new Error("Run/project not found for revalidation.");
+  if (!run.prUrl || !run.prNumber || !run.branch) {
+    throw new Error("No open PR branch to revalidate.");
+  }
+
+  await prisma.agentRun.update({
+    where: { id: input.agentRunId },
+    data: { status: "VERIFYING", error: null },
+  });
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "revalidate_started",
+    "Revalidating the open PR branch...",
+  );
+
+  const sandbox = await createSandbox();
+  await prisma.agentRun.update({
+    where: { id: input.agentRunId },
+    data: { sandboxId: sandbox.sandboxId, sandboxStatus: "RUNNING" },
+  });
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "sandbox_started",
+    `Sandbox ready (${sandbox.sandboxId}).`,
+  );
+
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "cloning_repo",
+    `Cloning ${run.project.fullName} (${run.branch})...`,
+  );
+  const { dir, result } = await cloneRepo(sandbox, {
+    cloneUrl: run.project.cloneUrl,
+    branch: run.branch,
+    token: run.project.account?.accessToken ?? undefined,
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(`Clone failed: ${result.stderr.slice(0, 300)}`);
+  }
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "repo_cloned",
+    "PR branch cloned. Running checks...",
+  );
+
+  return { sandboxId: sandbox.sandboxId, workdir: dir };
+}
+
 function fixSystemPrompt(repoSummary: string): string {
   const context = repoSummary
     ? `\n\nWhat the planner already found about this repo (reuse it — do NOT re-explore from scratch):\n${repoSummary}\n`
@@ -237,10 +369,14 @@ function fixGroupUserPrompt(group: FixGroup): string {
       [
         `${i + 1}. ${check.rubricId} (${check.category})`,
         check.approach ? `   Approach: ${check.approach}` : "",
-        check.recommendation ? `   Recommendation: ${check.recommendation}` : "",
+        check.recommendation
+          ? `   Recommendation: ${check.recommendation}`
+          : "",
         check.evidence ? `   Evidence: ${check.evidence}` : "",
         check.userSuggestion ? `   User note: ${check.userSuggestion}` : "",
-        check.targetPages.length ? `   Target pages/files: ${JSON.stringify(check.targetPages)}` : "",
+        check.targetPages.length
+          ? `   Target pages/files: ${JSON.stringify(check.targetPages)}`
+          : "",
       ]
         .filter(Boolean)
         .join("\n"),
@@ -269,14 +405,26 @@ export async function fixGroupActivity(args: {
   const ref = refOf(input);
   const ids = group.checks.map((c) => c.rubricId).join(", ");
 
-  await writeLog(ref, "AGENT", "INFO", "fix_group_started", `Fixing ${group.label}: ${ids}...`);
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "fix_group_started",
+    `Fixing ${group.label}: ${ids}...`,
+  );
 
   if (!process.env.OPEN_ROUTER_KEY) {
     await prisma.agentPlanCheck.updateMany({
       where: { id: { in: group.checks.map((c) => c.id) } },
       data: { outcome: "FAILED", reason: "No model configured." },
     });
-    await writeLog(ref, "AGENT", "WARN", "fix_skipped", `Skipped ${ids}: no model configured.`);
+    await writeLog(
+      ref,
+      "AGENT",
+      "WARN",
+      "fix_skipped",
+      `Skipped ${ids}: no model configured.`,
+    );
     return;
   }
 
@@ -291,15 +439,25 @@ export async function fixGroupActivity(args: {
         onImage: async (image, a) => {
           const rel = a.path ?? "public/og.png";
           try {
-            await sandbox.files.write(`${workdir}/${rel}`, new Blob([Buffer.from(image.base64, "base64")]));
+            await sandbox.files.write(
+              `${workdir}/${rel}`,
+              new Blob([Buffer.from(image.base64, "base64")]),
+            );
           } catch (e) {
             return `Generated the image but could not write ${rel}: ${e instanceof Error ? e.message : String(e)}`;
           }
-          await writeLog(ref, "AGENT_FILE", "INFO", "file_change", `Generated image ${rel}`, {
-            path: rel,
-            action: "create",
-            rubricId: group.id,
-          });
+          await writeLog(
+            ref,
+            "AGENT_FILE",
+            "INFO",
+            "file_change",
+            `Generated image ${rel}`,
+            {
+              path: rel,
+              action: "create",
+              rubricId: group.id,
+            },
+          );
           return `Saved a generated ${image.mimeType} image to ${rel}.`;
         },
       }),
@@ -318,12 +476,29 @@ export async function fixGroupActivity(args: {
           "INFO",
           "file_change",
           `${e.toolName === "write_file" ? "Created" : "Edited"} ${String(a.path ?? "")}`,
-          { path: String(a.path ?? ""), action: e.toolName === "write_file" ? "create" : "modify", rubricId: group.id },
+          {
+            path: String(a.path ?? ""),
+            action: e.toolName === "write_file" ? "create" : "modify",
+            rubricId: group.id,
+          },
         );
       } else if (e.toolName === "run_command") {
-        await writeLog(ref, "AGENT_FILE", "INFO", "command", `$ ${String(a.command ?? "")}`, { rubricId: group.id });
+        await writeLog(
+          ref,
+          "AGENT_FILE",
+          "INFO",
+          "command",
+          `$ ${String(a.command ?? "")}`,
+          { rubricId: group.id },
+        );
       } else if (e.toolName === "read_file") {
-        await writeLog(ref, "AGENT_FILE", "INFO", "read", `Reading ${String(a.path ?? "")}`);
+        await writeLog(
+          ref,
+          "AGENT_FILE",
+          "INFO",
+          "read",
+          `Reading ${String(a.path ?? "")}`,
+        );
       }
     }
   };
@@ -340,38 +515,58 @@ export async function fixGroupActivity(args: {
       maxSteps,
       forceFinalAfterSteps: maxSteps - 4,
       keepToolsAfterFinal: false,
-      finalInstruction: "Stop editing and summarize what you changed for each check in one sentence each.",
+      finalInstruction:
+        "Stop editing and summarize what you changed for each check in one sentence each.",
       temperature: 0,
       onEvent,
     });
 
-    // Optimistic: mark the group's checks FIXED. The verify-and-iterate rescan
-    // (workstream A) will downgrade any that didn't actually reach SUCCESS.
+    // Keep checks pending after edits. Only the verifier can mark them FIXED,
+    // so the UI and PR gate never treat "agent changed files" as proof.
     await prisma.agentPlanCheck.updateMany({
       where: { id: { in: group.checks.map((c) => c.id) } },
-      data: { outcome: "FIXED", reason: res.finalText.slice(0, 500) },
+      data: { outcome: "PENDING", reason: res.finalText.slice(0, 500) },
     });
     await prisma.agentRun
       .update({
         where: { id: input.agentRunId },
-        data: { tokensIn: { increment: res.tokensIn }, tokensOut: { increment: res.tokensOut }, model: DEFAULT_MODEL },
+        data: {
+          tokensIn: { increment: res.tokensIn },
+          tokensOut: { increment: res.tokensOut },
+          model: DEFAULT_MODEL,
+        },
       })
       .catch(() => {});
-    await writeLog(ref, "AGENT", "INFO", "fix_group_done", `${group.label}: ${res.finalText.slice(0, 200)}`);
+    await writeLog(
+      ref,
+      "AGENT",
+      "INFO",
+      "fix_group_done",
+      `${group.label}: ${res.finalText.slice(0, 200)}`,
+    );
   } catch (err) {
     await prisma.agentPlanCheck.updateMany({
       where: { id: { in: group.checks.map((c) => c.id) } },
-      data: { outcome: "FAILED", reason: err instanceof Error ? err.message : String(err) },
+      data: {
+        outcome: "FAILED",
+        reason: err instanceof Error ? err.message : String(err),
+      },
     });
-    await writeLog(ref, "AGENT", "WARN", "fix_group_failed", `Could not fix ${ids}: ${err instanceof Error ? err.message : String(err)}`);
+    await writeLog(
+      ref,
+      "AGENT",
+      "WARN",
+      "fix_group_failed",
+      `Could not fix ${ids}: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
 // 3. Verify by RE-SCANNING the fixed site. Build + serve the repo inside the
 // sandbox, run our own checker against it, mark each check's outcome from the
 // real result (not the agent's claim), and return the groups still failing so
-// the workflow can re-fix them. Best-effort: if build/serve fails, returns
-// ok:false and the run proceeds to the PR with the optimistic outcomes.
+// the workflow can re-fix them. If the re-scan cannot run, the workflow falls
+// back to the build gate below; a failed build is always a hard stop before PR.
 export interface RescanResult {
   ok: boolean;
   score: number | null;
@@ -387,22 +582,39 @@ async function detectServeCommand(
   sandbox: Awaited<ReturnType<typeof connectSandbox>>,
   workdir: string,
 ): Promise<{ cmd: string; needsBuild: boolean } | null> {
-  const pkg = await runCommand(sandbox, "cat package.json 2>/dev/null || echo NONE", { cwd: workdir });
+  const pkg = await runCommand(
+    sandbox,
+    "cat package.json 2>/dev/null || echo NONE",
+    { cwd: workdir },
+  );
   let scripts: Record<string, string> = {};
   if (!pkg.stdout.includes("NONE")) {
     try {
-      scripts = (JSON.parse(pkg.stdout) as { scripts?: Record<string, string> }).scripts ?? {};
+      scripts =
+        (JSON.parse(pkg.stdout) as { scripts?: Record<string, string> })
+          .scripts ?? {};
     } catch {
       /* ignore */
     }
   }
   // Prefer a real server (needed to verify SSR + content negotiation + headers).
-  if (scripts.start) return { cmd: "bun run start || npm run start", needsBuild: !!scripts.build };
+  if (scripts.start)
+    return {
+      cmd: "bun run start || npm run start",
+      needsBuild: !!scripts.build,
+    };
   // Static fallback: serve the first build output dir that exists.
   for (const dir of STATIC_DIRS) {
-    const test = await runCommand(sandbox, `test -d ${dir} && echo YES || echo NO`, { cwd: workdir });
+    const test = await runCommand(
+      sandbox,
+      `test -d ${dir} && echo YES || echo NO`,
+      { cwd: workdir },
+    );
     if (test.stdout.includes("YES")) {
-      return { cmd: `bunx --yes serve -s ${dir} -l ${SERVE_PORT}`, needsBuild: false };
+      return {
+        cmd: `bunx --yes serve -s ${dir} -l ${SERVE_PORT}`,
+        needsBuild: false,
+      };
     }
   }
   return null;
@@ -416,32 +628,77 @@ export async function fixRescanActivity(args: {
 }): Promise<RescanResult> {
   const { input, sandboxId, workdir, iteration } = args;
   const ref = refOf(input);
-  await prisma.agentRun.update({ where: { id: input.agentRunId }, data: { status: "VERIFYING" } }).catch(() => {});
-  await writeLog(ref, "AGENT", "INFO", "rescan_started", `Re-scanning the fixed site to verify the changes (pass ${iteration})...`);
+  await prisma.agentRun
+    .update({ where: { id: input.agentRunId }, data: { status: "VERIFYING" } })
+    .catch(() => {});
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "rescan_started",
+    `Re-scanning the fixed site to verify the changes (pass ${iteration})...`,
+  );
 
   const sandbox = await connectSandbox(sandboxId);
   let server: Awaited<ReturnType<typeof startBackground>> | null = null;
   try {
     const serve = await detectServeCommand(sandbox, workdir);
     if (!serve) {
-      await writeLog(ref, "AGENT_FILE", "INFO", "verify", "Could not detect how to serve this site; skipping automated re-scan.");
-      return { ok: false, score: null, done: false, nextGroups: [], reason: "no serve command" };
+      await writeLog(
+        ref,
+        "AGENT_FILE",
+        "INFO",
+        "verify",
+        "Could not detect how to serve this site; skipping automated re-scan.",
+      );
+      return {
+        ok: false,
+        score: null,
+        done: false,
+        nextGroups: [],
+        reason: "no serve command",
+      };
     }
 
-    await runCommand(sandbox, "bun install || npm install --no-audit --no-fund", { cwd: workdir, timeoutMs: 5 * 60 * 1000 });
+    await runCommand(
+      sandbox,
+      "bun install || npm install --no-audit --no-fund",
+      { cwd: workdir, timeoutMs: 5 * 60 * 1000 },
+    );
     if (serve.needsBuild) {
       await writeLog(ref, "AGENT_FILE", "INFO", "command", "$ build");
-      const build = await runCommand(sandbox, "bun run build || npm run build", { cwd: workdir, timeoutMs: 8 * 60 * 1000 });
+      const build = await runCommand(
+        sandbox,
+        "bun run build || npm run build",
+        { cwd: workdir, timeoutMs: 8 * 60 * 1000 },
+      );
       if (build.exitCode !== 0) {
-        await writeLog(ref, "AGENT_FILE", "WARN", "verify_failed", `Build failed, cannot re-scan:\n${build.stderr.slice(0, 800)}`);
-        return { ok: false, score: null, done: false, nextGroups: [], reason: "build failed" };
+        await writeLog(
+          ref,
+          "AGENT_FILE",
+          "WARN",
+          "verify_failed",
+          `Build failed, cannot re-scan:\n${build.stderr.slice(0, 800)}`,
+        );
+        return {
+          ok: false,
+          score: null,
+          done: false,
+          nextGroups: [],
+          reason: "build failed",
+        };
       }
     }
 
     // Start the server in the background and wait for it to answer.
     server = await startBackground(sandbox, serve.cmd, {
       cwd: workdir,
-      envs: { PORT: String(SERVE_PORT), HOST: "0.0.0.0", HOSTNAME: "0.0.0.0", NODE_ENV: "production" },
+      envs: {
+        PORT: String(SERVE_PORT),
+        HOST: "0.0.0.0",
+        HOSTNAME: "0.0.0.0",
+        NODE_ENV: "production",
+      },
     });
     const host = getSandboxHost(sandbox, SERVE_PORT);
     const url = `https://${host}`;
@@ -450,7 +707,10 @@ export async function fixRescanActivity(args: {
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       try {
-        const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(4000) });
+        const res = await fetch(url, {
+          method: "GET",
+          signal: AbortSignal.timeout(4000),
+        });
         if (res.status > 0) {
           up = true;
           break;
@@ -460,8 +720,20 @@ export async function fixRescanActivity(args: {
       }
     }
     if (!up) {
-      await writeLog(ref, "AGENT_FILE", "WARN", "verify_failed", "The site did not start in time; skipping automated re-scan.");
-      return { ok: false, score: null, done: false, nextGroups: [], reason: "server did not start" };
+      await writeLog(
+        ref,
+        "AGENT_FILE",
+        "WARN",
+        "verify_failed",
+        "The site did not start in time; skipping automated re-scan.",
+      );
+      return {
+        ok: false,
+        score: null,
+        done: false,
+        nextGroups: [],
+        reason: "server did not start",
+      };
     }
 
     // Re-scan the served site with our own checker.
@@ -473,8 +745,16 @@ export async function fixRescanActivity(args: {
       summaryByRubric.set(c.name, c.recommendation ?? c.summary);
     }
     const score = result.score.overall;
-    await prisma.agentRun.update({ where: { id: input.agentRunId }, data: { scoreAfter: score } }).catch(() => {});
-    await writeLog(ref, "AGENT", "INFO", "rescan_done", `Re-scan score: ${score}/100 (pass ${iteration}).`);
+    await prisma.agentRun
+      .update({ where: { id: input.agentRunId }, data: { scoreAfter: score } })
+      .catch(() => {});
+    await writeLog(
+      ref,
+      "AGENT",
+      "INFO",
+      "rescan_done",
+      `Re-scan score: ${score}/100 (pass ${iteration}).`,
+    );
 
     // Mark each approved check from the real result, and collect what still fails.
     const rows = await prisma.agentPlanCheck.findMany({
@@ -487,7 +767,10 @@ export async function fixRescanActivity(args: {
       if (!approved) continue;
       const st = statusByRubric.get(c.rubricId);
       if (st === "SUCCESS") {
-        await prisma.agentPlanCheck.update({ where: { id: c.id }, data: { outcome: "FIXED", reason: "Verified passing by re-scan." } });
+        await prisma.agentPlanCheck.update({
+          where: { id: c.id },
+          data: { outcome: "FIXED", reason: "Verified passing by re-scan." },
+        });
       } else if (st === "NOT_APPLICABLE" || st === undefined) {
         // Not measured on the re-scan (e.g. site-wide check, or no applicable
         // page in the small re-scan). Leave the optimistic outcome as-is.
@@ -495,16 +778,23 @@ export async function fixRescanActivity(args: {
         const summary = summaryByRubric.get(c.rubricId) ?? "";
         await prisma.agentPlanCheck.update({
           where: { id: c.id },
-          data: { outcome: "FAILED", reason: `Still ${st} after the fix: ${summary}`.slice(0, 500) },
+          data: {
+            outcome: "FAILED",
+            reason: `Still ${st} after the fix: ${summary}`.slice(0, 500),
+          },
         });
         stillFailing.push({
           id: c.id,
           rubricId: c.rubricId,
           category: c.category,
           approach: c.approach,
-          recommendation: `${c.recommendation ?? ""} | Re-scan still found this ${st}: ${summary}`.trim().slice(0, 800),
+          recommendation:
+            `${c.recommendation ?? ""} | Re-scan still found this ${st}: ${summary}`
+              .trim()
+              .slice(0, 800),
           evidence: c.evidence,
-          targetPages: (c.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
+          targetPages:
+            (c.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
           userSuggestion: c.userSuggestion,
         });
       }
@@ -513,21 +803,195 @@ export async function fixRescanActivity(args: {
     const nextGroups = groupChecks(stillFailing);
     const done = stillFailing.length === 0;
     if (done) {
-      await writeLog(ref, "AGENT", "INFO", "rescan_clean", "All targeted checks pass. No further fixes needed.");
+      await writeLog(
+        ref,
+        "AGENT",
+        "INFO",
+        "rescan_clean",
+        "All targeted checks pass. No further fixes needed.",
+      );
     } else {
-      await writeLog(ref, "AGENT", "INFO", "rescan_remaining", `${stillFailing.length} check(s) still need work: ${stillFailing.map((c) => c.rubricId).join(", ")}.`);
+      await writeLog(
+        ref,
+        "AGENT",
+        "INFO",
+        "rescan_remaining",
+        `${stillFailing.length} check(s) still need work: ${stillFailing.map((c) => c.rubricId).join(", ")}.`,
+      );
     }
     return { ok: true, score, done, nextGroups };
   } catch (err) {
-    await writeLog(ref, "AGENT_FILE", "WARN", "verify_failed", `Re-scan could not complete: ${err instanceof Error ? err.message : String(err)}`);
-    return { ok: false, score: null, done: false, nextGroups: [], reason: "rescan error" };
+    await writeLog(
+      ref,
+      "AGENT_FILE",
+      "WARN",
+      "verify_failed",
+      `Re-scan could not complete: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return {
+      ok: false,
+      score: null,
+      done: false,
+      nextGroups: [],
+      reason: "rescan error",
+    };
   } finally {
     if (server) await server.kill();
   }
 }
 
-// (Legacy) build-only verification, kept for fallback. The rescan above builds
-// + serves + checks, so the workflow uses that instead.
+export async function requestFixDecisionActivity(args: {
+  input: AgentFixWorkflowInput;
+  groups: FixGroup[];
+}): Promise<{ pending: number }> {
+  const { input, groups } = args;
+  const ref = refOf(input);
+  const ids = groups.flatMap((group) => group.checks.map((check) => check.id));
+  if (ids.length === 0) return { pending: 0 };
+
+  const options = [
+    {
+      id: "try_bigger_change",
+      label: "Try a bigger change",
+      description: "Let the agent make broader edits for this check.",
+    },
+    {
+      id: "skip",
+      label: "Skip this check",
+      description: "Do not include this check in the PR.",
+    },
+  ];
+
+  await Promise.all(
+    ids.map((id) =>
+      prisma.agentPlanCheck.update({
+        where: { id },
+        data: {
+          mode: "NEEDS_INPUT",
+          choice: "PENDING",
+          selectedOption: null,
+          userSuggestion: null,
+          outcome: "PENDING",
+          question:
+            "This check still is not verified. Should the agent try a bigger change, or skip it?",
+          options: options as Prisma.InputJsonValue,
+        },
+      }),
+    ),
+  );
+
+  await prisma.agentRun
+    .update({ where: { id: input.agentRunId }, data: { status: "AWAITING_INPUT" } })
+    .catch(() => {});
+
+  await writeLog(
+    ref,
+    "AGENT",
+    "WARN",
+    "fix_decision_requested",
+    "Some checks still need a decision before a PR can be opened.",
+    { agentPlanId: input.agentPlanId, checks: ids.length },
+  );
+  await prisma.log
+    .create({
+      data: {
+        source: "AGENT",
+        level: "WARN",
+        event: "fix_decision_prompt",
+        message: "Some checks still need a decision before a PR can be opened.",
+        agentRunId: input.agentRunId,
+        agentPlanId: input.agentPlanId,
+        projectId: input.projectId,
+        userId: input.userId,
+      },
+    })
+    .catch(() => {});
+
+  return { pending: ids.length };
+}
+
+export async function collectFixDecisionActivity(args: {
+  input: AgentFixWorkflowInput;
+  decision: AgentFixDecisionSignal;
+}): Promise<{ groups: FixGroup[] }> {
+  const { input, decision } = args;
+  const ref = refOf(input);
+  const byRubric = new Map(decision.answers.map((answer) => [answer.rubricId, answer]));
+
+  const rows = await prisma.agentPlanCheck.findMany({
+    where: {
+      agentPlanId: input.agentPlanId,
+      mode: "NEEDS_INPUT",
+      choice: "PENDING",
+    },
+    orderBy: { seq: "asc" },
+  });
+
+  const toFix: FixCheckInput[] = [];
+  let skipped = 0;
+
+  for (const row of rows) {
+    const answer = byRubric.get(row.rubricId);
+    if (!answer) continue;
+
+    const declined =
+      answer.choice === "DECLINED" || answer.selectedOption === "skip";
+    if (declined) {
+      skipped += 1;
+      await prisma.agentPlanCheck.update({
+        where: { id: row.id },
+        data: {
+          choice: "DECLINED",
+          selectedOption: answer.selectedOption ?? "skip",
+          userSuggestion: answer.userSuggestion ?? null,
+          outcome: "SKIPPED_BY_USER",
+          reason: "User chose to skip this unresolved check.",
+        },
+      });
+      continue;
+    }
+
+    await prisma.agentPlanCheck.update({
+      where: { id: row.id },
+      data: {
+        choice: "APPROVED",
+        selectedOption: answer.selectedOption ?? "try_bigger_change",
+        userSuggestion: answer.userSuggestion ?? null,
+        outcome: "PENDING",
+        reason: "User approved a bigger retry for this check.",
+      },
+    });
+
+    toFix.push({
+      id: row.id,
+      rubricId: row.rubricId,
+      category: row.category,
+      approach: row.approach,
+      recommendation: row.recommendation,
+      evidence: row.evidence,
+      targetPages:
+        (row.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
+      userSuggestion: answer.userSuggestion ?? row.userSuggestion,
+    });
+  }
+
+  await prisma.agentRun
+    .update({ where: { id: input.agentRunId }, data: { status: "FIXING" } })
+    .catch(() => {});
+
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "fix_decision_received",
+    `Decision received: ${toFix.length} retry, ${skipped} skipped.`,
+  );
+
+  return { groups: groupChecks(toFix) };
+}
+
+// Build-only verification is the last gate before pushing code. It intentionally
+// throws on install/build failure so the workflow fails before opening a PR.
 export async function fixVerifyActivity(args: {
   input: AgentFixWorkflowInput;
   sandboxId: string;
@@ -535,27 +999,85 @@ export async function fixVerifyActivity(args: {
 }): Promise<void> {
   const { input, sandboxId, workdir } = args;
   const ref = refOf(input);
-  await prisma.agentRun.update({ where: { id: input.agentRunId }, data: { status: "VERIFYING" } }).catch(() => {});
+  await prisma.agentRun
+    .update({ where: { id: input.agentRunId }, data: { status: "VERIFYING" } })
+    .catch(() => {});
 
   const sandbox = await connectSandbox(sandboxId);
-  const pkg = await runCommand(sandbox, "test -f package.json && cat package.json || echo NO_PKG", { cwd: workdir });
+  const pkg = await runCommand(
+    sandbox,
+    "test -f package.json && cat package.json || echo NO_PKG",
+    { cwd: workdir },
+  );
   if (pkg.stdout.includes("NO_PKG")) {
-    await writeLog(ref, "AGENT_FILE", "INFO", "verify", "No package.json — static site, skipping build.");
+    await writeLog(
+      ref,
+      "AGENT_FILE",
+      "INFO",
+      "verify",
+      "No package.json — static site, skipping build.",
+    );
     return;
   }
   // Pick a build command from common scripts.
   const hasBuild = /"build"\s*:/.test(pkg.stdout);
   if (!hasBuild) {
-    await writeLog(ref, "AGENT_FILE", "INFO", "verify", "No build script found, skipping build verification.");
+    await writeLog(
+      ref,
+      "AGENT_FILE",
+      "INFO",
+      "verify",
+      "No build script found, skipping build verification.",
+    );
     return;
   }
   await writeLog(ref, "AGENT_FILE", "INFO", "command", "$ (install) && build");
-  await runCommand(sandbox, "bun install || npm install --no-audit --no-fund", { cwd: workdir, timeoutMs: 5 * 60 * 1000 });
-  const build = await runCommand(sandbox, "bun run build || npm run build", { cwd: workdir, timeoutMs: 8 * 60 * 1000 });
+  const install = await runCommand(
+    sandbox,
+    "bun install || npm install --no-audit --no-fund",
+    { cwd: workdir, timeoutMs: 5 * 60 * 1000 },
+  );
+  if (install.exitCode !== 0) {
+    const reason = formatCommandFailure("Install", install);
+    await writeLog(ref, "AGENT_FILE", "ERROR", "verify_failed", reason);
+    throw new Error(buildPrBlockerMessage(reason));
+  }
+  const build = await runCommand(sandbox, "bun run build || npm run build", {
+    cwd: workdir,
+    timeoutMs: 8 * 60 * 1000,
+  });
   if (build.exitCode === 0) {
     await writeLog(ref, "AGENT_FILE", "INFO", "verify", "Build passed.");
   } else {
-    await writeLog(ref, "AGENT_FILE", "WARN", "verify_failed", `Build failed:\n${build.stderr.slice(0, 800)}`);
+    const reason = formatCommandFailure("Build", build);
+    await writeLog(ref, "AGENT_FILE", "ERROR", "verify_failed", reason);
+    throw new Error(buildPrBlockerMessage(reason));
+  }
+}
+
+export async function assertPrReadyActivity(input: AgentFixWorkflowInput): Promise<void> {
+  const rows = await prisma.agentPlanCheck.findMany({
+    where: { agentPlanId: input.agentPlanId },
+    select: {
+      rubricId: true,
+      mode: true,
+      choice: true,
+      outcome: true,
+    },
+    orderBy: { seq: "asc" },
+  });
+  const unresolved = unresolvedCheckIdsForPr(
+    rows.map((row) => ({
+      rubricId: row.rubricId,
+      mode: row.mode,
+      choice: row.choice,
+      outcome: row.outcome,
+    })),
+  );
+  if (unresolved.length > 0) {
+    throw new Error(
+      `PR was not opened because these checks are still unresolved: ${unresolved.join(", ")}.`,
+    );
   }
 }
 
@@ -578,26 +1100,53 @@ export async function fixOpenPrActivity(args: {
   const sandbox = await connectSandbox(sandboxId);
 
   // Any changes to commit?
-  const status = await runCommand(sandbox, "git status --porcelain", { cwd: workdir });
+  const status = await runCommand(sandbox, "git status --porcelain", {
+    cwd: workdir,
+  });
   if (!status.stdout.trim()) {
     await prisma.agentRun.update({
       where: { id: input.agentRunId },
       data: { status: "COMPLETED", finishedAt: new Date() },
     });
-    await writeLog(ref, "AGENT", "INFO", "no_changes", "Nothing needed changing — no PR opened.");
+    await writeLog(
+      ref,
+      "AGENT",
+      "INFO",
+      "no_changes",
+      "Nothing needed changing — no PR opened.",
+    );
     await sendFixPrOpenedEmail(input.agentRunId).catch((err) => {
       console.error("[email] no-change fix notification failed:", err);
     });
     return;
   }
 
-  await prisma.agentRun.update({ where: { id: input.agentRunId }, data: { status: "OPENING_PR" } }).catch(() => {});
+  const fixed = await prisma.agentPlanCheck.count({
+    where: { agentPlanId: input.agentPlanId, outcome: "FIXED" },
+  });
+  if (fixed === 0) {
+    const message = buildNoVerifiedFixesMessage();
+    await writeLog(ref, "AGENT", "ERROR", "fix_failed", message);
+    throw new Error(message);
+  }
+
+  await prisma.agentRun
+    .update({ where: { id: input.agentRunId }, data: { status: "OPENING_PR" } })
+    .catch(() => {});
 
   const branch = `geo-repair/fix-${input.agentRunId.slice(-8)}`;
-  await runCommand(sandbox, `git config user.email "agent@geo.repair" && git config user.name "GEO Repair Agent"`, { cwd: workdir });
+  await runCommand(
+    sandbox,
+    `git config user.email "agent@geo.repair" && git config user.name "GEO Repair Agent"`,
+    { cwd: workdir },
+  );
   await runCommand(sandbox, `git checkout -b ${branch}`, { cwd: workdir });
   await runCommand(sandbox, `git add -A`, { cwd: workdir });
-  await runCommand(sandbox, `git commit -m "fix: improve AI search readiness (GEO/AEO/SEO)"`, { cwd: workdir });
+  await runCommand(
+    sandbox,
+    `git commit -m "fix: improve AI search readiness (GEO/AEO/SEO)"`,
+    { cwd: workdir },
+  );
 
   if (token) {
     await runCommand(
@@ -606,32 +1155,47 @@ export async function fixOpenPrActivity(args: {
       { cwd: workdir },
     );
   }
-  await writeLog(ref, "AGENT_FILE", "INFO", "command", `$ git push origin ${branch}`);
-  const push = await runCommand(sandbox, `git push -u origin ${branch}`, { cwd: workdir, timeoutMs: 3 * 60 * 1000 });
+  await writeLog(
+    ref,
+    "AGENT_FILE",
+    "INFO",
+    "command",
+    `$ git push origin ${branch}`,
+  );
+  const push = await runCommand(sandbox, `git push -u origin ${branch}`, {
+    cwd: workdir,
+    timeoutMs: 3 * 60 * 1000,
+  });
   if (push.exitCode !== 0) {
     throw new Error(`Push failed: ${push.stderr.slice(0, 300)}`);
   }
 
   // Open the PR via the GitHub REST API.
-  const fixed = await prisma.agentPlanCheck.count({ where: { agentPlanId: input.agentPlanId, outcome: "FIXED" } });
   const body = `Automated GEO/AEO/SEO readiness fixes by GEO Repair.\n\nThis PR applies ${fixed} fix(es) approved in your plan. Changes improve technical AI-search readiness only.`;
-  const prRes = await fetch(`https://api.github.com/repos/${project.owner}/${project.name}/pulls`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "User-Agent": "geo-repair",
-      "X-GitHub-Api-Version": "2022-11-28",
+  const prRes = await fetch(
+    `https://api.github.com/repos/${project.owner}/${project.name}/pulls`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "geo-repair",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({
+        title: "GEO Repair: improve AI search readiness",
+        head: branch,
+        base: project.defaultBranch,
+        body,
+      }),
     },
-    body: JSON.stringify({
-      title: "GEO Repair: improve AI search readiness",
-      head: branch,
-      base: project.defaultBranch,
-      body,
-    }),
-  });
+  );
 
-  const pr = (await prRes.json().catch(() => ({}))) as { html_url?: string; number?: number; message?: string };
+  const pr = (await prRes.json().catch(() => ({}))) as {
+    html_url?: string;
+    number?: number;
+    message?: string;
+  };
   if (!prRes.ok || !pr.html_url) {
     throw new Error(`PR creation failed: ${pr.message ?? prRes.status}`);
   }
@@ -649,14 +1213,23 @@ export async function fixOpenPrActivity(args: {
       finishedAt: new Date(),
     },
   });
-  await writeLog(ref, "AGENT", "INFO", "pr_opened", `Opened a pull request: ${pr.html_url}`, { prUrl: pr.html_url, branch });
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "pr_opened",
+    `Opened a pull request: ${pr.html_url}`,
+    { prUrl: pr.html_url, branch },
+  );
   await sendFixPrOpenedEmail(input.agentRunId).catch((err) => {
     console.error("[email] PR opened notification failed:", err);
   });
 }
 
 // 5. Tear down the sandbox and clear its id (always runs).
-export async function fixTeardownActivity(input: AgentFixWorkflowInput): Promise<void> {
+export async function fixTeardownActivity(
+  input: AgentFixWorkflowInput,
+): Promise<void> {
   const run = await prisma.agentRun.findUnique({
     where: { id: input.agentRunId },
     select: { sandboxId: true },
@@ -670,14 +1243,75 @@ export async function fixTeardownActivity(input: AgentFixWorkflowInput): Promise
     }
   }
   await prisma.agentRun
-    .update({ where: { id: input.agentRunId }, data: { sandboxId: null, sandboxStatus: "KILLED" } })
+    .update({
+      where: { id: input.agentRunId },
+      data: { sandboxId: null, sandboxStatus: "KILLED" },
+    })
     .catch(() => {});
 }
 
-export async function failFixActivity(input: AgentFixWorkflowInput, message: string): Promise<void> {
+export async function revalidateTeardownActivity(args: {
+  input: AgentFixWorkflowInput;
+  sandboxId: string;
+}): Promise<void> {
+  try {
+    const sandbox = await connectSandbox(args.sandboxId);
+    await killSandbox(sandbox);
+  } catch {
+    /* already gone */
+  }
+
+  await prisma.agentRun
+    .updateMany({
+      where: { id: args.input.agentRunId, sandboxId: args.sandboxId },
+      data: { sandboxId: null, sandboxStatus: "KILLED" },
+    })
+    .catch(() => {});
+}
+
+export async function completeRevalidateActivity(
+  input: AgentFixWorkflowInput,
+): Promise<void> {
   const ref = refOf(input);
   await prisma.agentRun
-    .update({ where: { id: input.agentRunId }, data: { status: "FAILED", error: message, finishedAt: new Date() } })
+    .update({
+      where: { id: input.agentRunId },
+      data: { status: "PR_OPENED", error: null },
+    })
+    .catch(() => {});
+  await writeLog(
+    ref,
+    "AGENT",
+    "INFO",
+    "revalidate_complete",
+    "Revalidation finished. Checks are updated.",
+  );
+}
+
+export async function failRevalidateActivity(
+  input: AgentFixWorkflowInput,
+  message: string,
+): Promise<void> {
+  const ref = refOf(input);
+  await prisma.agentRun
+    .update({
+      where: { id: input.agentRunId },
+      data: { status: "PR_OPENED", error: message },
+    })
+    .catch(() => {});
+  await writeLog(ref, "AGENT", "ERROR", "revalidate_failed", message);
+}
+
+export async function failFixActivity(
+  input: AgentFixWorkflowInput,
+  message: string,
+): Promise<void> {
+  const ref = refOf(input);
+  await prisma.agentRun
+    .update({
+      where: { id: input.agentRunId },
+      data: { status: "FAILED", error: message, finishedAt: new Date() },
+    })
     .catch(() => {});
   await prisma.workerStatus
     .updateMany({
@@ -691,7 +1325,9 @@ export async function failFixActivity(input: AgentFixWorkflowInput, message: str
   });
 }
 
-export async function fixCompleteActivity(input: AgentFixWorkflowInput): Promise<void> {
+export async function fixCompleteActivity(
+  input: AgentFixWorkflowInput,
+): Promise<void> {
   await prisma.workerStatus
     .updateMany({
       where: { temporalWorkflowId: `agent-fix-${input.agentRunId}` },

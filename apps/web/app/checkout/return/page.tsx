@@ -5,7 +5,7 @@ import { CheckoutReturnClient } from "./checkout-return-client"
 export const metadata = buildMetadata({
   title: "Checkout Return · GEO Repair",
   description:
-    "Check the payment status for a GEO Repair AI Search Fix order after checkout.",
+    "Confirm payment and return to your GEO Repair dashboard.",
   path: "/checkout/return",
   noIndex: true,
 })
@@ -24,8 +24,8 @@ export default async function CheckoutReturnPage({ searchParams }: PageProps) {
     <>
       <PageHeader
         eyebrow="Checkout"
-        title="Payment status"
-        description="This page reads your order state after checkout. Payment confirmation decides whether your fix can start."
+        title="Returning to dashboard"
+        description="Payment is confirmed here, then you continue in the dashboard."
       />
 
       <main className="border-t border-border py-16">

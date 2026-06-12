@@ -17,16 +17,18 @@ workflow activities, providers, and persistence models.
   URL from the scanned homepage's icons, metadata, and JSON-LD. Free scans
   return this identity in the scan result; completed project scans also update
   the `Project` brand fields. The database stores URLs only, not image files.
-- Payments: Dodo one-time checkout, with webhooks as the payment source of
-  truth and checkout-return reconciliation as a backup.
+- Payments: Dodo checkout, with webhooks as the payment source of truth and
+  checkout-return reconciliation as a backup. Project-linked orders return to
+  the dashboard project page; `/checkout/return` is a fallback handoff page.
 - Transactional email: `@repo/email` renders React Email templates and sends
   through Resend best-effort. Live notifications cover new accounts, scan
   completion/failure, billing receipt/failure/refund, fix plan ready, PR/no-change
   completion, fix failure, chat limit reached, waitlist, and contact.
 - Entitlements: a paid `Order` grants a bounded number of fix attempts
-  (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`) and post-PR agent chat messages
-  (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`). Free scans are bounded in the
-  public scan API. Paid-order enforcement lives in
+  (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`), post-PR agent chat messages
+  (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`), and manual PR-branch
+  revalidations (`manualRevalidationsUsed` / `MANUAL_REVALIDATION_LIMIT`).
+  Free scans are bounded in the public scan API. Paid-order enforcement lives in
   `apps/backend-v2/functions/billing.service.ts`,
   `apps/backend-v2/functions/agent-plan.service.ts`,
   `apps/backend-v2/functions/fix.service.ts`, and
@@ -77,7 +79,8 @@ flowchart TD
   Dodo["Dodo hosted checkout"]
   DodoWebhook["Dodo webhook<br/>/api/webhooks/dodo"]
   Email["Transactional email<br/>@repo/email via Resend"]
-  ReturnPage["Checkout return page<br/>/checkout/return"]
+  DashboardReturn["Dashboard project return<br/>/dashboard/projects/:id?order_id=..."]
+  ReturnPage["Checkout return fallback<br/>/checkout/return"]
   PaidOrder["Order PAID<br/>Start fix unlocked"]
   FixWorkspace["Dashboard purchase / project agent screen"]
   StartFix["POST /api/projects/:id/agent-plan<br/>requires paid matching order"]
@@ -88,12 +91,16 @@ flowchart TD
   Intake["Structured MCQ intake<br/>POST /api/fix/:id/intake"]
   Sandbox["E2B sandbox<br/>clone repo, create fix branch"]
   Agent["@repo/ai agent loop<br/>OpenRouter model plus sandbox tools"]
+  BuildGate["Build and check-resolution gate<br/>required before PR"]
+  FixDecision["User decision for unresolved checks<br/>retry bigger change or skip"]
   Commit{"Commit produced?"}
   PushPR["Push branch and open PR<br/>GitHub REST"]
   NoChanges["Completed with no changes<br/>show summary"]
   Failed["Failed or support required"]
   Teardown["Teardown sandbox<br/>record sandbox COGS"]
   PRReady["PR opened<br/>dashboard transcript and summary"]
+  RevalidateCTA["Revalidate checks<br/>POST /api/agent-runs/:id/revalidate"]
+  TemporalRevalidate["agentRevalidateWorkflow<br/>clone PR branch, build, re-scan"]
   Reports["Reports API<br/>/api/reports/generate"]
   ProjectReports["ProjectReport and ReportShareLink"]
   MergeWebhook["GitHub merge webhook<br/>planned"]
@@ -118,14 +125,18 @@ flowchart TD
   RepoConfirmed --> ProjectCreate --> ProjectScan --> CheckoutDialog --> BillingAPI --> OrderDB --> Dodo
   ProjectScan -->|"completed or failed"| Email
   Dodo --> DodoWebhook --> OrderDB
-  Dodo --> ReturnPage --> OrderDB
+  Dodo --> DashboardReturn --> OrderDB
+  Dodo -->|"legacy or non-project order"| ReturnPage --> DashboardReturn
   OrderDB -->|"paid, failed, refunded"| Email
   OrderDB --> PaidOrder --> FixWorkspace --> StartFix --> FixRunDB --> TemporalFix
   FixRunDB -->|"plan ready or failed"| Email
   TemporalFix --> PlanRun --> Clarify
   Clarify -->|"yes"| Intake --> TemporalFix
   Clarify -->|"no"| Sandbox
-  Intake --> Sandbox --> Agent --> Commit
+  Intake --> Sandbox --> Agent --> BuildGate
+  BuildGate -->|"some approved checks unresolved"| FixDecision --> Agent
+  BuildGate -->|"build passed, all approved checks fixed or skipped"| Commit
+  BuildGate -->|"failed"| Failed
   Commit -->|"yes"| PushPR --> PRReady
   Commit -->|"no"| NoChanges
   Agent -->|"error"| Failed
@@ -136,6 +147,8 @@ flowchart TD
   PRReady --> Teardown
   NoChanges --> Teardown
   Failed --> Teardown
+  PRReady --> RevalidateCTA --> TemporalRevalidate --> FixRunDB
+  TemporalRevalidate --> PRReady
   PRReady --> Reports --> ProjectReports
   PRReady --> MergeWebhook --> Recheck --> Reports
 ```
@@ -236,25 +249,22 @@ sequenceDiagram
   Dashboard-->>User: Redirect to Dodo checkout
 
   User->>Dodo: Pay
-  Dodo-->>Web: Return to /checkout/return
+  Dodo-->>Dashboard: Return to /dashboard/projects/:id?order_id=...&start_fix=1
   par Source of truth webhook
     Dodo->>API: POST /api/webhooks/dodo with raw signed body
     API->>DB: Store PaymentWebhookEvent and update Order
     API->>Email: Send paymentReceipt, paymentFailed, or refund
   and Return-page reconciliation
-    Web->>API: POST /api/billing/public/orders/:id/reconcile when payment_id exists
+    Dashboard->>API: POST /api/billing/orders/:id/reconcile when payment_id exists
     API->>Dodo: Retrieve payment
     API->>DB: Update Order if verified
     API->>Email: Send paymentReceipt when newly marked PAID
   end
-  Web->>API: GET /api/billing/public/orders/:id
-  API->>DB: Read order status
-  API-->>Web: Minimal PAID unlock state, no repo or project data
-  Web-->>User: Start fix link to dashboard purchase page
-
-  User->>Dashboard: Start fix
   Dashboard->>API: GET /api/billing/orders/:id
-  API->>DB: Read authenticated full order for user
+  API->>DB: Read order status
+  API-->>Dashboard: Authenticated paid order and project id
+  Dashboard-->>User: Ask to confirm starting the fix agent
+  User->>Dashboard: Confirm start
   Dashboard->>API: POST /api/projects/:id/agent-plan with orderId
   API->>DB: Verify paid order matches user and project
   API->>DB: Create AgentRun and AgentPlan
@@ -293,14 +303,25 @@ sequenceDiagram
   end
   Worker->>E2B: Check commit and collect diff summary
   Worker->>DB: Update FixCheck counters and COGS
+  Worker->>E2B: Run install/build verification
+  Worker->>DB: Confirm every approved check is fixed or user-skipped
 
   Temporal->>Worker: finalizeRun
-  alt Commit exists
+  alt Build fails
+    Worker->>DB: Mark AgentRun FAILED and append verify_failed
+    Worker->>Email: Send fixFailed
+  else Approved checks still fail after retry cap
+    Worker->>DB: Mark AgentRun AWAITING_INPUT and ask retry-or-skip MCQs
+    User->>Dashboard: Choose bigger retry or skip per check
+    Dashboard->>API: POST /api/agent-runs/:id/fix with decisions
+    API->>Temporal: Signal submitFixDecisions
+    Temporal->>Worker: Retry approved checks or mark skipped
+  else Build passes, all approved checks resolved, and commit exists
     Worker->>GitHub: Push branch and open pull request
     GitHub-->>Worker: PR URL and number
     Worker->>DB: Mark PR_OPENED and append pr_opened event
     Worker->>Email: Send fixPrOpened
-  else No commit
+  else Build passes, all approved checks skipped, and no commit
     Worker->>DB: Mark COMPLETED and append no_changes event
     Worker->>Email: Send fixPrOpened no-change variant
   end
@@ -340,15 +361,22 @@ sequenceDiagram
 Enforced limits (source of truth: `@repo/types/entitlements`):
 
 - **Fix-run attempts:** a paid `Order` allows up to `FIX_ATTEMPT_LIMIT` (3) runs.
-  `startFix` locks the order row (`SELECT ... FOR UPDATE`), returns an existing
-  non-FAILED run for re-entry (no new attempt), blocks once the cap is reached,
-  and otherwise creates the run + increments `Order.fixAttemptsUsed` atomically.
-  A failed workflow start refunds the attempt.
-- **Agent chat:** after the PR opens, `POST /api/fix/:id/messages` charges one of
+  `startFix` requires a paid matching order, blocks once the cap is reached,
+  and increments `Order.fixAttemptsUsed` when the Temporal fix workflow is
+  queued. A failed workflow start refunds the attempt.
+- **Agent chat:** after the PR opens, `POST /api/agent-runs/:id/chat` charges one of
   `CHAT_MESSAGE_LIMIT` (20) messages per order, records a `user_message` event,
-  flips the run to `CHATTING`, and starts `fixChatWorkflow`. That workflow reopens
-  a sandbox on the run's existing fix branch, applies the request, and pushes to
-  the same branch (the PR updates in place), then returns the run to `PR_OPENED`.
+  flips the run to `CHATTING`, and starts `agentChatWorkflow`. That workflow
+  reconnects to a warm sandbox or creates one on the run's existing fix branch,
+  resets the sandbox TTL to 15 minutes after the turn, applies the request, and
+  pushes to the same branch (the PR updates in place), then returns the run to
+  `PR_OPENED`.
+- **PR-branch revalidation:** `POST /api/agent-runs/:id/revalidate` starts
+  `agentRevalidateWorkflow` without spending a chat message. It consumes one of
+  `MANUAL_REVALIDATION_LIMIT` (3) manual revalidations per order. The workflow
+  clones the saved PR branch into a short-lived sandbox, runs build/re-scan
+  verification, updates `AgentPlanCheck` outcomes and `scoreAfter`, kills the
+  sandbox, then returns the run to `PR_OPENED`.
 - **Free scans:** `POST /api/checkups` (now behind `optionalAuth`) serves a cached
   report when one for the domain is < `SCAN_CACHE_TTL_HOURS` (24h) old (no quota
   spent), else consumes one daily scan from `ScanUsage` (per user when signed in,
@@ -369,17 +397,27 @@ sequenceDiagram
   participant GitHub
 
   User->>Dashboard: Send follow-up message (PR open)
-  Dashboard->>API: POST /api/fix/:id/messages
+  Dashboard->>API: POST /api/agent-runs/:id/chat
   API->>API: Lock order, check CHAT_MESSAGE_LIMIT, +1, log user_message
-  API->>Temporal: Start fixChatWorkflow (run -> CHATTING)
+  API->>Temporal: Start agentChatWorkflow (run -> CHATTING)
   opt Chat messages left hits 0
     API->>Email: Send chatLimitReached
   end
-  Temporal->>E2B: Reopen sandbox, fetch + checkout the PR branch
+  Temporal->>E2B: Reopen/create sandbox on PR branch, reset 15m idle TTL
   Temporal->>E2B: Agent applies the request, commits
   Temporal->>GitHub: Push branch (same target) -> existing PR updates
   Temporal->>API: run -> PR_OPENED
-  Dashboard->>API: Poll GET /api/fix/:id (transcript + state)
+  Dashboard->>API: Poll GET /api/agent-runs/:id (transcript + state)
+
+  User->>Dashboard: Click Revalidate in Checks tab
+  Dashboard->>API: POST /api/agent-runs/:id/revalidate
+  API->>API: Check MANUAL_REVALIDATION_LIMIT, increment order usage
+  API->>Temporal: Start agentRevalidateWorkflow (run -> VERIFYING)
+  Temporal->>E2B: Clone saved PR branch
+  Temporal->>E2B: Build and run checker re-scan
+  Temporal->>E2B: Kill short-lived revalidation sandbox
+  Temporal->>API: Update check outcomes, scoreAfter, run -> PR_OPENED
+  Dashboard->>API: Poll GET /api/agent-runs/:id
 ```
 
 ## Maintenance Rule

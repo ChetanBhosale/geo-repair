@@ -25,6 +25,7 @@ import type {
   ChatResponse,
   CompleteRunResponse,
   ListAgentRunsResponse,
+  RevalidateRunResponse,
   StartAgentPlanRequest,
   StartAgentPlanResponse,
   StartFixResponse,
@@ -32,8 +33,10 @@ import type {
 import type {
   BillingHistoryResponse,
   CreateFixCheckoutResponse,
+  FixTier,
   ListPlansResponse,
   OrderSummary,
+  ReconcileFixCheckoutResponse,
 } from "@repo/types/billing"
 import type {
   FeatureInterestResponse,
@@ -125,11 +128,26 @@ export async function getBillingOrder(orderId: string): Promise<OrderSummary> {
 export async function createFixCheckout(payload: {
   projectId?: string
   orderId?: string
+  selectedTier?: FixTier
 }): Promise<CreateFixCheckoutResponse> {
   return request<CreateFixCheckoutResponse>(ENDPOINTS.billingCheckout, {
     method: "POST",
     body: JSON.stringify(payload),
   })
+}
+
+export async function reconcileBillingOrder(payload: {
+  orderId: string
+  paymentId: string
+  status?: string
+}): Promise<ReconcileFixCheckoutResponse> {
+  return request<ReconcileFixCheckoutResponse>(
+    ENDPOINTS.billingOrderReconcile(payload.orderId),
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  )
 }
 
 // --- Projects ---
@@ -257,6 +275,15 @@ export async function sendAgentChat(
     method: "POST",
     body: JSON.stringify({ message }),
   })
+}
+
+export async function revalidateAgentRun(
+  agentRunId: string
+): Promise<RevalidateRunResponse> {
+  return request<RevalidateRunResponse>(
+    ENDPOINTS.agentRunRevalidate(agentRunId),
+    { method: "POST" }
+  )
 }
 
 export async function completeAgentRun(

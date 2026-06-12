@@ -24,7 +24,7 @@ export interface CreateSandboxOptions {
   // E2B template name/id. Defaults to our fix template (git + node + bun).
   // Pass `null` to use E2B's plain base image instead.
   template?: string | null;
-  // Auto-kill after this many ms. Defaults to 10 minutes.
+  // Auto-kill after this many ms. Defaults to one hour.
   timeoutMs?: number;
 }
 
@@ -51,6 +51,15 @@ export async function killSandbox(sandbox: Sandbox): Promise<void> {
   } catch {
     // already killed / unreachable
   }
+}
+
+// Reset sandbox TTL from "now". Use this for short warm windows after user
+// activity, instead of letting a sandbox sit around for the default hour.
+export async function refreshSandboxTimeout(
+  sandbox: Sandbox,
+  timeoutMs: number
+): Promise<void> {
+  await sandbox.setTimeout(timeoutMs);
 }
 
 export interface RunResult {

@@ -256,6 +256,65 @@ export function isRunOpen(row: { status: string; prMerged: boolean }): boolean {
   return !TERMINAL_RUN_STATUS.has(row.status);
 }
 
+async function syncAgentRunFromTemporal(row: {
+  id: string;
+  userId: string;
+  projectId: string;
+  status: string;
+  prMerged: boolean;
+  temporalWorkflowId: string | null;
+}): Promise<void> {
+  if (!isRunOpen(row) || !row.temporalWorkflowId) return;
+
+  try {
+    const client = await getTemporalClient();
+    const handle = client.workflow.getHandle(row.temporalWorkflowId);
+    const desc = await handle.describe();
+
+    if (
+      desc.status.name !== "FAILED" &&
+      desc.status.name !== "TERMINATED" &&
+      desc.status.name !== "TIMED_OUT" &&
+      desc.status.name !== "CANCELLED"
+    ) {
+      return;
+    }
+
+    const canceled = desc.status.name === "CANCELLED";
+    const status = canceled ? "CANCELED" : "FAILED";
+    const message = `Workflow ${desc.status.name.toLowerCase()}.`;
+
+    await prisma.agentRun.update({
+      where: { id: row.id },
+      data: { status, error: message, finishedAt: new Date() },
+    });
+    await prisma.agentPlan.updateMany({
+      where: { agentRunId: row.id, status: "DRAFTING" },
+      data: { status: "FAILED" },
+    });
+    await prisma.workerStatus.updateMany({
+      where: { temporalWorkflowId: row.temporalWorkflowId },
+      data: { status, error: message, finishedAt: new Date() },
+    });
+    await prisma.log.create({
+      data: {
+        source: "AGENT",
+        level: "ERROR",
+        event: "workflow_reconcile_failed",
+        message,
+        agentRunId: row.id,
+        projectId: row.projectId,
+        userId: row.userId,
+      },
+    });
+    await sendFixFailedEmail(row.id, message).catch((sendErr) => {
+      console.error("[email] agent reconcile failure notification failed:", sendErr);
+    });
+  } catch {
+    // Temporal unreachable: leave the DB as-is.
+  }
+}
+
 function toRunSummary(row: {
   id: string;
   projectId: string;
@@ -269,6 +328,7 @@ function toRunSummary(row: {
   prMerged: boolean;
   branch: string | null;
   chatMessagesLeft: number;
+  orderId: string | null;
   error: string | null;
   createdAt: Date;
   finishedAt: Date | null;
@@ -286,6 +346,7 @@ function toRunSummary(row: {
     prMerged: row.prMerged,
     branch: row.branch,
     chatMessagesLeft: row.chatMessagesLeft,
+    orderId: row.orderId,
     isOpen: isRunOpen(row),
     error: row.error,
     createdAt: row.createdAt.toISOString(),
@@ -303,6 +364,17 @@ export async function listAgentRuns(
     orderBy: { createdAt: "desc" },
     take: 50,
   });
+  const openRows = rows.filter(isRunOpen);
+  if (openRows.length > 0) {
+    await Promise.all(openRows.map((row) => syncAgentRunFromTemporal(row)));
+    const freshRows = await prisma.agentRun.findMany({
+      where: { projectId, userId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    return freshRows.map(toRunSummary);
+  }
+
   return rows.map(toRunSummary);
 }
 
@@ -311,6 +383,13 @@ export async function getAgentRunDetail(
   userId: string,
   agentRunId: string,
 ): Promise<AgentRunDetail | null> {
+  const current = await prisma.agentRun.findFirst({
+    where: { id: agentRunId, userId },
+  });
+  if (!current) return null;
+
+  await syncAgentRunFromTemporal(current);
+
   const row = await prisma.agentRun.findFirst({
     where: { id: agentRunId, userId },
     include: {

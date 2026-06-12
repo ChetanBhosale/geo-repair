@@ -50,7 +50,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontSans.variable, jetbrainsMono.variable)}
+      className={cn("antialiased !overscroll-y-none", fontSans.variable, jetbrainsMono.variable)}
     >
       <body className="font-sans">
         <ThemeProvider defaultTheme="light">

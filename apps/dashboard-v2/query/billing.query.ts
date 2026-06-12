@@ -7,6 +7,7 @@ import {
   getBillingHistory,
   getBillingOrder,
   getBillingPlans,
+  reconcileBillingOrder,
 } from "@/lib/api"
 
 export function useBillingPlans() {
@@ -41,6 +42,17 @@ export function useCreateFixCheckout() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: createFixCheckout,
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["billing-history"] })
+      qc.invalidateQueries({ queryKey: ["billing-order", data.order.id] })
+    },
+  })
+}
+
+export function useReconcileBillingOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: reconcileBillingOrder,
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["billing-history"] })
       qc.invalidateQueries({ queryKey: ["billing-order", data.order.id] })

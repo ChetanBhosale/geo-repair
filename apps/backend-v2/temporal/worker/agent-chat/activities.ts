@@ -4,6 +4,7 @@ import {
   connectSandbox,
   createSandbox,
   cloneRepo,
+  refreshSandboxTimeout,
   runCommand,
   sandboxTools,
 } from "@repo/sandbox";
@@ -17,6 +18,8 @@ interface LogRef {
   userId: string;
 }
 type Source = "AGENT" | "AGENT_FILE";
+
+const CHAT_SANDBOX_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 async function writeLog(
   ref: LogRef,
@@ -117,16 +120,19 @@ export async function runChatActivity(input: AgentChatWorkflowInput): Promise<vo
   if (!run || !run.project) throw new Error("Run/project not found for chat.");
   const token = run.project.account?.accessToken ?? undefined;
   const workdir = "/home/user/repo";
+  let sandbox = null as Awaited<ReturnType<typeof createSandbox>> | null;
 
   try {
     // Revive the sandbox if alive; otherwise create a fresh one + re-clone the
     // fix branch. We keep this sandbox alive across the conversation.
-    let sandbox = null as Awaited<ReturnType<typeof createSandbox>> | null;
     if (run.sandboxId) {
       try {
         const existing = await connectSandbox(run.sandboxId);
         const probe = await runCommand(existing, "git rev-parse --abbrev-ref HEAD", { cwd: workdir });
-        if (probe.exitCode === 0) sandbox = existing;
+        if (probe.exitCode === 0) {
+          sandbox = existing;
+          await refreshSandboxTimeout(sandbox, CHAT_SANDBOX_IDLE_TIMEOUT_MS);
+        }
       } catch {
         sandbox = null;
       }
@@ -134,7 +140,7 @@ export async function runChatActivity(input: AgentChatWorkflowInput): Promise<vo
 
     if (!sandbox) {
       await writeLog(ref, "AGENT", "INFO", "sandbox_creating", "Starting a sandbox for this chat...");
-      sandbox = await createSandbox();
+      sandbox = await createSandbox({ timeoutMs: CHAT_SANDBOX_IDLE_TIMEOUT_MS });
       const { result } = await cloneRepo(sandbox, {
         cloneUrl: run.project.cloneUrl,
         branch: run.branch ?? run.project.defaultBranch,
@@ -237,6 +243,11 @@ export async function runChatActivity(input: AgentChatWorkflowInput): Promise<vo
       }
     }
   } finally {
+    if (sandbox) {
+      await refreshSandboxTimeout(sandbox, CHAT_SANDBOX_IDLE_TIMEOUT_MS).catch(
+        () => {},
+      );
+    }
     // Keep the sandbox alive for the conversation; just return to PR_OPENED so
     // the chat composer re-enables and polling settles.
     await prisma.agentRun

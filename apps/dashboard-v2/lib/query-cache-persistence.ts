@@ -16,6 +16,7 @@ const PERSISTED_QUERY_ROOTS = new Set([
   "scraping",
   "agent-runs",
   "agent-run",
+  "billing-plans",
   "billing-history",
   "billing-order",
   "worker-status",

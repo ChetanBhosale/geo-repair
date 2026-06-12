@@ -1,11 +1,20 @@
 // Input the API passes when starting a fix run. The AgentRun + AgentPlan (with
 // the user's answers) already exist; the workflow reads the checks to fix from
 // the DB inside the setup activity.
+import type { AgentPlanAnswer } from "@repo/types/agent";
+
+export const SUBMIT_FIX_DECISIONS_SIGNAL = "submitFixDecisions";
+
 export interface AgentFixWorkflowInput {
   agentRunId: string;
   agentPlanId: string;
   projectId: string;
   userId: string;
+}
+
+export interface AgentFixDecisionSignal {
+  answers: AgentPlanAnswer[];
+  submittedAt: string;
 }
 
 // One check the fix run will act on (resolved from AgentPlanCheck inside setup).
@@ -41,4 +50,9 @@ export interface FixSetup {
   // The planner's summary of the stack, reused as fix-agent context so it does
   // not re-discover the framework/layout/content sources.
   repoSummary: string;
+}
+
+export interface RevalidateSetup {
+  sandboxId: string;
+  workdir: string;
 }

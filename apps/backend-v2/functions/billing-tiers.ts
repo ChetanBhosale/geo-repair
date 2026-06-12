@@ -21,6 +21,13 @@ const FIX_TIER_RANK: Record<FixTier, number> = {
   ENTERPRISE_CUSTOM: 3,
 };
 
+const SELF_SERVE_FIX_BENEFITS = [
+  "SEO metadata fixes",
+  "AI answer-ready content",
+  "Sitemap and crawl cleanup",
+  "Image and thumbnail metadata",
+];
+
 export class BillingError extends Error {
   constructor(
     public readonly status: number,
@@ -41,8 +48,8 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     sortOrder: 0,
     selfServe: true,
     productId: Secrets.DODO_PRODUCT_ID_STARTER,
-    description: "One-time AI Search Fix for small sites.",
-    features: ["Up to 25 pages", "One reviewable fix PR", "Final re-scan"],
+    description: "AI Search Fix for small sites.",
+    features: SELF_SERVE_FIX_BENEFITS,
   },
   {
     tier: "GROWTH",
@@ -53,8 +60,8 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     sortOrder: 1,
     selfServe: true,
     productId: Secrets.DODO_PRODUCT_ID_GROWTH,
-    description: "One-time AI Search Fix for most founder sites.",
-    features: ["Up to 100 pages", "One reviewable fix PR", "Final re-scan"],
+    description: "AI Search Fix for most founder sites.",
+    features: SELF_SERVE_FIX_BENEFITS,
   },
   {
     tier: "SCALE",
@@ -65,8 +72,8 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     sortOrder: 2,
     selfServe: true,
     productId: Secrets.DODO_PRODUCT_ID_SCALE,
-    description: "One-time AI Search Fix for larger content sites.",
-    features: ["Up to 250 pages", "One reviewable fix PR", "Final re-scan"],
+    description: "AI Search Fix for larger content sites.",
+    features: SELF_SERVE_FIX_BENEFITS,
   },
   {
     tier: "ENTERPRISE_CUSTOM",

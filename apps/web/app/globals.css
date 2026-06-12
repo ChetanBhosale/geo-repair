@@ -111,6 +111,14 @@
     @apply font-sans;
     overscroll-behavior-y: none;
     }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+    }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+    }
   ::selection {
     background-color: color-mix(in oklch, var(--primary), white 68%);
     color: oklch(0.32 0.09 163);

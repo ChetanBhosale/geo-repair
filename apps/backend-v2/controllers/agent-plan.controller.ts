@@ -6,7 +6,7 @@ import {
   listAgentRuns,
   startAgentPlan,
 } from "../functions/agent-plan.service";
-import { FixError, startFix } from "../functions/fix.service";
+import { FixError, startFix, startRevalidate } from "../functions/fix.service";
 import { ChatError, startChat } from "../functions/chat.service";
 
 // POST /api/projects/:id/agent-plan
@@ -64,6 +64,23 @@ export async function postFix(req: Request, res: Response) {
     }
     return res.status(400).json({
       error: err instanceof Error ? err.message : "Failed to start fix run",
+    });
+  }
+}
+
+// POST /api/agent-runs/:id/revalidate -> re-run build/check verification on the PR branch
+export async function postRevalidate(req: Request, res: Response) {
+  const userId = req.userId!;
+  const id = String(req.params.id ?? "");
+  try {
+    const result = await startRevalidate(userId, id);
+    return res.status(202).json(result);
+  } catch (err) {
+    if (err instanceof FixError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return res.status(400).json({
+      error: err instanceof Error ? err.message : "Failed to revalidate run",
     });
   }
 }

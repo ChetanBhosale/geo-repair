@@ -1,0 +1,2 @@
+ALTER TABLE "orders"
+  ADD COLUMN IF NOT EXISTS "manualRevalidationsUsed" INTEGER NOT NULL DEFAULT 0;

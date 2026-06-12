@@ -47,6 +47,8 @@ export const OrderSummarySchema = z.object({
   fixAttemptLimit: z.number().int().positive(),
   chatMessagesUsed: z.number().int().nonnegative(),
   chatMessageLimit: z.number().int().positive(),
+  manualRevalidationsUsed: z.number().int().nonnegative(),
+  manualRevalidationLimit: z.number().int().positive(),
 });
 export type OrderSummary = z.infer<typeof OrderSummarySchema>;
 
@@ -115,6 +117,8 @@ export interface BillingOrder {
   fixAttemptLimit: number;
   chatMessagesUsed: number;
   chatMessageLimit: number;
+  manualRevalidationsUsed: number;
+  manualRevalidationLimit: number;
 }
 
 export interface BillingInvoiceLineItem {
