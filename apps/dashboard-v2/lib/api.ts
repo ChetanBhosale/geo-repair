@@ -28,6 +28,10 @@ import type {
   StartAgentPlanResponse,
   StartFixResponse,
 } from "@repo/types/agent"
+import type {
+  FeatureInterestResponse,
+  FeatureInterestState,
+} from "@repo/types/feature-interest"
 
 export interface AuthUser {
   id: string
@@ -60,6 +64,23 @@ export function getMe(): Promise<{ user: AuthUser }> {
 
 export function logout(): Promise<{ success: boolean }> {
   return request<{ success: boolean }>(ENDPOINTS.logout, { method: "POST" })
+}
+
+// --- Feature interests ---
+
+export async function getAiVisibilityInterest(): Promise<FeatureInterestState> {
+  const data = await request<FeatureInterestResponse>(
+    ENDPOINTS.aiVisibilityInterest
+  )
+  return data.interest
+}
+
+export async function markAiVisibilityInterest(): Promise<FeatureInterestState> {
+  const data = await request<FeatureInterestResponse>(
+    ENDPOINTS.aiVisibilityInterest,
+    { method: "POST" }
+  )
+  return data.interest
 }
 
 // --- Accounts (linked providers) ---

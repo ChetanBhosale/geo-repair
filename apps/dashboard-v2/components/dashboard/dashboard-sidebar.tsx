@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  ChartLineUpIcon,
   CreditCardIcon,
   FolderIcon,
   LifebuoyIcon,
@@ -21,6 +22,11 @@ type NavItem = {
 
 const MAIN_NAV: NavItem[] = [
   { label: "Projects", href: "/dashboard/projects", icon: FolderIcon },
+  {
+    label: "AI Visibility",
+    href: "/dashboard/ai-visibility",
+    icon: ChartLineUpIcon,
+  },
 ]
 
 const ACCOUNT_NAV: NavItem[] = [

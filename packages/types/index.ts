@@ -9,6 +9,7 @@ export * from "./src/agent";
 export * from "./src/fix";
 export * from "./src/entitlements";
 export * from "./src/reports";
+export * from "./src/feature-interest";
 
 // A few names are defined in two modules; explicit re-exports resolve the
 // star-export ambiguity. Consumers that need the other shape import from the

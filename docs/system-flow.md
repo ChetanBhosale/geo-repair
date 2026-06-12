@@ -23,6 +23,10 @@ workflow activities, providers, and persistence models.
   `@repo/types/entitlements` and are enforced in `apps/backend/src/temporal/fix.ts`
   (attempts), `apps/backend/src/fix/fix.service.ts` (chat), and
   `apps/backend/src/checkup/checkup.controller.ts` (scans).
+- AI Visibility: dashboard route `/dashboard/ai-visibility` is a coming-soon
+  surface. Today it only records authenticated user interest in
+  `feature_interests`; no monitoring workflow, AI platform call, report, or
+  scoring path is live yet. Product intent lives in `docs/ai-visibility.md`.
 
 `plan/plan.md` still describes some future pieces. In these diagrams,
 implementation paths are shown as current; future branches are explicitly

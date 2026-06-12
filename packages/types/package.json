@@ -14,7 +14,8 @@
     "./fix": "./src/fix.ts",
     "./billing": "./src/billing.ts",
     "./entitlements": "./src/entitlements.ts",
-    "./reports": "./src/reports.ts"
+    "./reports": "./src/reports.ts",
+    "./feature-interest": "./src/feature-interest.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

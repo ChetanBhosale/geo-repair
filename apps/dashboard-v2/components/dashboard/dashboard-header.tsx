@@ -9,6 +9,7 @@ import { useBreadcrumbState, type Crumb } from "@/context/breadcrumb"
 
 const STATIC_LABELS: Record<string, string> = {
   projects: "Projects",
+  "ai-visibility": "AI Visibility",
   purchase: "Purchase",
   support: "Support",
 }

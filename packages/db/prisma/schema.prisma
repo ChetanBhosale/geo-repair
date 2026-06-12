@@ -17,6 +17,10 @@ enum AuthProvider {
   WORDPRESS
 }
 
+enum FeatureInterestKey {
+  AI_VISIBILITY
+}
+
 // Lifecycle of one scan run.
 enum ScrapingStatus {
   QUEUED
@@ -135,8 +139,22 @@ model User {
   agentRuns    AgentRun[]
   logs         Log[]
   workerStatus WorkerStatus[]
+  featureInterests FeatureInterest[]
 
   @@map("users")
+}
+
+model FeatureInterest {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature   FeatureInterestKey
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([userId, feature])
+  @@index([feature])
+  @@map("feature_interests")
 }
 
 model Account {

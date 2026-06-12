@@ -12,6 +12,19 @@ Done:
 
 there is cdn that provides old cache after deployment too
 
+## AI Visibility placeholder
+
+Done:
+
+- Added the `AI Visibility` dashboard sidebar tab and `/dashboard/ai-visibility` coming-soon page.
+- Added authenticated interest capture through `feature_interests` with the `AI_VISIBILITY` feature key.
+- Documented the future product goal, sample-based reporting guardrails, and intended architecture in `docs/ai-visibility.md`.
+
+Pending:
+
+- Run the feature-interest DB migration in the deploy environment.
+- Replace the interest CTA with the first real snapshot workflow when prompt monitoring starts.
+
 ## Scan run (backend-v2 + dashboard-v2)
 
 Done:

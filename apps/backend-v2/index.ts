@@ -13,6 +13,7 @@ import projectRoutes from "./routes/projects.routes";
 import scrapingRoutes from "./routes/scrapings.routes";
 import agentRunRoutes from "./routes/agent-runs.routes";
 import workerStatusRoutes from "./routes/worker-status.routes";
+import featureInterestRoutes from "./routes/feature-interest.routes";
 import { createScanRouter } from "./routes/scan.routes";
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/scrapings", scrapingRoutes);
 app.use("/api/agent-runs", agentRunRoutes);
 app.use("/api/worker-status", workerStatusRoutes);
+app.use("/api/feature-interests", featureInterestRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
