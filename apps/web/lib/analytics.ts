@@ -13,6 +13,8 @@ export type AnalyticsEvent =
   | "checkup_started"
   | "checkup_completed"
   | "checkup_failed"
+  | "report_downloaded"
+  | "fix_started"
 
 type AnalyticsProperties = Record<string, string | number | boolean | undefined>
 

@@ -14,7 +14,7 @@ export function ScoreGraphic() {
             Readiness
           </p>
           <p className="font-heading text-sm font-medium text-foreground">
-            23 checks · 7 categories
+            26 checks · 7 categories
           </p>
         </div>
       </div>

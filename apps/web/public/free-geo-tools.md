@@ -16,7 +16,7 @@ Paste a URL and get the free report. The scan checks the same on-site signals th
 
 _Available now_
 
-Scores a public URL across 23 checks and returns a report with pass, partial, and fail evidence.
+Scores a public URL across 26 checks and returns a report with pass, partial, and fail evidence.
 
 - 0 to 100 readiness score
 - Route-level evidence

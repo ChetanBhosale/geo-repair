@@ -68,7 +68,7 @@ Pages that link out to primary data, research, standards bodies, and `.gov` or `
 
 Order the work by leverage. Rendering (#1) and crawl access (#2) come first because they gate everything else. Then structure and metadata (#3 to #5). Then the content signals (#6 and #7) that make a clean page worth quoting.
 
-Running these checks by hand on one page takes a few minutes. Running all 23 of them across every page in your sitemap is what our [free checkup](/#checkup) does automatically: a 0 to 100 readiness score with evidence and a fix hint for each issue, no signup or card. If you want the fixes shipped, the agent opens a pull request you review and merge. Either way the goal is the same: be a clean, sourceable page when an AI system needs one.
+Running these checks by hand on one page takes a few minutes. Running all 26 of them across every page in your sitemap is what our [free checkup](/#checkup) does automatically: a 0 to 100 readiness score with evidence and a fix hint for each issue, no signup or card. If you want the fixes shipped, the agent opens a pull request you review and merge. Either way the goal is the same: be a clean, sourceable page when an AI system needs one.
 
 ---
 

@@ -13,8 +13,9 @@ export type DemoCheck = {
   fixHint: string
 }
 
-// Canned sample report typed to the @repo/checker schema. Statuses are chosen to
-// land an overall score of 61 (43.5 / 71 weighted), a believable "decent site,
+// Canned sample report typed to the @repo/checker schema (RUBRIC.md v1.1, 26
+// scored checks + the out-of-scope SSR flag). Statuses are chosen to land an
+// overall score of 58 (44.5 / 77 weighted), a believable "decent site,
 // invisible to AI search" result. Same output regardless of the URL entered.
 export const DEMO_CHECKS: DemoCheck[] = [
   {
@@ -184,6 +185,40 @@ export const DEMO_CHECKS: DemoCheck[] = [
     fixHint: "No action needed.",
   },
   {
+    id: "content-negotiation",
+    label: "Content negotiation",
+    category: "Crawl surface",
+    weight: 3,
+    tier: "A",
+    status: "fail",
+    evidence: "Requests with Accept: text/markdown return HTML, not the Markdown twin.",
+    fixableByAgent: true,
+    fixHint: "Serve the .md twin when a client negotiates for Markdown.",
+  },
+  {
+    id: "ai-delivery-headers",
+    label: "AI delivery headers",
+    category: "Crawl surface",
+    weight: 1,
+    tier: "A",
+    status: "fail",
+    evidence: "No Vary: Accept on HTML responses, so AI fetchers can't discover the twin.",
+    fixableByAgent: true,
+    fixHint: "Emit Vary: Accept on HTML and conservative cache headers on the twin.",
+  },
+  {
+    id: "aeo-conformance",
+    label: "AEO conformance",
+    category: "Crawl surface",
+    weight: 1,
+    tier: "A",
+    status: "fail",
+    evidence: "Twin lacks X-AEO-Version and nosniff; .md URLs absent from the sitemap.",
+    fixableByAgent: true,
+    fixHint:
+      "Add X-AEO-Version and X-Content-Type-Options: nosniff on the twin, and list .md URLs in the sitemap.",
+  },
+  {
     id: "citation-quality",
     label: "Citation quality",
     category: "Content",
@@ -224,6 +259,17 @@ export const DEMO_CHECKS: DemoCheck[] = [
     tier: "A",
     status: "pass",
     evidence: "<!DOCTYPE html> present.",
+    fixableByAgent: true,
+    fixHint: "No action needed.",
+  },
+  {
+    id: "mobile-viewport",
+    label: "Mobile viewport",
+    category: "Rendering",
+    weight: 1,
+    tier: "A",
+    status: "pass",
+    evidence: "<meta name=\"viewport\"> declared with width=device-width.",
     fixableByAgent: true,
     fixHint: "No action needed.",
   },

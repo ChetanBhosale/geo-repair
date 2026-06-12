@@ -50,7 +50,7 @@ export function CategoriesGrid() {
           />
           <div className="relative z-10 flex flex-col items-start gap-3">
             <h3 className="font-heading text-lg font-medium text-white">
-              See where your site stands on all 23
+              See where your site stands on all 26
             </h3>
             <p className="max-w-md text-sm/relaxed text-white/80">
               Run the free checkup and get the full breakdown, with the exact

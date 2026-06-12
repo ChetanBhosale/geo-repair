@@ -2,7 +2,7 @@
 
 > GEO Repair runs a free AI search audit and checkup report on your website to score how ready it is for AI search engines like ChatGPT, Perplexity, and Google AI Overviews, then opens a pull request that fixes what's holding you back.
 
-GEO Repair (publicly: "AI Search Optimization") scores a site across 23 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability. An AI agent then clones the one GitHub repository you pick into an ephemeral sandbox, applies the fixes, and opens a pull request for your review. Your code is never retained and is never used to train models.
+GEO Repair (publicly: "AI Search Optimization") scores a site across 26 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability. An AI agent then clones the one GitHub repository you pick into an ephemeral sandbox, applies the fixes, and opens a pull request for your review. Your code is never retained and is never used to train models.
 
 Every page on this site has a clean Markdown twin: append `.md` to its URL (the home page is at /index.md) for a faithful text copy. The `.md` links below point to those twins.
 

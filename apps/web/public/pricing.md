@@ -16,7 +16,7 @@ Check any public site and get the full readiness picture, the same scoring our f
 
 - Check any public website
 - 0–100 readiness score with per-category subscores
-- All 23 checks across 7 categories
+- All 26 checks across 7 categories
 - Evidence and a fix hint for every issue
 - Respects your robots.txt, never touches your repo
 

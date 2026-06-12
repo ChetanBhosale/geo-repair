@@ -40,7 +40,7 @@ export const PRICING_FREE: PricingTier = {
   features: [
     "Check any public website",
     "0–100 readiness score with per-category subscores",
-    "All 23 checks across 7 categories",
+    "All 26 checks across 7 categories",
     "Evidence and a fix hint for every issue",
     "Respects your robots.txt, never touches your repo",
   ],

@@ -16,7 +16,7 @@ export const FREE_TOOLS = [
     name: "AI search readiness checkup",
     status: "Available now",
     description:
-      "Scores a public URL across 23 checks and returns a report with pass, partial, and fail evidence.",
+      "Scores a public URL across 26 checks and returns a report with pass, partial, and fail evidence.",
     checks: ["0 to 100 readiness score", "Route-level evidence", "No signup"],
   },
   {

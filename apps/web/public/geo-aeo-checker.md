@@ -6,7 +6,7 @@ source: https://geo.repair/geo-aeo-checker
 
 # Free GEO and AEO audit for AI citation and visibility.
 
-Paste a URL to run a free AEO scan and GEO scan. We score answer engine optimization and generative engine optimization across 23 checks for ChatGPT, Perplexity, and Google AI Overviews. You see what's blocking the site, then ship the fix in a pull request.
+Paste a URL to run a free AEO scan and GEO scan. We score answer engine optimization and generative engine optimization across 26 checks for ChatGPT, Perplexity, and Google AI Overviews. You see what's blocking the site, then ship the fix in a pull request.
 
 ## From invisible to cited in three steps
 
@@ -14,7 +14,7 @@ Start with a checkup, read the diagnosis, and review the pull request when the f
 
 ### 01 · Run the free checkup
 
-Paste your URL. We fetch your site the way an AI crawler does and score it across 23 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability.
+Paste your URL. We fetch your site the way an AI crawler does and score it across 26 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability.
 
 ### 02 · See exactly what's broken
 
@@ -24,14 +24,14 @@ Get a 0 to 100 readiness score with per-category subscores and the precise evide
 
 The agent clones the one repo you pick into an ephemeral sandbox, applies the structural and content fixes, verifies the build and types, and opens a pull request. You review and merge, and nothing ships without you.
 
-## 23 checks, grouped into 7 categories
+## 26 checks, grouped into 7 categories
 
 One transparent, versioned rubric powers the free checkup, the agent's fix targets, and the post-merge re-check, so the score you're sold is the score we re-measure.
 
-- **Rendering** (3 checks): Is your content in the HTML before JavaScript runs? AI crawlers read the raw response, so server-rendered content, a valid doctype, and a declared charset decide whether they see anything at all.
+- **Rendering** (3 checks): AI crawlers read the raw response, so a valid doctype, a declared charset, and a mobile viewport decide whether they parse it at all. We also flag client-only rendering that hides your content before JavaScript runs.
 - **Structured data** (1 check): Valid JSON-LD (Organization and WebSite site-wide, Article and BreadcrumbList where they belong) so engines know what each page actually is.
 - **Metadata** (6 checks): Titles and descriptions sized for the SERP, self-referential canonicals, complete Open Graph and Twitter cards, favicons, and a social image that unfurls.
-- **Crawl surface** (4 checks): A robots.txt that welcomes GPTBot, ClaudeBot, and PerplexityBot, a valid sitemap, an /llms.txt index, and pages that stay eligible to index.
+- **Crawl surface** (7 checks): A robots.txt that welcomes GPTBot, ClaudeBot, and PerplexityBot, a valid sitemap, an /llms.txt index, pages that stay eligible to index, content negotiation, AI-delivery headers, and an AEO-conformant Markdown endpoint.
 - **Semantics** (3 checks): One H1, a clean heading hierarchy, page landmarks, accurate alt text, and an accessible name on every control: the machine-eye view of your page.
 - **Content** (4 checks): Descriptive internal links, visible dates and authorship, citations to trusted sources, and a clean Markdown twin of every page: the signals that correlate with getting quoted.
 - **Answerability** (2 checks): Question-shaped headings, answer-first writing, and defined terms an AI engine can lift straight into a response.
@@ -41,7 +41,7 @@ One transparent, versioned rubric powers the free checkup, the agent's fix targe
 Every check returns a status, the evidence behind it (the offending route, tag, or missing markup), and whether the agent can fix it. No black box.
 
 - 0 to 100 overall score with per-category subscores
-- Pass, partial, or fail on all 23 checks
+- Pass, partial, or fail on all 26 checks
 - Reproducible: the same input always scores the same
 
 ## Fixes arrive as a pull request
@@ -65,7 +65,7 @@ The free checkup runs on your public pages. The fix agent runs on one repo, in a
 
 ### What is a GEO and AEO checker?
 
-A GEO and AEO checker audits how ready a website is for generative engine optimization (GEO) and answer engine optimization (AEO). It checks how easily AI engines like ChatGPT and Perplexity can read, understand, and cite the site. GEO Repair runs 23 checks and returns a 0 to 100 report with the exact issues to fix.
+A GEO and AEO checker audits how ready a website is for generative engine optimization (GEO) and answer engine optimization (AEO). It checks how easily AI engines like ChatGPT and Perplexity can read, understand, and cite the site. GEO Repair runs 26 checks and returns a 0 to 100 report with the exact issues to fix.
 
 ### How does the AI citation checker work?
 
@@ -77,7 +77,7 @@ GEO (generative engine optimization) is the broad practice of optimizing a site 
 
 ### Is this a free AEO audit and GEO scan?
 
-Yes. The AEO audit, AEO scan, GEO scan, and checkup report are free. No signup is needed. You get the full 23-check breakdown with an overall AI search readiness score. Paid plans add the agent that opens fix pull requests for you.
+Yes. The AEO audit, AEO scan, GEO scan, and checkup report are free. No signup is needed. You get the full 26-check breakdown with an overall AI search readiness score. Paid plans add the agent that opens fix pull requests for you.
 
 ### Do you store or train on my code?
 

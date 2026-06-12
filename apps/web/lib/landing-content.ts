@@ -38,7 +38,7 @@ export const HOME_CONTENT: LandingContent = {
   ctaLabel: "Run free checkup",
   inputId: "checkup-url",
   trustChips: [
-    "23 checks · 7 categories",
+    "26 checks · 7 categories",
     "Fixes in a reviewable PR",
     "Zero data retention",
   ],
@@ -56,7 +56,7 @@ export const HOME_CONTENT: LandingContent = {
     {
       question: "Is the checkup really free?",
       answer:
-        "Yes. The free AEO and GEO scan needs no signup. It returns an AI search checkup report across all 23 checks and shows what an AI engine sees. You only pay if you want the agent to open fix pull requests for you.",
+        "Yes. The free AEO and GEO scan needs no signup. It returns an AI search checkup report across all 26 checks and shows what an AI engine sees. You only pay if you want the agent to open fix pull requests for you.",
     },
     SHARED_TRUST,
     {
@@ -96,7 +96,7 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStep[] = [
   {
     n: "01",
     title: "Run the free checkup",
-    body: "Paste your URL. We fetch your site the way an AI crawler does and score it across 23 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability.",
+    body: "Paste your URL. We fetch your site the way an AI crawler does and score it across 26 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability.",
   },
   {
     n: "02",
@@ -126,7 +126,7 @@ export const LANDING_FEATURES: LandingFeature[] = [
       "Every check returns a status, the evidence behind it (the offending route, tag, or missing markup), and whether the agent can fix it. No black box.",
     points: [
       "0 to 100 overall score with per-category subscores",
-      "Pass, partial, or fail on all 23 checks",
+      "Pass, partial, or fail on all 26 checks",
       "Reproducible: the same input always scores the same",
     ],
   },
@@ -152,7 +152,7 @@ export const CHECKER_CONTENT: LandingContent = {
   headline: "Free GEO and AEO audit for",
   headlineAccent: "AI citation and visibility.",
   subhead:
-    "Paste a URL to run a free AEO scan and GEO scan. We score answer engine optimization and generative engine optimization across 23 checks for ChatGPT, Perplexity, and Google AI Overviews. You see what's blocking the site, then ship the fix in a pull request.",
+    "Paste a URL to run a free AEO scan and GEO scan. We score answer engine optimization and generative engine optimization across 26 checks for ChatGPT, Perplexity, and Google AI Overviews. You see what's blocking the site, then ship the fix in a pull request.",
   ctaLabel: "Check my site",
   inputId: "checker-url",
   trustChips: [
@@ -164,7 +164,7 @@ export const CHECKER_CONTENT: LandingContent = {
     {
       question: "What is a GEO and AEO checker?",
       answer:
-        "A GEO and AEO checker audits how ready a website is for generative engine optimization (GEO) and answer engine optimization (AEO). It checks how easily AI engines like ChatGPT and Perplexity can read, understand, and cite the site. GEO Repair runs 23 checks and returns a 0 to 100 report with the exact issues to fix.",
+        "A GEO and AEO checker audits how ready a website is for generative engine optimization (GEO) and answer engine optimization (AEO). It checks how easily AI engines like ChatGPT and Perplexity can read, understand, and cite the site. GEO Repair runs 26 checks and returns a 0 to 100 report with the exact issues to fix.",
     },
     {
       question: "How does the AI citation checker work?",
@@ -179,7 +179,7 @@ export const CHECKER_CONTENT: LandingContent = {
     {
       question: "Is this a free AEO audit and GEO scan?",
       answer:
-        "Yes. The AEO audit, AEO scan, GEO scan, and checkup report are free. No signup is needed. You get the full 23-check breakdown with an overall AI search readiness score. Paid plans add the agent that opens fix pull requests for you.",
+        "Yes. The AEO audit, AEO scan, GEO scan, and checkup report are free. No signup is needed. You get the full 26-check breakdown with an overall AI search readiness score. Paid plans add the agent that opens fix pull requests for you.",
     },
     SHARED_TRUST,
     {

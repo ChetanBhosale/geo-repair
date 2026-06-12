@@ -3,9 +3,12 @@
 import { useRef, useState, type FormEvent } from "react"
 import {
   ArrowClockwiseIcon,
+  ArrowRightIcon,
+  DownloadSimpleIcon,
   GlobeSimpleIcon,
   MagnifyingGlassIcon,
   WarningCircleIcon,
+  WrenchIcon,
 } from "@phosphor-icons/react/ssr"
 
 import FrontendSecrets from "@repo/secrets/frontend"
@@ -14,47 +17,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScoreRing } from "@/components/demo/score-ring"
 import { capture } from "@/lib/analytics"
+import { dashboardFixHref } from "@/lib/dashboard-url"
+import {
+  type ScanResult,
+  type SiteCheck,
+  categoryColor,
+  hostnameOf,
+  statusLabel,
+  storeScan,
+} from "@/lib/scan-result"
 
 type FormState = "idle" | "running" | "complete" | "error"
-
-type CheckStatus =
-  | "SUCCESS"
-  | "MID"
-  | "FAILED"
-  | "NOT_APPLICABLE"
-  | "INCONCLUSIVE"
-
-type CategoryScore = {
-  score: number
-  status: CheckStatus
-}
-
-type SiteCheck = {
-  name: string
-  category: string
-  status: CheckStatus
-  weight: number
-  summary: string
-  recommendation: string | null
-  affectedPages: { page: string }[]
-}
-
-type ScanResult = {
-  url: string
-  finalUrl: string
-  status: "completed" | "failed"
-  error: string | null
-  score: {
-    overall: number
-    status: CheckStatus
-    byCategory: Record<string, CategoryScore>
-  }
-  crawl: {
-    pagesChecked: number
-    pagesDiscovered: number
-  }
-  checks: SiteCheck[]
-}
 
 const SCAN_ENDPOINT = `${FrontendSecrets.OPEN_BACKEND ?? ""}/scan-website`
 
@@ -67,40 +40,11 @@ function isErrorPayload(value: unknown): value is { error: string } {
   )
 }
 
-function categoryColor(score: number): string {
-  if (score >= 80) return "bg-success"
-  if (score >= 50) return "bg-warning"
-  return "bg-destructive"
-}
-
-function statusLabel(status: CheckStatus): string {
-  switch (status) {
-    case "SUCCESS":
-      return "pass"
-    case "MID":
-      return "partial"
-    case "FAILED":
-      return "fail"
-    case "NOT_APPLICABLE":
-      return "n/a"
-    case "INCONCLUSIVE":
-      return "unclear"
-  }
-}
-
 function topIssues(result: ScanResult): SiteCheck[] {
   return result.checks
     .filter((check) => check.status === "FAILED" || check.status === "MID")
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 5)
-}
-
-function hostnameOf(value: string): string {
-  try {
-    return new URL(value).hostname
-  } catch {
-    return value
-  }
 }
 
 export function FreeScanForm({
@@ -155,6 +99,7 @@ export function FreeScanForm({
       }
 
       setResult(scan)
+      storeScan(scan)
       setState("complete")
       capture("checkup_completed", {
         location: "hero",
@@ -170,6 +115,26 @@ export function FreeScanForm({
       setState("error")
       capture("checkup_failed", { location: "hero", reason: message })
     }
+  }
+
+  function onDownloadReport() {
+    if (!result) return
+    storeScan(result)
+    capture("report_downloaded", {
+      location: "hero",
+      website: result.finalUrl,
+      overall: result.score.overall,
+    })
+    window.open("/report", "_blank", "noopener,noreferrer")
+  }
+
+  function onStartFix() {
+    if (!result) return
+    capture("fix_started", {
+      location: "hero",
+      website: result.finalUrl,
+      overall: result.score.overall,
+    })
   }
 
   const isBusy = state === "running"
@@ -280,6 +245,26 @@ export function FreeScanForm({
                 {result.crawl.pagesChecked === 1 ? "page" : "pages"} checked
               </span>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2 bg-card p-4 sm:flex-row">
+            <Button asChild size="lg" className="h-10 flex-1" onClick={onStartFix}>
+              <a href={dashboardFixHref(result.finalUrl)}>
+                <WrenchIcon aria-hidden />
+                Start the fix
+                <ArrowRightIcon aria-hidden />
+              </a>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="h-10 flex-1"
+              onClick={onDownloadReport}
+            >
+              <DownloadSimpleIcon aria-hidden />
+              Download full report
+            </Button>
           </div>
 
           {categories.length > 0 && (

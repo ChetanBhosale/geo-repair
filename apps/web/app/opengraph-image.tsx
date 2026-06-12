@@ -116,7 +116,7 @@ export default async function Image() {
           >
             <div style={{ display: "flex", fontWeight: 600 }}>{SITE.name}</div>
             <div style={{ display: "flex", color: "rgba(255,255,255,0.75)" }}>
-              23 checks · 7 categories · zero retention
+              26 checks · 7 categories · zero retention
             </div>
           </div>
         </div>

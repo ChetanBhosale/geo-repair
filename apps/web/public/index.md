@@ -14,7 +14,7 @@ Start with a checkup, read the diagnosis, and review the pull request when the f
 
 ### 01 · Run the free checkup
 
-Paste your URL. We fetch your site the way an AI crawler does and score it across 23 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability.
+Paste your URL. We fetch your site the way an AI crawler does and score it across 26 checks in 7 categories: rendering, structured data, metadata, crawl surface, semantics, content, and answerability.
 
 ### 02 · See exactly what's broken
 
@@ -24,14 +24,14 @@ Get a 0 to 100 readiness score with per-category subscores and the precise evide
 
 The agent clones the one repo you pick into an ephemeral sandbox, applies the structural and content fixes, verifies the build and types, and opens a pull request. You review and merge, and nothing ships without you.
 
-## 23 checks, grouped into 7 categories
+## 26 checks, grouped into 7 categories
 
 One transparent, versioned rubric powers the free checkup, the agent's fix targets, and the post-merge re-check, so the score you're sold is the score we re-measure.
 
-- **Rendering** (3 checks): Is your content in the HTML before JavaScript runs? AI crawlers read the raw response, so server-rendered content, a valid doctype, and a declared charset decide whether they see anything at all.
+- **Rendering** (3 checks): AI crawlers read the raw response, so a valid doctype, a declared charset, and a mobile viewport decide whether they parse it at all. We also flag client-only rendering that hides your content before JavaScript runs.
 - **Structured data** (1 check): Valid JSON-LD (Organization and WebSite site-wide, Article and BreadcrumbList where they belong) so engines know what each page actually is.
 - **Metadata** (6 checks): Titles and descriptions sized for the SERP, self-referential canonicals, complete Open Graph and Twitter cards, favicons, and a social image that unfurls.
-- **Crawl surface** (4 checks): A robots.txt that welcomes GPTBot, ClaudeBot, and PerplexityBot, a valid sitemap, an /llms.txt index, and pages that stay eligible to index.
+- **Crawl surface** (7 checks): A robots.txt that welcomes GPTBot, ClaudeBot, and PerplexityBot, a valid sitemap, an /llms.txt index, pages that stay eligible to index, content negotiation, AI-delivery headers, and an AEO-conformant Markdown endpoint.
 - **Semantics** (3 checks): One H1, a clean heading hierarchy, page landmarks, accurate alt text, and an accessible name on every control: the machine-eye view of your page.
 - **Content** (4 checks): Descriptive internal links, visible dates and authorship, citations to trusted sources, and a clean Markdown twin of every page: the signals that correlate with getting quoted.
 - **Answerability** (2 checks): Question-shaped headings, answer-first writing, and defined terms an AI engine can lift straight into a response.
@@ -41,7 +41,7 @@ One transparent, versioned rubric powers the free checkup, the agent's fix targe
 Every check returns a status, the evidence behind it (the offending route, tag, or missing markup), and whether the agent can fix it. No black box.
 
 - 0 to 100 overall score with per-category subscores
-- Pass, partial, or fail on all 23 checks
+- Pass, partial, or fail on all 26 checks
 - Reproducible: the same input always scores the same
 
 ## Fixes arrive as a pull request
@@ -73,7 +73,7 @@ Traditional SEO optimizes for ranking blue links; AI Search Optimization optimiz
 
 ### Is the checkup really free?
 
-Yes. The free AEO and GEO scan needs no signup. It returns an AI search checkup report across all 23 checks and shows what an AI engine sees. You only pay if you want the agent to open fix pull requests for you.
+Yes. The free AEO and GEO scan needs no signup. It returns an AI search checkup report across all 26 checks and shows what an AI engine sees. You only pay if you want the agent to open fix pull requests for you.
 
 ### Do you store or train on my code?
 
