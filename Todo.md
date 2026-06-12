@@ -348,6 +348,13 @@ Done:
   checks by weight). Loading + error + "run another" states. PostHog events reuse
   checkup_started/completed/failed. Replaced the "Free scan coming soon" block in
   `components/sections/landing.tsx` with this form (re-enabled CornerMarks).
+- Completed free scans auto-scroll the results panel into the viewport, with
+  reduced-motion respected.
+- Free scan fix handoff now targets `/dashboard/projects?website=...`, defaults
+  to `http://localhost:3000` in local dev when `NEXT_PUBLIC_DASHBOARD_URL` is
+  not set, and production still defaults to `https://dashboard.geo.repair`.
+  Dashboard keeps `/onboarding` as a compatibility redirect and pre-fills the
+  create-project dialog from the scanned website query param.
 - Verified: backend-v2 check-types clean, web typecheck clean, new files lint clean; live smoke —
   invalid url -> 400 zod message, `/health` OK, `POST /scan-website {linkrunner.io, singlePage}` ->
   completed, score 94.

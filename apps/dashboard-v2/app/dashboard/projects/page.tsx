@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import {
   GithubLogoIcon,
   MagnifyingGlassIcon,
@@ -21,10 +22,23 @@ import { ProjectFavicon } from "@/components/dashboard/project-favicon"
 
 export default function ProjectsPage() {
   useBreadcrumbs([{ label: "Projects" }])
+  const searchParams = useSearchParams()
+  const websiteParam = searchParams.get("website")
   const github = useIsGithubConnected()
   const projects = useProjects(github.isConnected)
   const [search, setSearch] = React.useState("")
-  const [createOpen, setCreateOpen] = React.useState(false)
+  const [manualCreateOpen, setManualCreateOpen] = React.useState(false)
+  const [dismissedHandoffWebsite, setDismissedHandoffWebsite] = React.useState<
+    string | null
+  >(null)
+  const handoffWebsite =
+    github.isConnected &&
+    websiteParam &&
+    dismissedHandoffWebsite !== websiteParam
+      ? websiteParam
+      : null
+  const createOpen = manualCreateOpen || !!handoffWebsite
+  const initialWebsite = handoffWebsite
 
   const filtered = React.useMemo(() => {
     const list = projects.data ?? []
@@ -36,6 +50,17 @@ export default function ProjectsPage() {
         (p.websiteUrl ?? "").toLowerCase().includes(q)
     )
   }, [projects.data, search])
+
+  function openBlankCreateDialog() {
+    setManualCreateOpen(true)
+  }
+
+  function onCreateOpenChange(next: boolean) {
+    if (!next && handoffWebsite) {
+      setDismissedHandoffWebsite(handoffWebsite)
+    }
+    setManualCreateOpen(next)
+  }
 
   if (github.isLoading) {
     return <PageLoader />
@@ -54,7 +79,10 @@ export default function ProjectsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <Button
+            size="sm"
+            onClick={openBlankCreateDialog}
+          >
             <PlusIcon className="size-4" />
             Add New
           </Button>
@@ -69,7 +97,7 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <CreateProjectCard
             firstProject={(projects.data?.length ?? 0) === 0}
-            onClick={() => setCreateOpen(true)}
+            onClick={openBlankCreateDialog}
           />
           {filtered.map((project) => (
             <ProjectCard key={project.id} project={project} />
@@ -77,7 +105,12 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateProjectDialog
+        key={initialWebsite ?? "blank"}
+        open={createOpen}
+        initialWebsite={initialWebsite}
+        onOpenChange={onCreateOpenChange}
+      />
     </div>
   )
 }

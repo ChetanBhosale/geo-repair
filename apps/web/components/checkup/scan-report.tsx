@@ -1,6 +1,7 @@
 import { Logo } from "@/components/layout/logo"
 import { ScoreRing } from "@/components/demo/score-ring"
 import { SiteFavicon } from "@/components/checkup/site-favicon"
+import { DASHBOARD_DISPLAY_HOST } from "@/lib/dashboard-url"
 import { cn } from "@/lib/utils"
 import {
   type CheckStatus,
@@ -256,7 +257,7 @@ export function ScanReport({ result }: { result: ScanResult }) {
           without you.
         </p>
         <p className="mt-1 font-mono text-xs tracking-wide text-white/70">
-          Start your fix at dashboard.geo.repair
+          Start your fix at {DASHBOARD_DISPLAY_HOST}
         </p>
       </footer>
     </article>

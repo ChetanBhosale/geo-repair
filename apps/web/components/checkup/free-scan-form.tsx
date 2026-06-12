@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import {
   ArrowClockwiseIcon,
   ArrowRightIcon,
@@ -31,6 +31,7 @@ import {
 type FormState = "idle" | "running" | "complete" | "error"
 
 const SCAN_ENDPOINT = `${FrontendSecrets.OPEN_BACKEND ?? ""}/scan-website`
+const RESULTS_SCROLL_OFFSET_PX = 128
 
 function isErrorPayload(value: unknown): value is { error: string } {
   return (
@@ -58,6 +59,32 @@ export function FreeScanForm({
   const [error, setError] = useState("")
   const [result, setResult] = useState<ScanResult | null>(null)
   const runIdRef = useRef(0)
+  const resultPanelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (state !== "complete" || !result) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches
+
+      const panel = resultPanelRef.current
+      if (!panel) return
+
+      const top =
+        panel.getBoundingClientRect().top +
+        window.scrollY -
+        RESULTS_SCROLL_OFFSET_PX
+
+      window.scrollTo({
+        top: Math.max(0, top),
+        behavior: reducedMotion ? "auto" : "smooth",
+      })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [result, state])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -228,7 +255,11 @@ export function FreeScanForm({
       )}
 
       {result && state === "complete" && (
-        <div className="grid gap-px bg-border text-left" aria-live="polite">
+        <div
+          ref={resultPanelRef}
+          className="grid scroll-mt-24 gap-px bg-border text-left"
+          aria-live="polite"
+        >
           <div className="grid gap-px bg-border sm:grid-cols-[auto_1fr]">
             <div className="flex items-center justify-center bg-card p-4">
               <ScoreRing score={Math.round(result.score.overall)} size={104} />

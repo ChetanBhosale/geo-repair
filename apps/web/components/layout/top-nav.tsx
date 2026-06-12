@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/sheet"
 import { NAV_LINKS } from "@/lib/navigation"
 import { capture } from "@/lib/analytics"
-import { DASHBOARD_ONBOARDING_HREF } from "@/lib/dashboard-url"
+import { DASHBOARD_PROJECTS_HREF } from "@/lib/dashboard-url"
 import { Logo } from "./logo"
 
 const PRIMARY_CTA_LABEL = "Get started"
@@ -51,12 +51,12 @@ export function TopNav() {
           </Button>
           <Button asChild>
             <Link
-              href={DASHBOARD_ONBOARDING_HREF}
+              href={DASHBOARD_PROJECTS_HREF}
               onClick={() =>
                 capture("cta_clicked", {
                   location: "nav",
                   label: PRIMARY_CTA_LABEL,
-                  href: DASHBOARD_ONBOARDING_HREF,
+                  href: DASHBOARD_PROJECTS_HREF,
                 })
               }
             >
@@ -106,12 +106,12 @@ export function TopNav() {
               </Link>
               <Button asChild className="mt-3">
                 <Link
-                  href={DASHBOARD_ONBOARDING_HREF}
+                  href={DASHBOARD_PROJECTS_HREF}
                   onClick={() => {
                     capture("cta_clicked", {
                       location: "nav_mobile",
                       label: PRIMARY_CTA_LABEL,
-                      href: DASHBOARD_ONBOARDING_HREF,
+                      href: DASHBOARD_PROJECTS_HREF,
                     })
                     setOpen(false)
                   }}

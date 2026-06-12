@@ -2,7 +2,7 @@ import { ArrowRightIcon } from "@phosphor-icons/react/ssr"
 
 import { CtaButton } from "@/components/analytics/cta-button"
 import { type LandingContent, LANDING_FEATURES } from "@/lib/landing-content"
-import { DASHBOARD_ONBOARDING_HREF } from "@/lib/dashboard-url"
+import { DASHBOARD_PROJECTS_HREF } from "@/lib/dashboard-url"
 import { AsciiOverlay } from "@/components/ascii/ascii-overlay"
 import { Reveal } from "@/components/ui/reveal"
 import { FreeScanForm } from "@/components/checkup/free-scan-form"
@@ -54,7 +54,7 @@ export function LandingPage({ content }: { content: LandingContent }) {
             </p>
 
             <CtaButton
-              href={DASHBOARD_ONBOARDING_HREF}
+              href={DASHBOARD_PROJECTS_HREF}
               location="hero"
               label="Get started"
               size="lg"

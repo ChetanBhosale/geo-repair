@@ -15,6 +15,41 @@ type LoadState =
   | { state: "ready"; order: OrderSummary; error: null }
   | { state: "error"; order: null; error: string }
 
+type DirectDodoTest = {
+  orderId: string
+  paymentId: string | null
+  status: string | null
+  plan: string
+}
+
+function directDodoTestDetails({
+  orderId,
+  paymentId,
+  returnStatus,
+}: {
+  orderId: string
+  paymentId?: string
+  returnStatus?: string
+}): DirectDodoTest | null {
+  if (
+    process.env.NODE_ENV === "production" ||
+    !orderId.startsWith("direct-dodo-")
+  ) {
+    return null
+  }
+
+  const plan =
+    orderId.match(/^direct-dodo-([a-z]+)-/)?.[1]?.toUpperCase() ??
+    "UNKNOWN"
+
+  return {
+    orderId,
+    paymentId: paymentId ?? null,
+    status: returnStatus ?? null,
+    plan,
+  }
+}
+
 function formatPrice(order: OrderSummary): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -72,6 +107,10 @@ export function CheckoutReturnClient({
   paymentId?: string
   returnStatus?: string
 }) {
+  const directTest = useMemo(
+    () => directDodoTestDetails({ orderId, paymentId, returnStatus }),
+    [orderId, paymentId, returnStatus]
+  )
   const [loadState, setLoadState] = useState<LoadState>({
     state: "loading",
     order: null,
@@ -79,6 +118,8 @@ export function CheckoutReturnClient({
   })
 
   useEffect(() => {
+    if (directTest) return
+
     let active = true
     let timer: ReturnType<typeof setInterval> | null = null
 
@@ -174,7 +215,7 @@ export function CheckoutReturnClient({
       active = false
       if (timer) clearInterval(timer)
     }
-  }, [orderId, paymentId, returnStatus])
+  }, [directTest, orderId, paymentId, returnStatus])
 
   const copy = useMemo(() => {
     if (loadState.state !== "ready") return null
@@ -182,6 +223,10 @@ export function CheckoutReturnClient({
   }, [loadState])
 
   if (loadState.state === "loading") {
+    if (directTest) {
+      return <DirectDodoTestResult test={directTest} />
+    }
+
     return (
       <div className="border border-border bg-card p-8 text-center">
         <p className="font-heading text-xl font-medium text-foreground">
@@ -256,6 +301,64 @@ export function CheckoutReturnClient({
         ) : (
           <Button disabled>Waiting for payment</Button>
         )}
+      </div>
+    </div>
+  )
+}
+
+function DirectDodoTestResult({ test }: { test: DirectDodoTest }) {
+  const succeeded = test.status === "succeeded"
+
+  return (
+    <div className="border border-border bg-card">
+      <div className="border-b border-border p-8 text-center">
+        <p className="font-heading text-2xl font-medium text-foreground">
+          {succeeded ? "Dodo test payment received" : "Dodo test returned"}
+        </p>
+        <p className="mx-auto mt-3 max-w-lg text-sm/relaxed text-muted-foreground">
+          This was a direct Dodo test session, not an app-backed order. Dodo
+          returned successfully, but the fix unlock and order reconciliation are
+          skipped for this test link.
+        </p>
+      </div>
+
+      <dl className="grid gap-px bg-border text-sm sm:grid-cols-2">
+        <div className="bg-card p-5">
+          <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+            Test order
+          </dt>
+          <dd className="mt-2 break-all font-mono text-xs text-foreground">
+            {test.orderId}
+          </dd>
+        </div>
+        <div className="bg-card p-5">
+          <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+            Plan
+          </dt>
+          <dd className="mt-2 text-foreground">{test.plan}</dd>
+        </div>
+        <div className="bg-card p-5">
+          <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+            Payment
+          </dt>
+          <dd className="mt-2 break-all font-mono text-xs text-foreground">
+            {test.paymentId ?? "Not returned"}
+          </dd>
+        </div>
+        <div className="bg-card p-5">
+          <dt className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+            Status
+          </dt>
+          <dd className="mt-2 text-foreground">
+            {test.status ?? "Not returned"}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="p-6">
+        <p className="text-xs/relaxed text-muted-foreground">
+          Use migrated app-backed orders to test the full unlock flow.
+        </p>
       </div>
     </div>
   )

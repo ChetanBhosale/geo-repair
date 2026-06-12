@@ -21,15 +21,19 @@ import { CreateProjectRequestSchema } from "@repo/types/project"
 export function CreateProjectDialog({
   open,
   onOpenChange,
+  initialWebsite,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialWebsite?: string | null
 }) {
   const repos = useGithubRepos(open)
   const createProject = useCreateProject()
   const [search, setSearch] = React.useState("")
   const [selected, setSelected] = React.useState<GithubRepo | null>(null)
-  const [website, setWebsite] = React.useState("")
+  const [website, setWebsite] = React.useState(() =>
+    websiteInputFromUrl(initialWebsite)
+  )
   const [fieldError, setFieldError] = React.useState<string | null>(null)
 
   function reset() {
@@ -197,4 +201,18 @@ export function CreateProjectDialog({
 // with https://https://example.com.
 function stripProtocol(value: string): string {
   return value.replace(/^\s*https?:\/\//i, "").replace(/^\s+/, "")
+}
+
+function websiteInputFromUrl(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? ""
+  if (!trimmed) return ""
+
+  try {
+    const parsed = new URL(
+      /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+    )
+    return parsed.hostname
+  } catch {
+    return stripProtocol(trimmed).split(/[/?#]/)[0] ?? ""
+  }
 }
