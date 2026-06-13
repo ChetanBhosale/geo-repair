@@ -96,7 +96,12 @@ export function planCheck(check: PlanCheckInput): PlannedCheck {
   // AEO-delivery checks create routes/middleware/headers from the page's own
   // content, so they're AUTO (no user judgment) even though their action is
   // add_*. Everything else that adds pages/content asks the user first.
-  const AEO_DELIVERY = new Set(["markdown-twin", "content-negotiation", "ai-delivery-headers", "aeo-conformance"]);
+  const AEO_DELIVERY = new Set([
+    "markdown-twin",
+    "content-negotiation",
+    "ai-delivery-headers",
+    "aeo-conformance",
+  ]);
   const needsInput =
     !AEO_DELIVERY.has(check.rubricId) &&
     (check.recommendedAction === "add_page" ||
@@ -158,7 +163,7 @@ const PLANNER_SYSTEM = `You are the GEO Repair planning agent. A scan graded a w
 Return ONLY a single JSON object (no markdown, no prose around it) with this shape:
 {
   "mode": "AUTO" | "NEEDS_INPUT" | "MANUAL",
-  "narration": "one short, friendly, jargon-free sentence describing what you'll do for this check (streams live to the user)",
+  "narration": "one natural, human-sounding sentence, occasionally two, explaining what this check needs and why the next step follows. Vary the phrasing and avoid repetitive 'I will...' openings.",
   "approach": "plain-language description of the exact change that makes this check pass",
   "targetPages": [{ "url": "<affected page url>", "action": "modify" | "create" | "delete", "reason": "why" }],
   "question": "only when mode is NEEDS_INPUT: the yes/no question to ask the user, else null",
@@ -185,7 +190,10 @@ interface AiPlanJson {
 }
 
 function parseJsonObject(raw: string): AiPlanJson | null {
-  const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "");
+  const trimmed = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```$/i, "");
   try {
     return JSON.parse(trimmed) as AiPlanJson;
   } catch {
@@ -207,7 +215,9 @@ export interface AiPlanResult {
 
 // Plan one check with the model. Throws if the model is unavailable so the
 // activity can fall back to the deterministic planner.
-export async function aiPlanCheck(check: PlanCheckInput): Promise<AiPlanResult> {
+export async function aiPlanCheck(
+  check: PlanCheckInput,
+): Promise<AiPlanResult> {
   const raw = await chat(
     [
       { role: "system", content: PLANNER_SYSTEM },

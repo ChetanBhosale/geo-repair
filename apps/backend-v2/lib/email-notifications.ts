@@ -263,7 +263,7 @@ export async function sendFixFailedEmail(
   );
 }
 
-export async function sendChatLimitReachedEmail(
+export async function sendAiCreditsExhaustedEmail(
   agentRunId: string,
 ): Promise<void> {
   const run = await prisma.agentRun.findUnique({
@@ -277,7 +277,7 @@ export async function sendChatLimitReachedEmail(
   if (!run) return;
 
   await sendBestEffort(
-    "chatLimitReached",
+    "aiCreditsExhausted",
     {
       projectName: run.project.fullName || run.project.name,
       prUrl: run.prUrl ?? undefined,

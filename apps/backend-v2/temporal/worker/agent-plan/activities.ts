@@ -1,11 +1,24 @@
 import { prisma } from "@repo/db";
 import type { Prisma } from "@repo/db/generated/prisma/client";
-import { createSandbox, cloneRepo, killSandbox, sandboxTools } from "@repo/sandbox";
-import { runAgent, DEFAULT_MODEL, type AgentTool, type AgentStepLog } from "@repo/ai";
+import {
+  createSandbox,
+  cloneRepo,
+  killSandbox,
+  sandboxTools,
+} from "@repo/sandbox";
+import {
+  runAgent,
+  DEFAULT_MODEL,
+  type AgentTool,
+  type AgentStepLog,
+} from "@repo/ai";
 import { planCheck } from "./planner";
 import type { PlanCheckInput, PlannedCheck } from "./types";
 import type { AgentPlanWorkflowInput } from "./workflow-types";
-import { sendFixFailedEmail, sendFixPlanReadyEmail } from "../../../lib/email-notifications";
+import {
+  sendFixFailedEmail,
+  sendFixPlanReadyEmail,
+} from "../../../lib/email-notifications";
 
 // ---------------------------------------------------------------------------
 // Logging: append a chat/activity row. A monotonic seq per run keeps order even
@@ -23,7 +36,11 @@ function makeLogger(ref: LogRef) {
   return async (
     event: string,
     message: string,
-    opts: { level?: "INFO" | "WARN" | "ERROR"; agentPlanId?: string; data?: Prisma.InputJsonValue } = {},
+    opts: {
+      level?: "INFO" | "WARN" | "ERROR";
+      agentPlanId?: string;
+      data?: Prisma.InputJsonValue;
+    } = {},
   ) => {
     await prisma.log
       .create({
@@ -59,7 +76,7 @@ Work like this:
 2. For each failing check, look at the real files that would change.
 3. Decide each check's path: AUTO (safe markup/structural fix over existing content, no user input), NEEDS_INPUT (net-new content or a judgment only the user can make), or MANUAL (impossible to do safely in code).
 
-Think out loud: before a tool call drop ONE short, natural, jargon-free sentence about what you're doing (these stream live to the user). Vary your phrasing.
+Narrate like a human engineer as you inspect. Before a tool call or small batch, write one natural sentence, or two when the step needs context, that connects what you just learned to why the next move matters. Vary the openings, avoid robotic phrases like "I will" or "I am going to" on repeat, and do not merely restate the tool name.
 
 When you are done inspecting, STOP using tools and return ONLY this JSON object (no markdown, no prose around it):
 {
@@ -97,7 +114,11 @@ interface ParsedPlanItem {
   rubricId?: string;
   mode?: string;
   approach?: string;
-  targetPages?: { url: string; action: "modify" | "create" | "delete"; reason: string }[];
+  targetPages?: {
+    url: string;
+    action: "modify" | "create" | "delete";
+    reason: string;
+  }[];
   question?: string | null;
   options?: { id: string; label: string; description?: string }[] | null;
 }
@@ -117,7 +138,10 @@ interface ParsedPlan {
 }
 
 function parsePlanJson(raw: string): ParsedPlan | null {
-  const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "");
+  const trimmed = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```$/i, "");
   const tryParse = (s: string) => {
     try {
       return JSON.parse(s) as ParsedPlan;
@@ -130,12 +154,18 @@ function parsePlanJson(raw: string): ParsedPlan | null {
     (() => {
       const start = trimmed.indexOf("{");
       const end = trimmed.lastIndexOf("}");
-      return start !== -1 && end > start ? tryParse(trimmed.slice(start, end + 1)) : null;
+      return start !== -1 && end > start
+        ? tryParse(trimmed.slice(start, end + 1))
+        : null;
     })()
   );
 }
 
-function buildUserMessage(checks: PlanCheckInput[], websiteUrl: string, repoFullName: string): string {
+function buildUserMessage(
+  checks: PlanCheckInput[],
+  websiteUrl: string,
+  repoFullName: string,
+): string {
   return [
     `Website: ${websiteUrl}`,
     `Repository: ${repoFullName} (cloned at the current working directory)`,
@@ -150,7 +180,10 @@ function buildUserMessage(checks: PlanCheckInput[], websiteUrl: string, repoFull
 // Turn the model's parsed plan into PlannedCheck[], grounding each entry in the
 // scan metadata and filling gaps deterministically. Every input check is
 // represented exactly once.
-function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): PlannedCheck[] {
+function mapParsedToPlanned(
+  parsed: ParsedPlan,
+  checks: PlanCheckInput[],
+): PlannedCheck[] {
   const byId = new Map(checks.map((c) => [c.rubricId, c]));
   const manualIds = new Set((parsed.manual ?? []).map((m) => m.rubricId));
   const out: PlannedCheck[] = [];
@@ -164,11 +197,16 @@ function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): Plann
 
   for (const item of parsed.plans ?? []) {
     const check = item.rubricId ? byId.get(item.rubricId) : undefined;
-    if (!check || seen.has(check.rubricId) || manualIds.has(check.rubricId)) continue;
+    if (!check || seen.has(check.rubricId) || manualIds.has(check.rubricId))
+      continue;
     seen.add(check.rubricId);
     const mode = (item.mode ?? "AUTO").toUpperCase();
     if (mode === "MANUAL") {
-      out.push({ kind: "manual", rubricId: check.rubricId, reason: item.approach ?? check.summary });
+      out.push({
+        kind: "manual",
+        rubricId: check.rubricId,
+        reason: item.approach ?? check.summary,
+      });
       continue;
     }
     out.push({
@@ -200,7 +238,11 @@ function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): Plann
   const usedIds = new Set(out.map((p) => p.rubricId));
   for (const np of parsed.newPages ?? []) {
     if (!np.title && !np.path) continue;
-    const kind = (np.kind ?? "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "page";
+    const kind =
+      (np.kind ?? "page")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "page";
     let id = `new-page-${kind}`;
     let n = 2;
     while (usedIds.has(id)) id = `new-page-${kind}-${n++}`;
@@ -208,7 +250,9 @@ function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): Plann
 
     const title = np.title ?? `New ${kind} page`;
     const path = np.path ?? "";
-    const reason = np.reason ?? `A new ${kind} page would improve how often AI engines cite this site.`;
+    const reason =
+      np.reason ??
+      `A new ${kind} page would improve how often AI engines cite this site.`;
     const options =
       np.options && np.options.length
         ? np.options
@@ -216,12 +260,14 @@ function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): Plann
             {
               id: "yes_existing",
               label: "Yes, build it from content already on my site",
-              description: "Only uses facts already published here; nothing invented.",
+              description:
+                "Only uses facts already published here; nothing invented.",
             },
             {
               id: "yes_provided",
               label: "Yes, and I'll provide the details",
-              description: "Paste the facts/numbers in your note; the agent writes it in your voice.",
+              description:
+                "Paste the facts/numbers in your note; the agent writes it in your voice.",
             },
             {
               id: "no",
@@ -243,7 +289,9 @@ function mapParsedToPlanned(parsed: ParsedPlan, checks: PlanCheckInput[]): Plann
       mode: "NEEDS_INPUT",
       approach: `Create "${title}"${path ? ` at ${path}` : ""}. ${reason}`,
       targetPages: path ? [{ url: path, action: "create", reason }] : [],
-      question: np.question ?? `Create a new "${title}" page? It can increase how often AI engines cite you.`,
+      question:
+        np.question ??
+        `Create a new "${title}" page? It can increase how often AI engines cite you.`,
       options,
     });
   }
@@ -312,7 +360,11 @@ async function persistPlan(args: {
   // chat message; the UI renders the interactive plan here.
   await args.log("plan_proposed", args.summary, {
     agentPlanId: args.agentPlanId,
-    data: { planId: args.agentPlanId, checks: checks.length, manual: manual.length },
+    data: {
+      planId: args.agentPlanId,
+      checks: checks.length,
+      manual: manual.length,
+    },
   });
 
   await prisma.workerStatus.updateMany({
@@ -327,10 +379,18 @@ async function persistPlan(args: {
   return { checks: checks.length, manual: manual.length };
 }
 
-async function failPlan(ref: LogRef & { agentPlanId: string }, message: string) {
-  await prisma.agentPlan.update({ where: { id: ref.agentPlanId }, data: { status: "FAILED" } }).catch(() => {});
+async function failPlan(
+  ref: LogRef & { agentPlanId: string },
+  message: string,
+) {
+  await prisma.agentPlan
+    .update({ where: { id: ref.agentPlanId }, data: { status: "FAILED" } })
+    .catch(() => {});
   await prisma.agentRun
-    .update({ where: { id: ref.agentRunId }, data: { status: "FAILED", error: message, finishedAt: new Date() } })
+    .update({
+      where: { id: ref.agentRunId },
+      data: { status: "FAILED", error: message, finishedAt: new Date() },
+    })
     .catch(() => {});
   await prisma.workerStatus
     .updateMany({
@@ -371,7 +431,11 @@ function hasAiKey(): boolean {
 export async function runPlannerAgentActivity(
   input: AgentPlanWorkflowInput,
 ): Promise<{ checks: number; manual: number }> {
-  const ref: LogRef = { agentRunId: input.agentRunId, projectId: input.projectId, userId: input.userId };
+  const ref: LogRef = {
+    agentRunId: input.agentRunId,
+    projectId: input.projectId,
+    userId: input.userId,
+  };
   const log = makeLogger(ref);
 
   let sandbox: Awaited<ReturnType<typeof createSandbox>> | null = null;
@@ -383,7 +447,10 @@ export async function runPlannerAgentActivity(
     });
 
     // 1. Create the sandbox.
-    await log("sandbox_creating", "Spinning up a fresh sandbox to inspect your repository...");
+    await log(
+      "sandbox_creating",
+      "Spinning up a fresh sandbox to inspect your repository...",
+    );
     sandbox = await createSandbox();
     await prisma.agentRun.update({
       where: { id: input.agentRunId },
@@ -395,7 +462,10 @@ export async function runPlannerAgentActivity(
     let workdir = "/home/user/repo";
     let repoReady = false;
     if (project?.cloneUrl) {
-      await log("cloning_repo", `Cloning ${project.fullName} (${project.defaultBranch})...`);
+      await log(
+        "cloning_repo",
+        `Cloning ${project.fullName} (${project.defaultBranch})...`,
+      );
       const { dir, result } = await cloneRepo(sandbox, {
         cloneUrl: project.cloneUrl,
         branch: project.defaultBranch,
@@ -406,7 +476,11 @@ export async function runPlannerAgentActivity(
         repoReady = true;
         await log("repo_cloned", "Repository cloned. Inspecting the code...");
       } else {
-        await log("clone_failed", `Could not clone the repo: ${result.stderr.slice(0, 200)}. Planning from the scan only.`, { level: "WARN" });
+        await log(
+          "clone_failed",
+          `Could not clone the repo: ${result.stderr.slice(0, 200)}. Planning from the scan only.`,
+          { level: "WARN" },
+        );
       }
     }
 
@@ -427,7 +501,8 @@ export async function runPlannerAgentActivity(
           const cleaned = e.content
             .replace(/```(?:json)?\s*[\s\S]*?```/g, "")
             .trim();
-          if (cleaned && !cleaned.startsWith("{")) await log("agent_message", cleaned);
+          if (cleaned && !cleaned.startsWith("{"))
+            await log("agent_message", cleaned);
         } else if (e.type === "tool_call") {
           const a = e.toolArgs ?? {};
           const msg =
@@ -444,11 +519,16 @@ export async function runPlannerAgentActivity(
 
       const res = await runAgent({
         system: PLANNER_AGENT_SYSTEM,
-        user: buildUserMessage(input.checks, input.websiteUrl, project?.fullName ?? ""),
+        user: buildUserMessage(
+          input.checks,
+          input.websiteUrl,
+          project?.fullName ?? "",
+        ),
         tools,
         maxSteps: 26,
         forceFinalAfterSteps: 20,
-        finalInstruction: "Stop inspecting and return ONLY the final JSON plan object now.",
+        finalInstruction:
+          "Stop inspecting and return ONLY the final JSON plan object now.",
         temperature: 0,
         onEvent,
       });
@@ -456,19 +536,27 @@ export async function runPlannerAgentActivity(
       const parsed = parsePlanJson(res.finalText);
       if (!parsed) throw new Error("Planner did not return a valid plan.");
       planned = mapParsedToPlanned(parsed, input.checks);
-      summary = parsed.summary?.trim() || "Here's the plan to take each failing check to a full pass.";
+      summary =
+        parsed.summary?.trim() ||
+        "Here's the plan to take each failing check to a full pass.";
 
       await prisma.agentRun
         .update({
           where: { id: input.agentRunId },
-          data: { model: DEFAULT_MODEL, tokensIn: res.tokensIn, tokensOut: res.tokensOut },
+          data: {
+            model: DEFAULT_MODEL,
+            tokensIn: res.tokensIn,
+            tokensOut: res.tokensOut,
+          },
         })
         .catch(() => {});
     } else {
       // Fallback: no repo / no AI key -> deterministic plan from the scan.
-      if (!repoReady) await log("agent_message", "Planning each fix from the scan findings.");
+      if (!repoReady)
+        await log("agent_message", "Planning each fix from the scan findings.");
       planned = input.checks.map(planCheck);
-      summary = "Here's the plan to take each failing check to a full pass, based on the scan findings.";
+      summary =
+        "Here's the plan to take each failing check to a full pass, based on the scan findings.";
     }
 
     // 5. Persist the plan + the final plan message.
@@ -482,14 +570,20 @@ export async function runPlannerAgentActivity(
       log,
     });
   } catch (err) {
-    await failPlan({ ...ref, agentPlanId: input.agentPlanId }, err instanceof Error ? err.message : String(err));
+    await failPlan(
+      { ...ref, agentPlanId: input.agentPlanId },
+      err instanceof Error ? err.message : String(err),
+    );
     throw err;
   } finally {
     // 6. Kill the sandbox and clear its id from the run (silent — keeps the
     // plan as the last chat message).
     if (sandbox) await killSandbox(sandbox);
     await prisma.agentRun
-      .update({ where: { id: input.agentRunId }, data: { sandboxId: null, sandboxStatus: "KILLED" } })
+      .update({
+        where: { id: input.agentRunId },
+        data: { sandboxId: null, sandboxStatus: "KILLED" },
+      })
       .catch(() => {});
   }
 }

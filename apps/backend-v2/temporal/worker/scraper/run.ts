@@ -61,7 +61,21 @@ export interface RunScrapeOptions {
   maxPages?: number;
   maxPerSection?: number;
   concurrency?: number;
+  includePaths?: string[];
   onLog?: (entry: LogEntry) => void | Promise<void>;
+}
+
+function normalizeIncludedPath(path: string): string | null {
+  const raw = path.trim();
+  if (!raw) return null;
+  try {
+    const parsed = /^https?:\/\//i.test(raw)
+      ? new URL(raw)
+      : new URL(raw.startsWith("/") ? raw : `/${raw}`, "https://example.com");
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return null;
+  }
 }
 
 // Scores one already-fetched page through every check activity.
@@ -139,10 +153,15 @@ export async function runScrape(websiteUrl: string, options: RunScrapeOptions = 
   const discovery = options.singlePage
     ? { selected: [homeRaw.finalUrl], source: "single" as const, totalDiscovered: 1, sections: { "/": 1 } }
     : await discoverPages(homeRaw.finalUrl, homeRaw.body, { maxPages, maxPerSection });
-  await log({ level: "info", event: "pages_discovered", message: `${discovery.selected.length} of ${discovery.totalDiscovered} pages selected (source: ${discovery.source}).` });
+  const includedUrls = (options.includePaths ?? [])
+    .map(normalizeIncludedPath)
+    .filter((path): path is string => !!path)
+    .map((path) => new URL(path, homeRaw.finalUrl).toString());
+  const selectedPages = [...new Set([...discovery.selected, ...includedUrls])];
+  await log({ level: "info", event: "pages_discovered", message: `${selectedPages.length} of ${Math.max(discovery.totalDiscovered, selectedPages.length)} pages selected (source: ${discovery.source}).` });
 
   // Score every selected page.
-  const reports = (await mapWithConcurrency(discovery.selected, options.concurrency ?? 5, async (pageUrl) => {
+  const reports = (await mapWithConcurrency(selectedPages, options.concurrency ?? 5, async (pageUrl) => {
     const r = await scorePage(pageUrl, domain);
     if (r) {
       await log({

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { toast } from "sonner"
@@ -33,9 +34,7 @@ import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import { AgentProvider, useAgent } from "@/context/agent"
 import {
-  useRevalidateAgentRun,
   useSendChat,
-  useStartAgentPlan,
   useStartFix,
 } from "@/query/agent.query"
 import { Markdown } from "@/components/markdown"
@@ -47,6 +46,41 @@ type ThreadItem =
   | { type: "agent"; logs: AgentChatLog[] }
   | { type: "user"; logs: AgentChatLog[] }
   | { type: "plan"; log: AgentChatLog }
+
+type AgentActivityRow =
+  | { type: "activity"; logs: AgentChatLog[] }
+  | { type: "message"; log: AgentChatLog }
+
+type ActivityKind =
+  | "search"
+  | "list"
+  | "read"
+  | "edit"
+  | "create"
+  | "validate"
+  | "validation_failed"
+  | "build"
+  | "test"
+  | "lint"
+  | "typecheck"
+  | "install"
+  | "serve"
+  | "url"
+  | "git"
+  | "clone"
+  | "setup"
+  | "pr"
+  | "decision"
+  | "command"
+  | "command_failed"
+  | "output"
+  | "failed"
+
+type ActivityMeta = {
+  singular: string
+  plural: string
+  order: number
+}
 
 const RUN_BADGE: Record<AgentRunStatus, string> = {
   QUEUED: "bg-muted text-foreground/70",
@@ -73,6 +107,15 @@ const AGENT_WORKING_STATUSES: AgentRunStatus[] = [
 
 function isAgentWorking(status: AgentRunStatus): boolean {
   return AGENT_WORKING_STATUSES.includes(status)
+}
+
+function agentStatusLabel(status: AgentRunStatus): string {
+  if (status === "AWAITING_INPUT") return "needs input"
+  if (status === "FAILED") return "failed"
+  if (status === "CANCELED") return "canceled"
+  if (status === "QUEUED" || status === "PLANNING") return "planning"
+  if (isAgentWorking(status)) return "working"
+  return "ready"
 }
 
 function isActivityLog(log: AgentChatLog): boolean {
@@ -107,6 +150,24 @@ function buildThreadItems(logs: AgentChatLog[]): ThreadItem[] {
   return items
 }
 
+function scoreProgressText(run: AgentRunDetail): string {
+  const before = run.scoreBefore ?? "--"
+  if (run.scoreAfter != null) return `${before} -> ${run.scoreAfter}`
+  if (isAgentWorking(run.status) || run.status === "AWAITING_INPUT") {
+    return `${before} -> working toward 100`
+  }
+  return `${before} -> --`
+}
+
+function checkProgressText(checks: AgentPlanCheckDTO[]): string {
+  const done = checks.filter((check) =>
+    ["FIXED", "SKIPPED_BY_USER", "FLAGGED_MANUAL", "ALREADY_OK"].includes(
+      check.outcome
+    )
+  ).length
+  return `${done}/${checks.length}`
+}
+
 export default function AgentRunPage() {
   const params = useParams<{ projectId: string; agentId: string }>()
   return (
@@ -119,9 +180,10 @@ export default function AgentRunPage() {
 function AgentScreen() {
   const params = useParams<{ projectId: string; agentId: string }>()
   const { run, plan, checks, logs, fileLogs, isLoading } = useAgent()
-  const revalidate = useRevalidateAgentRun(params.agentId)
   const threadItems = React.useMemo(() => buildThreadItems(logs), [logs])
-  const [activePreview, setActivePreview] = React.useState<PreviewKey | null>(null)
+  const [activePreview, setActivePreview] = React.useState<PreviewKey | null>(
+    null
+  )
 
   // Auto-scroll the chat to the bottom as new logs stream in.
   const scrollRef = React.useRef<HTMLDivElement>(null)
@@ -166,19 +228,6 @@ function AgentScreen() {
   // While the user is approving the plan, hide Checks because it mostly
   // duplicates the plan. Checks becomes useful again after execution starts.
   const showChecksTab = !(run.status === "AWAITING_INPUT" && hasPlanArtifact)
-  const revalidating = run.status === "VERIFYING" || revalidate.isPending
-  const canRevalidate = !!run.prUrl && !run.prMerged && run.status === "PR_OPENED"
-
-  async function onRevalidate() {
-    try {
-      await revalidate.mutateAsync()
-      setActivePreview("checks")
-      toast.success("Revalidation started.")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not revalidate checks.")
-    }
-  }
-
   return (
     <div className="flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden bg-background">
       <AgentRunHeader run={run} />
@@ -187,56 +236,65 @@ function AgentScreen() {
         <div className="relative min-w-0 flex-1">
           <AgentFloatingToolbar
             run={run}
+            checks={checks}
             activePreview={activePreview}
             hasPlanArtifact={hasPlanArtifact}
             showChecks={showChecksTab}
-            canRevalidate={canRevalidate}
-            revalidating={revalidating}
             onPreview={setActivePreview}
-            onRevalidate={onRevalidate}
           />
 
           {/* CENTER CHAT: primary surface. Adjust max-w-3xl to change the focused chat width. */}
-          <div className="mx-auto flex h-full w-full max-w-3xl flex-col px-5 pt-4">
-            {/* Conversation scroller.
-                pr-8 creates breathing room between message cards and the scrollbar.
-                scrollbar-gutter keeps that space stable when the scrollbar appears. */}
+          <div className="flex h-full w-full flex-col pt-4">
+            {/* Conversation scroller spans the whole pane, so wheel/trackpad
+                scrolling works even outside the centered chat column. */}
             <div
               ref={scrollRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto py-5 pr-8 pl-1 [scrollbar-gutter:stable]"
+              className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-y-auto"
             >
-              {/* All logs in order; plan cards split groups, while commands and
-                  tool calls render as flat activity rows inside the agent group. */}
-              {threadItems.map((item) =>
-                item.type === "plan" ? (
-                  hasPlanArtifact && plan ? (
-                    <PlanConversationPrompt
+              <div className="mx-auto w-full max-w-3xl space-y-3 py-5 pr-8 pl-6">
+                {/* All logs in order; plan cards split groups, while commands and
+                    tool calls render as flat activity rows inside the agent group. */}
+                {threadItems.map((item) =>
+                  item.type === "plan" ? (
+                    hasPlanArtifact && plan ? (
+                      <PlanConversationPrompt
+                        key={threadItemKey(item)}
+                        runId={run.id}
+                        status={run.status}
+                        locked={locked}
+                        checksCount={checks.length}
+                        needsInputCount={needsInput.length}
+                        needsInput={needsInput}
+                        followup={plan.status === "SUBMITTED"}
+                        onOpen={() => setActivePreview("plan")}
+                      />
+                    ) : null
+                  ) : item.type === "agent" ? (
+                    <AgentActivityGroup
                       key={threadItemKey(item)}
-                      runId={run.id}
-                      status={run.status}
-                      locked={locked}
-                      checksCount={checks.length}
-                      needsInputCount={needsInput.length}
-                      needsInput={needsInput}
-                      followup={plan.status === "SUBMITTED"}
-                      onOpen={() => setActivePreview("plan")}
+                      logs={item.logs}
                     />
-                  ) : null
-                ) : item.type === "agent" ? (
-                  <AgentActivityGroup key={threadItemKey(item)} logs={item.logs} />
-                ) : (
-                  <UserMessageGroup key={threadItemKey(item)} logs={item.logs} />
-                )
-              )}
+                  ) : (
+                    <UserMessageGroup
+                      key={threadItemKey(item)}
+                      logs={item.logs}
+                    />
+                  )
+                )}
 
-              {isAgentWorking(run.status) ? <AgentWorkingIndicator status={run.status} /> : null}
+                {isAgentWorking(run.status) ? (
+                  <AgentWorkingIndicator status={run.status} />
+                ) : null}
 
-              {failed ? (
-                <FailedRunMessage run={run} projectId={params.projectId} />
-              ) : null}
+                {failed ? (
+                  <FailedRunMessage run={run} projectId={params.projectId} />
+                ) : null}
+              </div>
             </div>
 
-            <Composer run={run} />
+            <div className="mx-auto w-full max-w-3xl px-5">
+              <Composer run={run} />
+            </div>
           </div>
         </div>
 
@@ -255,9 +313,6 @@ function AgentScreen() {
               autoCount={autoCount}
               manualCount={manualCount}
               needsInputCount={needsInput.length}
-              canRevalidate={canRevalidate}
-              revalidating={revalidating}
-              onRevalidate={onRevalidate}
               onClose={() => setActivePreview(null)}
             />
           ) : null}
@@ -277,12 +332,19 @@ function AgentRunHeader({ run }: { run: AgentRunDetail }) {
           <RobotIcon className="size-4" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">Fix agent</p>
-          <p className="truncate font-mono text-[11px] text-foreground/65">{run.id}</p>
+          <p className="text-sm leading-tight font-medium">Fix agent</p>
+          <p className="truncate font-mono text-[11px] text-foreground/65">
+            {run.id}
+          </p>
         </div>
       </div>
-      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", RUN_BADGE[run.status])}>
-        {run.status.replace("_", " ").toLowerCase()}
+      <span
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[11px] font-medium",
+          RUN_BADGE[run.status]
+        )}
+      >
+        {agentStatusLabel(run.status)}
       </span>
     </div>
   )
@@ -292,32 +354,35 @@ function AgentRunHeader({ run }: { run: AgentRunDetail }) {
 
 function AgentFloatingToolbar({
   run,
+  checks,
   activePreview,
   hasPlanArtifact,
   showChecks,
-  canRevalidate,
-  revalidating,
   onPreview,
-  onRevalidate,
 }: {
   run: AgentRunDetail
+  checks: AgentPlanCheckDTO[]
   activePreview: PreviewKey | null
   hasPlanArtifact: boolean
   showChecks: boolean
-  canRevalidate: boolean
-  revalidating: boolean
   onPreview: (preview: PreviewKey) => void
-  onRevalidate: () => void
 }) {
   return (
     // Floating toolbar: keep contextual controls here so the chat stays centered.
     <div className="pointer-events-none absolute top-4 right-4 z-30 flex max-w-[calc(100%-2rem)] justify-end">
       <div className="pointer-events-auto flex w-40 flex-col gap-1.5 rounded-md bg-secondary p-2">
-        <span className={cn("w-full rounded-lg px-2 text-center text-[11px] font-medium")}>
+        <span
+          className={cn(
+            "w-full rounded-lg px-2 text-center text-[11px] font-medium"
+          )}
+        >
           Score to aim
         </span>
         <span className="w-full rounded-none px-2 pb-1.5 text-center text-[11px] font-medium text-foreground/75">
-          {run.scoreBefore ?? "--"} → {run.scoreAfter ?? 100}
+          {scoreProgressText(run)}
+        </span>
+        <span className="w-full rounded-none px-2 pb-1.5 text-center text-[11px] font-medium text-foreground/75">
+          Checks {checkProgressText(checks)}
         </span>
 
         {hasPlanArtifact ? (
@@ -346,32 +411,24 @@ function AgentFloatingToolbar({
           Changes
         </ToolbarButton>
 
-        {run.prUrl && !run.prMerged ? (
+        {run.prUrl ? (
           <Button
             size="sm"
             variant="secondary"
-            disabled={!canRevalidate || revalidating}
-            onClick={onRevalidate}
             className="w-full justify-start bg-background"
+            asChild
           >
-            {revalidating ? (
-              <SpinnerGapIcon className="size-3.5 animate-spin" />
-            ) : (
-              <ArrowsClockwiseIcon className="size-3.5" />
-            )}
-            Revalidate
-          </Button>
-        ) : null}
-
-        {run.prUrl ? (
-          <Button size="sm" className="w-full justify-start" asChild>
             <a href={run.prUrl} target="_blank" rel="noreferrer">
               <GitPullRequestIcon className="size-3.5" />
               View PR
             </a>
           </Button>
         ) : (
-          <Button size="sm" disabled className="w-full justify-start bg-background text-foreground/55">
+          <Button
+            size="sm"
+            disabled
+            className="w-full justify-start bg-background text-foreground/55"
+          >
             <GitPullRequestIcon className="size-3.5" />
             View PR
           </Button>
@@ -418,9 +475,6 @@ function AgentPreviewPanel({
   autoCount,
   manualCount,
   needsInputCount,
-  canRevalidate,
-  revalidating,
-  onRevalidate,
   onClose,
 }: {
   activePreview: PreviewKey
@@ -435,9 +489,6 @@ function AgentPreviewPanel({
   autoCount: number
   manualCount: number
   needsInputCount: number
-  canRevalidate: boolean
-  revalidating: boolean
-  onRevalidate: () => void
   onClose: () => void
 }) {
   const reduceMotion = useReducedMotion()
@@ -458,7 +509,11 @@ function AgentPreviewPanel({
           ? { opacity: 1, width: "min(440px, calc(100vw - 2rem))" }
           : { opacity: 1, width: "min(440px, calc(100vw - 2rem))", x: 0 }
       }
-      exit={reduceMotion ? { opacity: 0, width: 0 } : { opacity: 0, width: 0, x: 32 }}
+      exit={
+        reduceMotion
+          ? { opacity: 0, width: 0 }
+          : { opacity: 0, width: 0, x: 32 }
+      }
       transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.8 }}
       className="relative z-20 my-4 mr-4 min-h-0 shrink-0 overflow-hidden"
     >
@@ -467,7 +522,8 @@ function AgentPreviewPanel({
           <div>
             <h2 className="text-sm font-medium">{title[activePreview]}</h2>
             <p className="mt-0.5 text-[11px] text-foreground/65">
-              {run.scoreBefore ?? "--"} → {run.scoreAfter ?? 100} · {run.status.replace("_", " ").toLowerCase()}
+              {scoreProgressText(run)} ·{" "}
+              {agentStatusLabel(run.status)}
             </p>
           </div>
           <button
@@ -502,9 +558,6 @@ function AgentPreviewPanel({
               planning={planning}
               failed={failed}
               projectId={projectId}
-              canRevalidate={canRevalidate}
-              revalidating={revalidating}
-              onRevalidate={onRevalidate}
             />
           ) : (
             <ChangesView checks={checks} fileLogs={fileLogs} />
@@ -522,9 +575,6 @@ function ChecksPreview({
   planning,
   failed,
   projectId,
-  canRevalidate,
-  revalidating,
-  onRevalidate,
 }: {
   run: AgentRunDetail
   checks: AgentPlanCheckDTO[]
@@ -532,45 +582,25 @@ function ChecksPreview({
   planning: boolean
   failed: boolean
   projectId: string
-  canRevalidate: boolean
-  revalidating: boolean
-  onRevalidate: () => void
 }) {
   if (checks.length === 0) {
     return failed ? (
       <FailedRunPanel run={run} projectId={projectId} />
     ) : (
-      <Empty text={planning ? "Planning in progress..." : "No checks planned."} />
+      <Empty
+        text={planning ? "Planning in progress..." : "No checks planned."}
+      />
     )
   }
 
   return (
     <div className="space-y-2">
-      
       {checks.map((c) => (
         <CheckCard key={c.id} check={c} />
       ))}
       {manual.map((m) => (
         <ManualCard key={m.rubricId} rubricId={m.rubricId} reason={m.reason} />
       ))}
-      {run.prUrl && !run.prMerged ? (
-        <div className="flex pb-1">
-          <Button
-            size="lg"
-            variant="secondary"
-            disabled={!canRevalidate || revalidating}
-            onClick={onRevalidate}
-            className="bg-background flex-1"
-          >
-            {revalidating ? (
-              <SpinnerGapIcon className="size-3.5 animate-spin" />
-            ) : (
-              <ArrowsClockwiseIcon className="size-3.5" />
-            )}
-            Revalidate
-          </Button>
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -599,31 +629,14 @@ function ChatBubble({
 }
 
 function FailedRunActions({
-  run,
   projectId,
   align = "start",
 }: {
-  run: AgentRunDetail
   projectId: string
   align?: "start" | "center"
 }) {
   const router = useRouter()
-  const startAgentPlan = useStartAgentPlan(projectId)
   const projectHref = `/dashboard/projects/${projectId}`
-
-  async function onRetry() {
-    if (!run.orderId) {
-      router.push(projectHref)
-      return
-    }
-
-    try {
-      const created = await startAgentPlan.mutateAsync(run.orderId)
-      router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start a new run.")
-    }
-  }
 
   return (
     <div
@@ -632,17 +645,11 @@ function FailedRunActions({
         align === "center" && "justify-center"
       )}
     >
-      {run.orderId ? (
-        <Button size="sm" onClick={onRetry} disabled={startAgentPlan.isPending}>
-          {startAgentPlan.isPending ? (
-            <SpinnerGapIcon className="size-3.5 animate-spin" />
-          ) : (
-            <ArrowsClockwiseIcon className="size-3.5" />
-          )}
-          Try again
-        </Button>
-      ) : null}
-      <Button size="sm" variant="outline" onClick={() => router.push(projectHref)}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => router.push(projectHref)}
+      >
         <ArrowLeftIcon className="size-3.5" />
         Back to project
       </Button>
@@ -664,11 +671,11 @@ function FailedRunMessage({
           <p className="font-medium text-foreground">Fix did not start</p>
           <p className="mt-0.5 text-foreground/75">
             {run.orderId
-              ? "Your paid order is still saved. Try again from the latest scan."
+              ? "Nothing was changed in your repo. Return to the project or contact support."
               : "Go back to the project and start again from the latest scan."}
           </p>
         </div>
-        <FailedRunActions run={run} projectId={projectId} />
+        <FailedRunActions projectId={projectId} />
       </div>
     </ChatBubble>
   )
@@ -690,11 +697,11 @@ function FailedRunPanel({
         <h2 className="mt-3 text-sm font-medium">Fix did not start</h2>
         <p className="mt-1 text-xs leading-relaxed text-foreground/75">
           {run.orderId
-            ? "Nothing was changed in your repo. Your paid order is still saved for another attempt."
+            ? "Nothing was changed in your repo. Return to the project or contact support."
             : "Nothing was changed in your repo. Return to the project to start again."}
         </p>
         <div className="mt-4">
-          <FailedRunActions run={run} projectId={projectId} align="center" />
+          <FailedRunActions projectId={projectId} align="center" />
         </div>
       </div>
     </div>
@@ -707,8 +714,8 @@ function AgentWorkingIndicator({ status }: { status: AgentRunStatus }) {
     PLANNING: "Agent is planning...",
     FIXING: "Agent is working...",
     VERIFYING: "Agent is verifying...",
-    OPENING_PR: "Agent is opening the PR...",
-    CHATTING: "Agent is replying...",
+    OPENING_PR: "Agent is preparing your fix...",
+    CHATTING: "Agent is working...",
   }
 
   return (
@@ -747,22 +754,34 @@ function PlanConversationPrompt({
     Record<string, { selectedOption: string | null; note: string }>
   >(() =>
     Object.fromEntries(
-      needsInput.map((c) => [c.rubricId, { selectedOption: c.selectedOption, note: c.userSuggestion ?? "" }])
+      needsInput.map((c) => [
+        c.rubricId,
+        { selectedOption: c.selectedOption, note: c.userSuggestion ?? "" },
+      ])
     )
   )
 
-  const answeredCount = needsInput.filter((c) => answers[c.rubricId]?.selectedOption).length
+  const answeredCount = needsInput.filter(
+    (c) => answers[c.rubricId]?.selectedOption
+  ).length
   // Validation: every question must be answered to enable submit.
-  const allAnswered = needsInput.length === 0 || answeredCount === needsInput.length
+  const allAnswered =
+    needsInput.length === 0 || answeredCount === needsInput.length
   const disabled = locked || startFix.isPending || !allAnswered
 
   function pick(rubricId: string, optionId: string) {
     if (locked) return
-    setAnswers((p) => ({ ...p, [rubricId]: { selectedOption: optionId, note: p[rubricId]?.note ?? "" } }))
+    setAnswers((p) => ({
+      ...p,
+      [rubricId]: { selectedOption: optionId, note: p[rubricId]?.note ?? "" },
+    }))
   }
   function setNote(rubricId: string, note: string) {
     if (locked) return
-    setAnswers((p) => ({ ...p, [rubricId]: { selectedOption: p[rubricId]?.selectedOption ?? null, note } }))
+    setAnswers((p) => ({
+      ...p,
+      [rubricId]: { selectedOption: p[rubricId]?.selectedOption ?? null, note },
+    }))
   }
 
   async function onSubmit() {
@@ -771,7 +790,8 @@ function PlanConversationPrompt({
       const selected = a?.selectedOption ?? null
       return {
         rubricId: c.rubricId,
-        choice: selected === "no" || selected === "skip" ? "DECLINED" : "APPROVED",
+        choice:
+          selected === "no" || selected === "skip" ? "DECLINED" : "APPROVED",
         selectedOption: selected,
         userSuggestion: a?.note || null,
       }
@@ -779,7 +799,9 @@ function PlanConversationPrompt({
     try {
       await startFix.mutateAsync(payload)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start the fix run.")
+      toast.error(
+        err instanceof Error ? err.message : "Could not start the fix run."
+      )
     }
   }
 
@@ -799,7 +821,9 @@ function PlanConversationPrompt({
           </p>
           <div className="mt-2 flex gap-2 text-[11px] text-foreground/65">
             <span>{checksCount} checks</span>
-            <span>{needsInputCount} {followup ? "unresolved" : "need input"}</span>
+            <span>
+              {needsInputCount} {followup ? "unresolved" : "need input"}
+            </span>
           </div>
         </div>
         <button
@@ -816,17 +840,23 @@ function PlanConversationPrompt({
           {/* Individual question cards. bg-background intentionally contrasts
               against the outer bg-secondary card. */}
           {needsInput.map((c) => (
-            <div key={c.id} className="space-y-2 rounded-lg bg-background px-3 py-3">
+            <div
+              key={c.id}
+              className="space-y-2 rounded-lg bg-background px-3 py-3"
+            >
               <div>
                 <p className="font-mono text-xs font-semibold">{c.rubricId}</p>
                 {c.question ? (
-                  <p className="mt-1 text-sm leading-5 text-foreground">{c.question}</p>
+                  <p className="mt-1 text-sm leading-5 text-foreground">
+                    {c.question}
+                  </p>
                 ) : null}
               </div>
               {c.options ? (
                 <div className="space-y-1.5">
                   {c.options.map((opt) => {
-                    const active = answers[c.rubricId]?.selectedOption === opt.id
+                    const active =
+                      answers[c.rubricId]?.selectedOption === opt.id
                     return (
                       <button
                         key={opt.id}
@@ -837,7 +867,9 @@ function PlanConversationPrompt({
                           // Option rows need visible contrast in both selected
                           // and unselected states; rings are the main affordance.
                           "w-full cursor-pointer rounded-md bg-secondary px-3 py-2 text-left text-xs text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-70",
-                          active ? "bg-primary/10 text-primary ring-2 ring-primary/50" : "ring-1 ring-foreground/15 hover:bg-muted"
+                          active
+                            ? "bg-primary/10 text-primary ring-2 ring-primary/50"
+                            : "ring-1 ring-foreground/15 hover:bg-muted"
                         )}
                       >
                         <span className="flex items-center gap-1.5 font-medium">
@@ -849,7 +881,9 @@ function PlanConversationPrompt({
                               active && "bg-primary ring-primary"
                             )}
                           >
-                            {active ? <span className="size-1.5 rounded-full bg-primary-foreground" /> : null}
+                            {active ? (
+                              <span className="size-1.5 rounded-full bg-primary-foreground" />
+                            ) : null}
                           </span>
                           {opt.label}
                         </span>
@@ -869,14 +903,16 @@ function PlanConversationPrompt({
                 onChange={(e) => setNote(c.rubricId, e.target.value)}
                 placeholder="Add a note for the agent (optional)"
                 // Keep the note field visually separate from the option rows.
-                className="min-h-9 bg-background text-foreground placeholder:text-foreground/60 ring-1 ring-foreground/20 focus-visible:ring-primary/50"
+                className="min-h-9 bg-background text-foreground ring-1 ring-foreground/20 placeholder:text-foreground/60 focus-visible:ring-primary/50"
               />
             </div>
           ))}
         </div>
       ) : (
         <p className="rounded-lg bg-background px-3 py-2 text-sm text-foreground">
-          {followup ? "No unresolved checks need input." : "Review the plan, then confirm to start the fix."}
+          {followup
+            ? "No unresolved checks need input."
+            : "Review the plan, then confirm to start the fix."}
         </p>
       )}
 
@@ -927,11 +963,15 @@ function PlanArtifact({
         <h2 className="text-sm font-medium">Fix plan</h2>
         <p className="text-sm leading-6 text-foreground/90">{summary}</p>
         <div className="flex flex-wrap gap-2 text-[11px]">
-          <Pill className="bg-primary/10 text-primary">{autoCount} auto-fix</Pill>
+          <Pill className="bg-primary/10 text-primary">
+            {autoCount} auto-fix
+          </Pill>
           <Pill className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
             {needsInputCount} need you
           </Pill>
-          <Pill className="bg-muted text-foreground/70">{manualCount} manual</Pill>
+          <Pill className="bg-muted text-foreground/70">
+            {manualCount} manual
+          </Pill>
         </div>
       </div>
 
@@ -939,12 +979,18 @@ function PlanArtifact({
         {checks.map((c, i) => (
           <li key={c.id} className="rounded-lg bg-muted/50 px-3 py-3">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-xs font-semibold text-foreground/70">{i + 1}.</span>
-              <span className="font-mono text-xs font-semibold">{c.rubricId}</span>
+              <span className="text-xs font-semibold text-foreground/70">
+                {i + 1}.
+              </span>
+              <span className="font-mono text-xs font-semibold">
+                {c.rubricId}
+              </span>
               <ModeTag mode={c.mode} />
             </div>
             {c.approach ? (
-              <p className="mt-1 pl-4 text-xs leading-relaxed text-foreground/80">{c.approach}</p>
+              <p className="mt-1 pl-4 text-xs leading-relaxed text-foreground/80">
+                {c.approach}
+              </p>
             ) : null}
           </li>
         ))}
@@ -952,7 +998,9 @@ function PlanArtifact({
 
       {manual.length > 0 ? (
         <div className="rounded-lg bg-muted/50 px-3 py-3">
-          <p className="text-[11px] font-medium text-foreground/70">Manual review</p>
+          <p className="text-[11px] font-medium text-foreground/70">
+            Manual review
+          </p>
           {manual.map((m) => (
             <p key={m.rubricId} className="mt-1 text-xs text-foreground/75">
               <span className="font-mono">{m.rubricId}</span> {m.reason}
@@ -961,7 +1009,9 @@ function PlanArtifact({
         </div>
       ) : null}
 
-      <p className="text-xs text-foreground/65">Answer in the conversation to start the fix.</p>
+      <p className="text-xs text-foreground/65">
+        Answer in the conversation to start the fix.
+      </p>
     </div>
   )
 }
@@ -972,42 +1022,80 @@ function ModeTag({ mode }: { mode: Mode | "MANUAL" }) {
     NEEDS_INPUT: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     MANUAL: "bg-muted text-foreground/70",
   }
-  const label: Record<string, string> = { AUTO: "auto-fix", NEEDS_INPUT: "needs you", MANUAL: "manual" }
-  return <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", map[mode])}>{label[mode]}</span>
+  const label: Record<string, string> = {
+    AUTO: "auto-fix",
+    NEEDS_INPUT: "needs you",
+    MANUAL: "manual",
+  }
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+        map[mode]
+      )}
+    >
+      {label[mode]}
+    </span>
+  )
 }
 
-function Pill({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <span className={cn("rounded-full px-2 py-0.5 font-medium", className)}>{children}</span>
+function Pill({
+  className,
+  children,
+}: {
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <span className={cn("rounded-full px-2 py-0.5 font-medium", className)}>
+      {children}
+    </span>
+  )
 }
 
 // --- right preview pieces ---------------------------------------------------
 
 function CheckCard({ check }: { check: AgentPlanCheckDTO }) {
-  const outcomeLabel = check.outcome === "PENDING" ? null : check.outcome.replace(/_/g, " ").toLowerCase()
+  const outcomeLabel =
+    check.outcome === "PENDING"
+      ? null
+      : check.outcome.replace(/_/g, " ").toLowerCase()
   const outcomeClass =
     check.outcome === "FIXED"
       ? "bg-primary/10 text-primary"
       : check.outcome === "FAILED"
         ? "bg-destructive/10 text-destructive"
         : "bg-muted text-foreground/70"
-  const iconClass = check.outcome === "FAILED" ? "text-destructive" : "text-primary"
+  const iconClass =
+    check.outcome === "FAILED" ? "text-destructive" : "text-primary"
 
   return (
     // Compact post-submit status row. Keep detailed page/file data in ChangesView.
     <div className="rounded-lg bg-muted/50 px-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2">
-          <CheckCircleIcon className={cn("mt-0.5 size-4 shrink-0", iconClass)} />
+          <CheckCircleIcon
+            className={cn("mt-0.5 size-4 shrink-0", iconClass)}
+          />
           <div className="min-w-0">
-            <p className="truncate font-mono text-sm font-medium">{check.rubricId}</p>
+            <p className="truncate font-mono text-sm font-medium">
+              {check.rubricId}
+            </p>
             {check.approach ? (
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-foreground/75">{check.approach}</p>
+              <p className="mt-1 line-clamp-2 text-xs leading-5 text-foreground/75">
+                {check.approach}
+              </p>
             ) : null}
           </div>
         </div>
         <div className="shrink-0">
           {outcomeLabel ? (
-            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", outcomeClass)}>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                outcomeClass
+              )}
+            >
               {outcomeLabel}
             </span>
           ) : (
@@ -1019,7 +1107,13 @@ function CheckCard({ check }: { check: AgentPlanCheckDTO }) {
   )
 }
 
-function ManualCard({ rubricId, reason }: { rubricId: string; reason: string }) {
+function ManualCard({
+  rubricId,
+  reason,
+}: {
+  rubricId: string
+  reason: string
+}) {
   return (
     // Manual items mirror CheckCard so the Checks tab stays scannable.
     <div className="rounded-lg bg-muted/50 px-3 py-3">
@@ -1028,7 +1122,9 @@ function ManualCard({ rubricId, reason }: { rubricId: string; reason: string }) 
           <WarningIcon className="mt-0.5 size-4 shrink-0 text-foreground/70" />
           <div className="min-w-0">
             <p className="truncate font-mono text-sm font-medium">{rubricId}</p>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-foreground/75">{reason}</p>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-foreground/75">
+              {reason}
+            </p>
           </div>
         </div>
         <div className="shrink-0">
@@ -1054,24 +1150,41 @@ function ChangesView({
     return (
       <div className="space-y-px overflow-hidden rounded-xl bg-background">
         {changes.map((l, i) => {
-          const d = (l.data ?? {}) as { path?: string; action?: string; rubricId?: string }
+          const d = (l.data ?? {}) as {
+            path?: string
+            action?: string
+            rubricId?: string
+          }
           return (
             <div
               key={l.id}
-              className={cn("flex items-start gap-3 bg-background px-4 py-3", i > 0 && "mt-px")}
+              className={cn(
+                "flex items-start gap-3 bg-background px-4 py-3",
+                i > 0 && "mt-px"
+              )}
             >
               <span
                 className={cn(
                   "mt-0.5 grid size-6 shrink-0 place-items-center rounded-md",
-                  d.action === "create" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  d.action === "create"
+                    ? "bg-primary/10 text-primary"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                 )}
               >
-                {d.action === "create" ? <PlusIcon className="size-3.5" /> : <PencilSimpleIcon className="size-3.5" />}
+                {d.action === "create" ? (
+                  <PlusIcon className="size-3.5" />
+                ) : (
+                  <PencilSimpleIcon className="size-3.5" />
+                )}
               </span>
               <div className="min-w-0">
-                <p className="truncate font-mono text-xs font-medium">{d.path ?? l.message}</p>
+                <p className="truncate font-mono text-xs font-medium">
+                  {d.path ?? l.message}
+                </p>
                 {d.rubricId ? (
-                  <span className="mt-0.5 inline-block font-mono text-[10px] text-foreground/70">{d.rubricId}</span>
+                  <span className="mt-0.5 inline-block font-mono text-[10px] text-foreground/70">
+                    {d.rubricId}
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -1082,27 +1195,40 @@ function ChangesView({
   }
 
   // Pre-fix: show the planned target pages.
-  const planned = checks.flatMap((c) => c.targetPages.map((p) => ({ ...p, rubricId: c.rubricId })))
+  const planned = checks.flatMap((c) =>
+    c.targetPages.map((p) => ({ ...p, rubricId: c.rubricId }))
+  )
   if (planned.length === 0) return <Empty text="No file changes yet." />
   return (
     <div className="space-y-px overflow-hidden rounded-xl bg-background">
       {planned.map((f, i) => (
         <div
           key={`${f.rubricId}-${i}`}
-          className={cn("flex items-start gap-3 bg-background px-4 py-3", i > 0 && "mt-px")}
+          className={cn(
+            "flex items-start gap-3 bg-background px-4 py-3",
+            i > 0 && "mt-px"
+          )}
         >
           <span
             className={cn(
               "mt-0.5 grid size-6 shrink-0 place-items-center rounded-md",
-              f.action === "create" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+              f.action === "create"
+                ? "bg-primary/10 text-primary"
+                : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
             )}
           >
-            {f.action === "create" ? <PlusIcon className="size-3.5" /> : <PencilSimpleIcon className="size-3.5" />}
+            {f.action === "create" ? (
+              <PlusIcon className="size-3.5" />
+            ) : (
+              <PencilSimpleIcon className="size-3.5" />
+            )}
           </span>
           <div className="min-w-0">
             <p className="truncate font-mono text-xs font-medium">{f.url}</p>
             <p className="mt-0.5 text-xs text-foreground/75">{f.reason}</p>
-            <span className="mt-1 inline-block font-mono text-[10px] text-foreground/70">{f.rubricId}</span>
+            <span className="mt-1 inline-block font-mono text-[10px] text-foreground/70">
+              {f.rubricId}
+            </span>
           </div>
         </div>
       ))}
@@ -1123,14 +1249,274 @@ function displayLevel(log: AgentChatLog): "info" | "warn" | "error" {
   return log.level
 }
 
+const ACTIVITY_META: Record<ActivityKind, ActivityMeta> = {
+  search: { singular: "searched code", plural: "searched code", order: 10 },
+  list: { singular: "listed files", plural: "listed files", order: 20 },
+  read: { singular: "read a file", plural: "read files", order: 30 },
+  edit: { singular: "edited a file", plural: "edited files", order: 40 },
+  create: { singular: "created a file", plural: "created files", order: 50 },
+  validate: { singular: "ran validation", plural: "ran validation", order: 60 },
+  validation_failed: {
+    singular: "validation found an issue",
+    plural: "validation found issues",
+    order: 61,
+  },
+  build: { singular: "ran a build", plural: "ran builds", order: 70 },
+  test: { singular: "ran tests", plural: "ran tests", order: 80 },
+  lint: { singular: "ran lint", plural: "ran lint", order: 90 },
+  typecheck: { singular: "checked types", plural: "checked types", order: 100 },
+  install: {
+    singular: "installed dependencies",
+    plural: "installed dependencies",
+    order: 110,
+  },
+  serve: { singular: "started the app", plural: "started the app", order: 120 },
+  url: { singular: "checked a URL", plural: "checked URLs", order: 130 },
+  git: {
+    singular: "checked git state",
+    plural: "checked git state",
+    order: 140,
+  },
+  clone: {
+    singular: "cloned the repository",
+    plural: "cloned the repository",
+    order: 150,
+  },
+  setup: {
+    singular: "prepared the workspace",
+    plural: "prepared the workspace",
+    order: 160,
+  },
+  pr: {
+    singular: "updated the pull request",
+    plural: "updated the pull request",
+    order: 170,
+  },
+  decision: {
+    singular: "asked for a decision",
+    plural: "asked for decisions",
+    order: 180,
+  },
+  command: { singular: "ran a command", plural: "ran commands", order: 190 },
+  command_failed: {
+    singular: "a command returned an error",
+    plural: "commands returned errors",
+    order: 191,
+  },
+  output: {
+    singular: "checked command output",
+    plural: "checked command output",
+    order: 200,
+  },
+  failed: {
+    singular: "the fix stopped before finishing",
+    plural: "the fix stopped before finishing",
+    order: 210,
+  },
+}
+
+function buildAgentActivityRows(logs: AgentChatLog[]): AgentActivityRow[] {
+  const rows: AgentActivityRow[] = []
+  let batch: AgentChatLog[] = []
+
+  function flushBatch() {
+    if (batch.length > 0) {
+      rows.push({ type: "activity", logs: batch })
+      batch = []
+    }
+  }
+
+  for (const log of logs) {
+    if (isActivityLog(log)) {
+      batch.push(log)
+    } else {
+      flushBatch()
+      rows.push({ type: "message", log })
+    }
+  }
+
+  flushBatch()
+  return rows
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function activityData(log: AgentChatLog): Record<string, unknown> {
+  return isRecord(log.data) ? log.data : {}
+}
+
+function commandFromLog(log: AgentChatLog): string | null {
+  const message = log.message.trim()
+  if (message.startsWith("$")) return message.replace(/^\$\s*/, "")
+
+  const data = activityData(log)
+  return typeof data.command === "string" ? data.command : null
+}
+
+function commandFailed(log: AgentChatLog): boolean {
+  if (displayLevel(log) === "error") return true
+  return /(?:^|\n)exit:\s*(?!0\b)\d+/.test(log.message)
+}
+
+function classifyCommand(command: string): ActivityKind {
+  const normalized = command.trim().replace(/\s+/g, " ")
+
+  if (/^(rg|grep|git grep|ag|ack)\b/.test(normalized)) {
+    return normalized.includes("--files") ? "list" : "search"
+  }
+  if (/^(find|fd)\b/.test(normalized)) return "search"
+  if (/^(ls|tree)\b/.test(normalized)) return "list"
+  if (/^(cat|sed|head|tail|nl|less|more)\b/.test(normalized)) return "read"
+  if (
+    /^git\s+(status|diff|show|log|branch|rev-parse|ls-files)\b/.test(normalized)
+  ) {
+    return "git"
+  }
+  if (
+    /\b(install|bun install|npm install|pnpm install|yarn install)\b/.test(
+      normalized
+    )
+  ) {
+    return "install"
+  }
+  if (/\b(build|next build)\b/.test(normalized)) return "build"
+  if (/\b(test|vitest|jest|playwright test)\b/.test(normalized)) return "test"
+  if (/\b(lint|eslint)\b/.test(normalized)) return "lint"
+  if (/\b(typecheck|check-types|tsc)\b/.test(normalized)) return "typecheck"
+  if (/\b(dev|start|serve)\b/.test(normalized)) return "serve"
+  if (/^(curl|wget)\b/.test(normalized)) return "url"
+
+  return "command"
+}
+
+function activityKindsForLog(log: AgentChatLog): ActivityKind[] {
+  const event = log.event.toLowerCase()
+  const message = log.message.trim()
+  const data = activityData(log)
+
+  if (event === "workflow_reconcile_failed") return ["failed"]
+  if (event === "fix_decision_prompt") return ["decision"]
+  if (event === "command_result") {
+    return commandFailed(log) ? ["command_failed"] : ["output"]
+  }
+  if (event === "file_change") {
+    return data.action === "create" ? ["create"] : ["edit"]
+  }
+  if (event === "read" || /^reading\s+/i.test(message)) return ["read"]
+  if (/^listing\s+/i.test(message)) return ["list"]
+  if (event.includes("pr_") || message.toLowerCase().includes("pull request")) {
+    return ["pr"]
+  }
+  if (event.includes("clone") || message.toLowerCase().includes("cloning")) {
+    return ["clone"]
+  }
+  if (event.includes("sandbox")) return ["setup"]
+  if (
+    event.includes("verify") ||
+    event.includes("validation") ||
+    event.includes("rescan")
+  ) {
+    return displayLevel(log) === "error" || event.includes("failed")
+      ? ["validation_failed"]
+      : ["validate"]
+  }
+  if (event.includes("failed")) return ["failed"]
+
+  const command = commandFromLog(log)
+  if (command) return [classifyCommand(command)]
+
+  if (event === "tool_call") return ["command"]
+
+  return []
+}
+
+function activityBatchLevel(logs: AgentChatLog[]): "info" | "warn" | "error" {
+  if (logs.some((log) => displayLevel(log) === "error")) return "error"
+  if (logs.some((log) => displayLevel(log) === "warn")) return "warn"
+  return "info"
+}
+
+function withCount(kind: ActivityKind, count: number): string {
+  const meta = ACTIVITY_META[kind]
+  if (count === 1) return meta.singular
+
+  switch (kind) {
+    case "read":
+      return `read ${count} files`
+    case "edit":
+      return `edited ${count} files`
+    case "create":
+      return `created ${count} files`
+    case "build":
+      return `ran ${count} builds`
+    case "url":
+      return `checked ${count} URLs`
+    case "decision":
+      return `asked for ${count} decisions`
+    case "command":
+      return `ran ${count} commands`
+    case "command_failed":
+      return `${count} commands returned errors`
+    case "validation_failed":
+      return `validation found ${count} issues`
+    default:
+      return meta.plural
+  }
+}
+
+function sentenceCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function joinActivityPieces(pieces: string[]): string {
+  if (pieces.length === 0) return "Worked in the repo"
+  if (pieces.length === 1) return sentenceCase(pieces[0])
+  if (pieces.length === 2) {
+    return `${sentenceCase(pieces[0])} and ${pieces[1]}`
+  }
+  const last = pieces.at(-1)
+  return `${sentenceCase(pieces.slice(0, -1).join(", "))}, and ${last}`
+}
+
+function displayActivityBatch(logs: AgentChatLog[]): string {
+  const counts = new Map<ActivityKind, number>()
+
+  for (const log of logs) {
+    for (const kind of activityKindsForLog(log)) {
+      counts.set(kind, (counts.get(kind) ?? 0) + 1)
+    }
+  }
+
+  if (counts.has("validation_failed")) counts.delete("validate")
+  if (counts.has("command_failed")) counts.delete("command")
+  if (counts.size > 1) counts.delete("output")
+
+  if (counts.size === 0) {
+    return logs.length === 1 ? displayMessage(logs[0]) : "Worked in the repo"
+  }
+
+  const pieces = Array.from(counts.entries())
+    .sort((a, b) => ACTIVITY_META[a[0]].order - ACTIVITY_META[b[0]].order)
+    .map(([kind, count]) => withCount(kind, count))
+
+  return joinActivityPieces(pieces)
+}
+
 function AgentActivityGroup({ logs }: { logs: AgentChatLog[] }) {
+  const rows = buildAgentActivityRows(logs)
+
   return (
     <div className="space-y-4">
-      {logs.map((log) =>
-        isActivityLog(log) ? (
-          <ActivityRow key={log.id} log={log} />
+      {rows.map((row) =>
+        row.type === "activity" ? (
+          <ActivityBatchRow
+            key={`activity-${row.logs[0]?.id ?? "empty"}-${row.logs.at(-1)?.id ?? "empty"}`}
+            logs={row.logs}
+          />
         ) : (
-          <AgentMessageRow key={log.id} log={log} />
+          <AgentMessageRow key={row.log.id} log={row.log} />
         )
       )}
     </div>
@@ -1167,12 +1553,11 @@ function UserMessageGroup({ logs }: { logs: AgentChatLog[] }) {
   )
 }
 
-function ActivityRow({ log }: { log: AgentChatLog }) {
-  const level = displayLevel(log)
+function ActivityBatchRow({ logs }: { logs: AgentChatLog[] }) {
+  const level = activityBatchLevel(logs)
 
   return (
-    // Tool/command rows are intentionally lower-emphasis than agent messages,
-    // but still readable. Adjust text-foreground/70 if they feel too quiet/loud.
+    // Tool/command rows are intentionally lower-emphasis than agent messages.
     <div
       className={cn(
         "flex items-start gap-2 py-0.5 text-xs leading-5 text-foreground/40",
@@ -1180,12 +1565,28 @@ function ActivityRow({ log }: { log: AgentChatLog }) {
         level === "error" && "text-destructive"
       )}
     >
-      {activityIcon(log)}
-      <span className="min-w-0 flex-1 whitespace-pre-wrap font-mono">
-        {displayMessage(log)}
+      {activityBatchIcon(logs)}
+      <span className="min-w-0 flex-1 whitespace-pre-wrap">
+        {displayActivityBatch(logs)}
       </span>
     </div>
   )
+}
+
+function activityBatchIcon(logs: AgentChatLog[]) {
+  const representative =
+    logs.find((log) => displayLevel(log) === "error") ??
+    logs.find((log) => log.event === "file_change") ??
+    logs.find((log) => log.event.includes("pr_")) ??
+    logs.find(
+      (log) => log.event.includes("verify") || log.event.includes("rescan")
+    ) ??
+    logs.find(
+      (log) => log.event.includes("clone") || log.event.includes("repo")
+    ) ??
+    logs[0]
+
+  return activityIcon(representative)
 }
 
 function activityIcon(log: AgentChatLog) {
@@ -1216,18 +1617,28 @@ function activityIcon(log: AgentChatLog) {
   return <TerminalIcon className={className} />
 }
 
+function formatAiCredits(value: number): string {
+  if (value >= 1_000_000) {
+    return `${Number(value / 1_000_000).toLocaleString(undefined, {
+      maximumFractionDigits: 1,
+    })}M`
+  }
+  if (value >= 1_000) return `${Math.round(value / 1_000).toLocaleString()}K`
+  return value.toLocaleString()
+}
+
 function Composer({ run }: { run: AgentRunDetail }) {
   const sendChat = useSendChat(run.id)
   const [text, setText] = React.useState("")
   const editorRef = React.useRef<HTMLDivElement>(null)
   const sending = sendChat.isPending || run.status === "CHATTING"
 
-  if (run.status === "FAILED") {
+  if (run.status === "FAILED" || run.status === "CANCELED") {
     return (
       <div className="bg-secondary p-3">
         <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-foreground/70">
           <WarningIcon className="size-4" />
-          Chat is unavailable because this run stopped before opening a PR.
+          Chat is unavailable because this agent thread stopped.
         </div>
       </div>
     )
@@ -1244,67 +1655,47 @@ function Composer({ run }: { run: AgentRunDetail }) {
     )
   }
 
-  const closed = run.prMerged
-  const noBudget = run.chatMessagesLeft <= 0
+  const noBudget = run.aiCreditsLeft <= 0
+  const followUpMode = run.prState === "MERGED" || run.prState === "CLOSED"
 
   async function onSend() {
     const m = text.trim()
     if (!m) return
+    setText("")
+    if (editorRef.current) editorRef.current.textContent = ""
     try {
       await sendChat.mutateAsync(m)
-      setText("")
-      if (editorRef.current) editorRef.current.textContent = ""
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not send the message.")
+      setText(m)
+      if (editorRef.current) editorRef.current.textContent = m
+      toast.error(
+        e instanceof Error ? e.message : "Could not send the message."
+      )
     }
   }
 
-  // PR merged: run is complete. Keep the box visible but disabled, and turn the
-  // send button into a clear "PR merged" state.
-  if (closed) {
+  if (noBudget) {
     return (
-      <div className="space-y-2 bg-secondary p-3">
-        <Textarea
-          value=""
-          disabled
-          placeholder="This run is complete. The PR has been merged."
-          className="min-h-10 cursor-not-allowed"
-        />
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary">
-            <GitPullRequestIcon className="size-3.5" weight="fill" />
-            PR merged
-          </span>
-          <Button
-            size="sm"
-            disabled
-            className="bg-primary/15 text-primary hover:bg-primary/15"
-          >
-            <CheckCircleIcon className="size-3.5" weight="fill" />
-            PR merged
+      <div className="bg-secondary p-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 px-3 py-2 text-xs text-foreground/70">
+          <span>You&apos;ve used the follow-up AI credits for this agent.</span>
+          <Button asChild size="xs" variant="secondary">
+            <Link href="/dashboard/support">Add credits</Link>
           </Button>
         </div>
       </div>
     )
   }
 
-  if (noBudget) {
-    return (
-      <div className="bg-secondary p-3">
-        <div className="rounded-lg bg-muted/60 px-3 py-2 text-center text-xs text-foreground/70">
-          You&apos;ve used all your chat messages for this run.
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-2 bg-secondary p-3">
+    <div className="mb-2 space-y-2 rounded-lg bg-secondary p-3">
       {/* Composer: contentEditable avoids password-manager overlays that attach to real inputs/textareas. */}
       <div className="relative">
         {!text ? (
-          <span className="pointer-events-none absolute left-2.5 top-2 text-xs leading-5 text-muted-foreground">
-            Ask the agent to tweak the fix (e.g. use a different OG image)...
+          <span className="pointer-events-none absolute top-2 left-2.5 text-xs leading-5 text-muted-foreground">
+            {followUpMode
+              ? "Ask for a follow-up change..."
+              : "Ask the agent to tweak the fix..."}
           </span>
         ) : null}
         <div
@@ -1323,22 +1714,24 @@ function Composer({ run }: { run: AgentRunDetail }) {
           data-lpignore="true"
           data-protonpass-ignore="true"
           data-form-type="other"
-          onInput={(e) => setText(e.currentTarget.innerText.replace(/\u00a0/g, " "))}
+          onInput={(e) =>
+            setText(e.currentTarget.innerText.replace(/\u00a0/g, " "))
+          }
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
               void onSend()
             }
           }}
           className={cn(
-            "min-h-10 w-full rounded-lg bg-background px-2.5 py-2 text-xs leading-5 text-foreground outline-none transition-colors empty:before:content-[''] focus-visible:ring-1 focus-visible:ring-ring/50",
+            "min-h-10 w-full rounded-lg bg-background px-2.5 py-2 text-xs leading-5 text-foreground transition-colors outline-none empty:before:content-[''] focus-visible:ring-1 focus-visible:ring-ring/50",
             sending ? "cursor-not-allowed opacity-50" : "cursor-text"
           )}
         />
       </div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] text-foreground/65">
-          {run.chatMessagesLeft} message{run.chatMessagesLeft === 1 ? "" : "s"} left
+          {formatAiCredits(run.aiCreditsLeft)} AI credits left
         </span>
         <Button
           size="icon-sm"

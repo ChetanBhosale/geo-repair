@@ -27,6 +27,9 @@ export interface FixCheckInput {
   evidence: string | null;
   targetPages: { url: string; action: string; reason: string }[];
   userSuggestion: string | null;
+  mode?: string | null;
+  choice?: string | null;
+  fixableByAgent?: string | null;
 }
 
 // A batch of related checks fixed in ONE agent session (they touch the same
@@ -50,9 +53,4 @@ export interface FixSetup {
   // The planner's summary of the stack, reused as fix-agent context so it does
   // not re-discover the framework/layout/content sources.
   repoSummary: string;
-}
-
-export interface RevalidateSetup {
-  sandboxId: string;
-  workdir: string;
 }

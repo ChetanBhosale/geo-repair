@@ -122,9 +122,14 @@ export interface AgentRunSummary {
   prUrl: string | null;
   prMerged: boolean;
   branch: string | null;
+  aiCreditsUsed: number;
+  aiCreditsIncluded: number;
+  aiCreditsLeft: number;
+  /** @deprecated AI credits are the source of truth for follow-up budget. */
   chatMessagesLeft: number;
   orderId: string | null;
-  // Convenience: the run is "open" (blocks a new run) until merged/terminal.
+  // Convenience: the agent thread can still be viewed or messaged.
+  // PR state is routing context, not a thread close signal.
   isOpen: boolean;
   error: string | null;
   createdAt: string;
@@ -173,17 +178,14 @@ export interface ChatRequest {
 export interface ChatResponse {
   agentRunId: string;
   status: AgentRunStatus;
+  aiCreditsLeft: number;
+  /** @deprecated AI credits are the source of truth for follow-up budget. */
   chatMessagesLeft: number;
 }
 
 export interface RevalidateRunResponse {
   agentRunId: string;
   status: AgentRunStatus;
-}
-
-export interface CompleteRunResponse {
-  agentRunId: string;
-  prMerged: boolean;
 }
 
 export interface ListAgentRunsResponse {

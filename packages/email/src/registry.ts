@@ -3,9 +3,9 @@ import type { ReactElement } from "react"
 import AccountWelcome, {
   type AccountWelcomeProps,
 } from "./templates/AccountWelcome"
-import ChatLimitReached, {
-  type ChatLimitReachedProps,
-} from "./templates/ChatLimitReached"
+import AiCreditsExhausted, {
+  type AiCreditsExhaustedProps,
+} from "./templates/AiCreditsExhausted"
 import CheckupComplete, {
   type CheckupCompleteProps,
 } from "./templates/CheckupComplete"
@@ -43,7 +43,7 @@ export type TemplatePropsMap = {
   fixPlanReady: FixPlanReadyProps
   fixPrOpened: FixPrOpenedProps
   fixFailed: FixFailedProps
-  chatLimitReached: ChatLimitReachedProps
+  aiCreditsExhausted: AiCreditsExhaustedProps
 }
 
 export type TemplateId = keyof TemplatePropsMap
@@ -125,9 +125,9 @@ export const TEMPLATES: {
     subject: (p) => `The fix run for ${p.projectName} didn't finish`,
     sample: FixFailed.PreviewProps,
   },
-  chatLimitReached: {
-    component: ChatLimitReached,
-    subject: (p) => `You've reached the chat limit for ${p.projectName}`,
-    sample: ChatLimitReached.PreviewProps,
+  aiCreditsExhausted: {
+    component: AiCreditsExhausted,
+    subject: (p) => `Follow-up AI credits used for ${p.projectName}`,
+    sample: AiCreditsExhausted.PreviewProps,
   },
 }

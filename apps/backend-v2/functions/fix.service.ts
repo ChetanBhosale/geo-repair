@@ -10,10 +10,14 @@ import {
   SUBMIT_FIX_DECISIONS_SIGNAL,
   type AgentFixWorkflowInput,
 } from "../temporal/worker/agent-fix/workflow-types";
+import type { AgentChatWorkflowInput } from "../temporal/worker/agent-chat/workflow-types";
 import { markFixAttemptStarted } from "./billing.service";
 import { sendFixFailedEmail } from "../lib/email-notifications";
 import { getPrStatus } from "../lib/github";
-import { MANUAL_REVALIDATION_LIMIT } from "@repo/types/entitlements";
+import { aiCreditSnapshot } from "./ai-credits";
+
+const REVALIDATE_CHAT_MESSAGE =
+  "Revalidate this PR branch. Figure out the correct install, build, type-check, serve, and local scan commands for this repository. Fix any build errors and any still-failing approved checks, then validate the branch before pushing.";
 
 export class FixError extends Error {
   constructor(
@@ -137,7 +141,10 @@ export async function startFix(
       data: { status: "FAILED", error: message, finishedAt: new Date() },
     });
     await sendFixFailedEmail(run.id, message).catch((sendErr) => {
-      console.error("[email] fix enqueue failure notification failed:", sendErr);
+      console.error(
+        "[email] fix enqueue failure notification failed:",
+        sendErr,
+      );
     });
     throw new FixError(502, `Could not queue the fix run: ${message}`);
   }
@@ -172,12 +179,15 @@ export async function startRevalidate(
   if (run.status !== "PR_OPENED") {
     throw new FixError(409, "Wait for the current agent task to finish first.");
   }
-  if (run.order.manualRevalidationsUsed >= MANUAL_REVALIDATION_LIMIT) {
+  const planId = run.plan.id;
+  const credits = aiCreditSnapshot(run.order);
+  if (credits.aiCreditsLeft <= 0) {
     throw new FixError(
       409,
-      "This order has used all manual revalidations.",
+      "You've used all your follow-up AI credits for this agent.",
     );
   }
+  const workflowId = `agent-revalidate-chat-${run.id}-${Date.now()}`;
 
   if (run.project) {
     const pr = await getPrStatus(
@@ -186,51 +196,63 @@ export async function startRevalidate(
       run.prNumber,
       run.project.account?.accessToken,
     );
-    if (pr?.merged || run.prMerged) {
+    if (pr?.merged) {
       await prisma.agentRun.update({
         where: { id: run.id },
         data: { prMerged: true, prState: "MERGED", prMergedAt: new Date() },
       });
-      throw new FixError(409, "The PR has been merged. This run is complete.");
+    } else if (pr?.state === "open" || pr?.state === "closed") {
+      const prState = pr.state === "closed" ? "CLOSED" : "OPEN";
+      if (run.prMerged || run.prState !== prState) {
+        await prisma.agentRun.update({
+          where: { id: run.id },
+          data: { prMerged: false, prState, prMergedAt: null },
+        });
+      }
     }
   }
 
   await prisma.$transaction(async (tx) => {
     const updatedRun = await tx.agentRun.updateMany({
       where: { id: run.id, status: "PR_OPENED" },
-      data: { status: "VERIFYING", error: null },
+      data: {
+        status: "CHATTING",
+        error: null,
+        temporalWorkflowId: workflowId,
+      },
     });
     if (updatedRun.count === 0) {
-      throw new FixError(409, "Wait for the current agent task to finish first.");
-    }
-
-    const updatedOrder = await tx.order.updateMany({
-      where: {
-        id: run.order!.id,
-        status: "PAID",
-        manualRevalidationsUsed: { lt: MANUAL_REVALIDATION_LIMIT },
-      },
-      data: { manualRevalidationsUsed: { increment: 1 } },
-    });
-    if (updatedOrder.count === 0) {
       throw new FixError(
         409,
-        "This order has used all manual revalidations.",
+        "Wait for the current agent task to finish first.",
       );
     }
+
+    await tx.log.create({
+      data: {
+        source: "USER",
+        level: "INFO",
+        event: "revalidate_requested",
+        message: "Revalidate and fix the PR branch.",
+        agentRunId: run.id,
+        agentPlanId: planId,
+        projectId: run.projectId,
+        userId,
+      },
+    });
   });
 
-  const workflowId = `agent-revalidate-${run.id}-${Date.now()}`;
   try {
     const client = await getTemporalClient();
-    const input: AgentFixWorkflowInput = {
+    const input: AgentChatWorkflowInput = {
       agentRunId: run.id,
-      agentPlanId: run.plan.id,
       projectId: run.projectId,
       userId,
+      message: REVALIDATE_CHAT_MESSAGE,
+      kind: "REVALIDATE",
     };
-    await client.workflow.start("agentRevalidateWorkflow", {
-      taskQueue: TASK_QUEUES.agentFix,
+    await client.workflow.start("agentChatWorkflow", {
+      taskQueue: TASK_QUEUES.agentChat,
       workflowId,
       args: [input],
     });
@@ -238,18 +260,17 @@ export async function startRevalidate(
     const message = err instanceof Error ? err.message : String(err);
     await prisma.agentRun.update({
       where: { id: run.id },
-      data: { status: "PR_OPENED", error: message },
+      data: {
+        status: "PR_OPENED",
+        error: message,
+        chatMessagesLeft: credits.chatMessagesLeft,
+        temporalWorkflowId: run.temporalWorkflowId,
+      },
     });
-    await prisma.order
-      .update({
-        where: { id: run.order.id },
-        data: { manualRevalidationsUsed: { decrement: 1 } },
-      })
-      .catch(() => {});
     throw new FixError(502, `Could not queue revalidation: ${message}`);
   }
 
-  return { agentRunId: run.id, status: "VERIFYING" };
+  return { agentRunId: run.id, status: "CHATTING" };
 }
 
 async function submitFixDecisions(

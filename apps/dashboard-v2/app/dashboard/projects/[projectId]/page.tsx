@@ -62,17 +62,24 @@ import {
   useStartScan,
 } from "@/query/project.query"
 import {
-  useCompleteRun,
   useProjectAgentRuns,
   useStartAgentPlan,
 } from "@/query/agent.query"
 import {
+  useBillingHistory,
   useBillingOrder,
   useCreateFixCheckout,
   useReconcileBillingOrder,
 } from "@/query/billing.query"
 import type { AgentRunSummary } from "@repo/types/agent"
-import type { FixTier } from "@repo/types/billing"
+import type { BillingOrder, FixTier } from "@repo/types/billing"
+
+const FIX_TIER_RANK: Record<FixTier, number> = {
+  STARTER: 0,
+  GROWTH: 1,
+  SCALE: 2,
+  ENTERPRISE_CUSTOM: 3,
+}
 
 const CHECK_STYLES: Record<CheckStatus, string> = {
   SUCCESS: "bg-success/10 text-success",
@@ -104,6 +111,29 @@ function selectedRunStorageKey(projectId: string): string {
   return `geo-repair.dashboard.selected-run.${projectId}`
 }
 
+function fixTierForPageCount(pageCount: number): FixTier {
+  if (pageCount <= 25) return "STARTER"
+  if (pageCount <= 100) return "GROWTH"
+  if (pageCount <= 250) return "SCALE"
+  return "ENTERPRISE_CUSTOM"
+}
+
+function remainingFixAttempts(order: BillingOrder): number {
+  return Math.max(0, order.fixAttemptLimit - order.fixAttemptsUsed)
+}
+
+function formatAiCredits(value: number): string {
+  if (value >= 1_000_000) {
+    return `${Number(value / 1_000_000).toLocaleString(undefined, {
+      maximumFractionDigits: 1,
+    })}M`
+  }
+  if (value >= 1_000) {
+    return `${Math.round(value / 1_000).toLocaleString()}K`
+  }
+  return value.toLocaleString()
+}
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const s = Math.round(diff / 1000)
@@ -133,8 +163,8 @@ export default function ProjectDetailPage() {
 
   const agentRuns = useProjectAgentRuns(projectId)
   const startAgentPlan = useStartAgentPlan(projectId)
-  const completeRun = useCompleteRun(projectId)
   const createCheckout = useCreateFixCheckout()
+  const billingHistory = useBillingHistory()
   const returnedOrder = useBillingOrder(
     shouldStartReturnedFix ? checkoutReturnOrderId : null
   )
@@ -146,14 +176,39 @@ export default function ProjectDetailPage() {
     [runs.data]
   )
   const checkoutPageCount = Math.max(1, latestCompletedScan?.pagesChecked || 25)
+  const requiredFixTier = fixTierForPageCount(checkoutPageCount)
+  const paidProjectOrders = React.useMemo(
+    () =>
+      (billingHistory.data?.orders ?? []).filter(
+        (order) => order.projectId === projectId && order.status === "PAID"
+      ),
+    [billingHistory.data?.orders, projectId]
+  )
+  const reusablePaidOrder = React.useMemo(
+    () =>
+      paidProjectOrders.find(
+        (order) =>
+          remainingFixAttempts(order) > 0 &&
+          FIX_TIER_RANK[order.tier] >= FIX_TIER_RANK[requiredFixTier]
+      ) ?? null,
+    [paidProjectOrders, requiredFixTier]
+  )
   // The agent fixes a completed scan, so only offer it once one exists.
   const hasCompletedScan = !!latestCompletedScan
-  // The currently-open run (blocks starting a new one until it's merged/done).
+  // The active agent thread. PR merge/close does not close it.
   const openAgentRun = React.useMemo(
     () => (agentRuns.data ?? []).find((r) => r.isOpen) ?? null,
     [agentRuns.data]
   )
-  const [completeConfirmOpen, setCompleteConfirmOpen] = React.useState(false)
+  const agentBudgetText = billingHistory.isLoading
+    ? "Credits: checking"
+    : billingHistory.isError
+      ? "Credits unavailable"
+      : openAgentRun
+        ? `${formatAiCredits(openAgentRun.aiCreditsLeft)} AI credits left`
+        : reusablePaidOrder
+          ? `${formatAiCredits(reusablePaidOrder.aiCreditsIncluded)} follow-up AI credits included`
+          : "Follow-up AI credits included after purchase"
   const [planDialogOpen, setPlanDialogOpen] = React.useState(false)
   const autoReconciledOrderRef = React.useRef<string | null>(null)
   const startRequestedOrderRef = React.useRef<string | null>(null)
@@ -341,7 +396,17 @@ export default function ProjectDetailPage() {
     setSelectedId(created.id)
   }
 
+  async function startAgentFromOrder(orderId: string) {
+    const created = await startAgentPlan.mutateAsync(orderId)
+    router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
+  }
+
   async function startPaidAgentRun(selectedTier: FixTier) {
+    if (reusablePaidOrder) {
+      await startAgentFromOrder(reusablePaidOrder.id)
+      return
+    }
+
     const checkout = await createCheckout.mutateAsync({
       projectId,
       selectedTier,
@@ -355,8 +420,7 @@ export default function ProjectDetailPage() {
       return
     }
 
-    const created = await startAgentPlan.mutateAsync(checkout.order.id)
-    router.push(`/dashboard/projects/${projectId}/agent/${created.agentRunId}`)
+    await startAgentFromOrder(checkout.order.id)
   }
 
   async function onPlanContinue(selectedTier: FixTier) {
@@ -375,21 +439,17 @@ export default function ProjectDetailPage() {
       router.push(`/dashboard/projects/${projectId}/agent/${openAgentRun.id}`)
       return
     }
-    setPlanDialogOpen(true)
-  }
-
-  // Complete the open run, then immediately start a fresh one.
-  async function onCompleteThenNew() {
-    if (!openAgentRun) return
-    try {
-      await completeRun.mutateAsync(openAgentRun.id)
-      setCompleteConfirmOpen(false)
-      setPlanDialogOpen(true)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not start a new run."
-      )
+    if (reusablePaidOrder) {
+      try {
+        await startAgentFromOrder(reusablePaidOrder.id)
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Could not start the agent."
+        )
+      }
+      return
     }
+    setPlanDialogOpen(true)
   }
 
   async function onDelete() {
@@ -427,7 +487,7 @@ export default function ProjectDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-xs flex-wrap items-center justify-end gap-2">
           <Button
             size="sm"
             onClick={onScan}
@@ -442,42 +502,42 @@ export default function ProjectDetailPage() {
           </Button>
           {hasCompletedScan ? (
             openAgentRun ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={onAgent}
-                  disabled={startAgentPlan.isPending}
-                >
-                  {agentRunning ? (
-                    <SpinnerGapIcon className="size-4 animate-spin" />
-                  ) : (
-                    <RobotIcon className="size-4" />
-                  )}
-                  {agentRunning ? "Agent running..." : "Resume agent"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setCompleteConfirmOpen(true)}
-                  disabled={completeRun.isPending || startAgentPlan.isPending}
-                >
-                  New run
-                </Button>
-              </>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onAgent}
+                disabled={startAgentPlan.isPending}
+              >
+                {agentRunning ? (
+                  <SpinnerGapIcon className="size-4 animate-spin" />
+                ) : (
+                  <RobotIcon className="size-4" />
+                )}
+                {agentRunning ? "Agent running..." : "Resume agent"}
+              </Button>
             ) : (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={onAgent}
-                disabled={startAgentPlan.isPending || createCheckout.isPending}
+                disabled={
+                  startAgentPlan.isPending ||
+                  createCheckout.isPending ||
+                  billingHistory.isLoading
+                }
               >
                 {startAgentPlan.isPending || createCheckout.isPending ? (
                   <SpinnerGapIcon className="size-4 animate-spin" />
+                ) : reusablePaidOrder ? (
+                  <RobotIcon className="size-4" />
                 ) : (
                   <CreditCardIcon className="size-4" />
                 )}
-                Buy now
+                {billingHistory.isLoading
+                  ? "Checking..."
+                  : reusablePaidOrder
+                    ? "Start agent"
+                    : "Buy now"}
               </Button>
             )
           ) : null}
@@ -490,6 +550,11 @@ export default function ProjectDetailPage() {
           >
             <TrashIcon className="size-4 text-destructive" />
           </Button>
+          {hasCompletedScan ? (
+            <p className="basis-full text-right text-[11px] text-muted-foreground">
+              {agentBudgetText}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -510,7 +575,7 @@ export default function ProjectDetailPage() {
             <AlertDialogTitle>Payment confirmed</AlertDialogTitle>
             <AlertDialogDescription>
               {openAgentRun
-                ? "An agent run is already active for this project."
+                ? "An agent thread is already active for this project."
                 : "Start the fix agent for this project now?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -528,7 +593,7 @@ export default function ProjectDetailPage() {
               {startAgentPlan.isPending
                 ? "Starting..."
                 : openAgentRun
-                  ? "Open agent run"
+                  ? "Open agent"
                   : "Start fix"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -567,56 +632,11 @@ export default function ProjectDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Complete-current-run confirm (to start a new one) */}
-      <AlertDialog
-        open={completeConfirmOpen}
-        onOpenChange={setCompleteConfirmOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Complete the current agent run?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have an open agent run. Mark it complete (e.g. its PR is
-              merged or no longer needed) to start a fresh run. This closes the
-              current run and its chat.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              disabled={
-                completeRun.isPending ||
-                startAgentPlan.isPending ||
-                createCheckout.isPending
-              }
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                void onCompleteThenNew()
-              }}
-              disabled={
-                completeRun.isPending ||
-                startAgentPlan.isPending ||
-                createCheckout.isPending
-              }
-            >
-              {completeRun.isPending ||
-              startAgentPlan.isPending ||
-              createCheckout.isPending
-                ? "Starting..."
-                : "Complete & start new"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Agent runs history */}
+      {/* Agent thread history */}
       {(agentRuns.data?.length ?? 0) > 0 ? (
         <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">
           <div className="border-b border-border px-4 py-3">
-            <h2 className="text-sm font-medium">Agent runs</h2>
+            <h2 className="text-sm font-medium">Agent thread</h2>
           </div>
           <div>
             {(agentRuns.data ?? []).map((run, i) => (
@@ -783,24 +803,18 @@ function AgentRunRow({
   first: boolean
   onOpen: () => void
 }) {
-  const label = run.prMerged
-    ? "merged"
-    : run.isOpen
-      ? run.status.replace("_", " ").toLowerCase()
-      : run.status.toLowerCase()
-  const style = run.prMerged
-    ? "bg-success/10 text-success"
-    : run.isOpen
-      ? "bg-warning/15 text-warning"
-      : run.status === "FAILED"
-        ? "bg-destructive/10 text-destructive"
-        : "bg-muted text-muted-foreground"
+  const label = run.isOpen ? "active" : run.status.toLowerCase()
+  const style = run.isOpen
+    ? "bg-warning/15 text-warning"
+    : run.status === "FAILED"
+      ? "bg-destructive/10 text-destructive"
+      : "bg-muted text-muted-foreground"
   return (
     <button
       type="button"
       onClick={onOpen}
       className={cn(
-        "flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40",
+        "flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40",
         !first && "border-t border-border"
       )}
     >
@@ -814,9 +828,6 @@ function AgentRunRow({
           >
             {label}
           </span>
-          {run.isOpen ? (
-            <span className="text-[11px] text-muted-foreground">active</span>
-          ) : null}
           <span className="text-xs text-muted-foreground">
             {timeAgo(run.createdAt)}
           </span>

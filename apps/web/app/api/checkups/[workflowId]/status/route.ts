@@ -5,7 +5,7 @@ import { proxyBackendJson } from "../../../backend"
 export const dynamic = "force-dynamic"
 
 type RouteContext = {
-  params: Promise<{ workflowId: string }> | { workflowId: string }
+  params: Promise<{ workflowId: string }>
 }
 
 export async function GET(request: Request, context: RouteContext) {

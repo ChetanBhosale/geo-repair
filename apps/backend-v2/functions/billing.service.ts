@@ -8,8 +8,8 @@ import type {
   OrderSummary,
 } from "@repo/types/billing";
 import {
-  CHAT_MESSAGE_LIMIT,
   FIX_ATTEMPT_LIMIT,
+  LEGACY_CHAT_MESSAGE_LIMIT,
   MANUAL_REVALIDATION_LIMIT,
 } from "@repo/types/entitlements";
 
@@ -17,6 +17,7 @@ import { getTemporalClient } from "../temporal/client";
 import { sendBillingOrderEmail } from "../lib/email-notifications";
 import {
   BillingError,
+  getFixTierByName,
   getFixTierForPageCount,
   getFixTierForSelection,
   planSummaries,
@@ -30,6 +31,7 @@ import {
   type DodoWebhookPayload,
   unwrapDodoWebhook,
 } from "./providers/dodo";
+import { aiCreditSnapshot } from "./ai-credits";
 
 export { BillingError };
 
@@ -105,9 +107,12 @@ function orderSummary(order: {
   repoFullName: string | null;
   checkoutUrl: string | null;
   fixAttemptsUsed: number;
+  aiCreditsIncluded: number;
+  aiCreditsUsed: number;
   chatMessagesUsed: number;
   manualRevalidationsUsed: number;
 }): OrderSummary {
+  const credits = aiCreditSnapshot(order);
   return {
     id: order.id,
     status: order.status,
@@ -121,8 +126,11 @@ function orderSummary(order: {
     startFixUnlocked: order.status === "PAID",
     fixAttemptsUsed: order.fixAttemptsUsed,
     fixAttemptLimit: FIX_ATTEMPT_LIMIT,
+    aiCreditsUsed: credits.aiCreditsUsed,
+    aiCreditsIncluded: credits.aiCreditsIncluded,
+    aiCreditsLeft: credits.aiCreditsLeft,
     chatMessagesUsed: order.chatMessagesUsed,
-    chatMessageLimit: CHAT_MESSAGE_LIMIT,
+    chatMessageLimit: LEGACY_CHAT_MESSAGE_LIMIT,
     manualRevalidationsUsed: order.manualRevalidationsUsed,
     manualRevalidationLimit: MANUAL_REVALIDATION_LIMIT,
   };
@@ -139,6 +147,8 @@ function publicOrderSummary(order: {
   repoFullName: string | null;
   checkoutUrl: string | null;
   fixAttemptsUsed: number;
+  aiCreditsIncluded: number;
+  aiCreditsUsed: number;
   chatMessagesUsed: number;
   manualRevalidationsUsed: number;
 }): OrderSummary {
@@ -171,9 +181,12 @@ function toBillingOrder(order: {
   createdAt: Date;
   updatedAt: Date;
   fixAttemptsUsed: number;
+  aiCreditsIncluded: number;
+  aiCreditsUsed: number;
   chatMessagesUsed: number;
   manualRevalidationsUsed: number;
 }): BillingOrder {
+  const credits = aiCreditSnapshot(order);
   return {
     id: order.id,
     status: order.status,
@@ -195,8 +208,11 @@ function toBillingOrder(order: {
     disputedAt: order.disputedAt?.toISOString() ?? null,
     fixAttemptsUsed: order.fixAttemptsUsed,
     fixAttemptLimit: FIX_ATTEMPT_LIMIT,
+    aiCreditsUsed: credits.aiCreditsUsed,
+    aiCreditsIncluded: credits.aiCreditsIncluded,
+    aiCreditsLeft: credits.aiCreditsLeft,
     chatMessagesUsed: order.chatMessagesUsed,
-    chatMessageLimit: CHAT_MESSAGE_LIMIT,
+    chatMessageLimit: LEGACY_CHAT_MESSAGE_LIMIT,
     manualRevalidationsUsed: order.manualRevalidationsUsed,
     manualRevalidationLimit: MANUAL_REVALIDATION_LIMIT,
   };
@@ -206,6 +222,7 @@ function planDetails(tier: FixTierConfig): Prisma.InputJsonValue {
   return {
     pageCover: tier.maxPages ? `Up to ${tier.maxPages} pages` : "250+ pages",
     description: tier.description,
+    aiCreditsIncluded: tier.aiCreditsIncluded,
     features: tier.features,
     selfServe: tier.selfServe,
   };
@@ -308,6 +325,8 @@ export async function getOrderById(
       repoFullName: true,
       checkoutUrl: true,
       fixAttemptsUsed: true,
+      aiCreditsIncluded: true,
+      aiCreditsUsed: true,
       chatMessagesUsed: true,
       manualRevalidationsUsed: true,
     },
@@ -332,6 +351,8 @@ export async function getPublicOrderById(
       repoFullName: true,
       checkoutUrl: true,
       fixAttemptsUsed: true,
+      aiCreditsIncluded: true,
+      aiCreditsUsed: true,
       chatMessagesUsed: true,
       manualRevalidationsUsed: true,
     },
@@ -366,6 +387,8 @@ export async function listBillingHistoryForUser(
       createdAt: true,
       updatedAt: true,
       fixAttemptsUsed: true,
+      aiCreditsIncluded: true,
+      aiCreditsUsed: true,
       chatMessagesUsed: true,
       manualRevalidationsUsed: true,
     },
@@ -412,6 +435,25 @@ export async function createFixCheckoutForProject(input: {
 
   const sitemapPageCount = pageCountForScraping(scraping);
   const tier = getFixTierForSelection(sitemapPageCount, input.selectedTier);
+
+  const reusablePaidOrder = await prisma.order.findFirst({
+    where: {
+      userId: input.userId,
+      projectId: project.id,
+      status: "PAID",
+      fixAttemptsUsed: { lt: FIX_ATTEMPT_LIMIT },
+    },
+    include: { user: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (
+    reusablePaidOrder &&
+    getFixTierByName(reusablePaidOrder.tier).sortOrder >= tier.sortOrder
+  ) {
+    return createCheckoutForOrder(reusablePaidOrder);
+  }
+
   const productId = requireProductId(tier);
   const plan = await ensurePlan(tier);
 
@@ -421,7 +463,10 @@ export async function createFixCheckoutForProject(input: {
       projectId: project.id,
       scrapingId: scraping.id,
       tier: tier.tier,
-      status: { in: ["PENDING", "CHECKOUT_CREATED", "PROCESSING", "PAID"] },
+      OR: [
+        { status: { in: ["PENDING", "CHECKOUT_CREATED", "PROCESSING"] } },
+        { status: "PAID", fixAttemptsUsed: { lt: FIX_ATTEMPT_LIMIT } },
+      ],
     },
     include: { user: true },
     orderBy: { createdAt: "desc" },
@@ -444,6 +489,7 @@ export async function createFixCheckoutForProject(input: {
       repoConfirmed: true,
       feasibilityPassed: true,
       providerProductId: productId,
+      aiCreditsIncluded: tier.aiCreditsIncluded,
     },
     include: { user: true },
   });
@@ -455,6 +501,7 @@ export async function getPaidOrderForAgentPlan(input: {
   orderId: string;
   userId: string;
   projectId: string;
+  allowUsedAttempt?: boolean;
 }) {
   const order = await prisma.order.findFirst({
     where: {
@@ -468,8 +515,19 @@ export async function getPaidOrderForAgentPlan(input: {
   if (!order) {
     throw new BillingError(402, "A paid AI Search Fix order is required.");
   }
-  if (order.fixAttemptsUsed >= FIX_ATTEMPT_LIMIT) {
+  if (!input.allowUsedAttempt && order.fixAttemptsUsed >= FIX_ATTEMPT_LIMIT) {
     throw new BillingError(409, "This order has used all fix attempts.");
+  }
+
+  const scraping = await latestCompletedScraping(input.projectId, input.userId);
+  if (scraping) {
+    const requiredTier = getFixTierForPageCount(pageCountForScraping(scraping));
+    if (getFixTierByName(order.tier).sortOrder < requiredTier.sortOrder) {
+      throw new BillingError(
+        409,
+        "This paid order does not cover the latest scan size.",
+      );
+    }
   }
 
   return order;
@@ -724,6 +782,7 @@ export async function createDevFixtureOrder(input: {
       repoConfirmed: true,
       feasibilityPassed: true,
       providerProductId: productId,
+      aiCreditsIncluded: tier.aiCreditsIncluded,
     },
     include: { user: true },
   });
@@ -830,7 +889,7 @@ async function cancelActiveRunsForOrder(orderId: string): Promise<void> {
     where: {
       orderId,
       status: {
-        notIn: ["PR_OPENED", "COMPLETED", "FAILED", "CANCELED"],
+        notIn: ["FAILED", "CANCELED"],
       },
     },
     select: { id: true, temporalWorkflowId: true },

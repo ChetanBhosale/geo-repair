@@ -385,6 +385,8 @@ model Order {
   disputedAt DateTime?
 
   fixAttemptsUsed  Int @default(0)
+  aiCreditsIncluded Int @default(0)
+  aiCreditsUsed     Int @default(0)
   chatMessagesUsed Int @default(0)
   manualRevalidationsUsed Int @default(0)
 
@@ -393,6 +395,7 @@ model Order {
 
   webhookEvents PaymentWebhookEvent[]
   agentRuns     AgentRun[]
+  aiUsageEvents AiUsageEvent[]
 
   @@index([userId, status])
   @@index([projectId])
@@ -401,6 +404,29 @@ model Order {
   @@index([provider, providerPaymentId])
   @@index([provider, providerSessionId])
   @@map("orders")
+}
+
+model AiUsageEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  agentRunId String?
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
+  workflowId    String?
+  model         String?
+  reason        String?
+  inputTokens   Int @default(0)
+  outputTokens  Int @default(0)
+  inputCredits  Int @default(0)
+  outputCredits Int @default(0)
+  totalCredits  Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([agentRunId])
+  @@map("ai_usage_events")
 }
 
 model PaymentWebhookEvent {
@@ -550,6 +576,7 @@ model AgentRun {
 
   plan AgentPlan?
   logs Log[]
+  aiUsageEvents AiUsageEvent[]
 
   @@index([projectId])
   @@index([userId, status])

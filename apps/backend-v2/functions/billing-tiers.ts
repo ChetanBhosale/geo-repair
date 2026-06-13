@@ -1,5 +1,6 @@
 import Secrets from "@repo/secrets/backend";
 import type { FixTier, PlanSummary } from "@repo/types/billing";
+import { aiCreditLimitForTier } from "@repo/types/entitlements";
 
 export type FixTierConfig = {
   tier: FixTier;
@@ -11,6 +12,7 @@ export type FixTierConfig = {
   selfServe: boolean;
   productId?: string;
   description: string;
+  aiCreditsIncluded: number;
   features: string[];
 };
 
@@ -49,6 +51,7 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     selfServe: true,
     productId: Secrets.DODO_PRODUCT_ID_STARTER,
     description: "AI Search Fix for small sites.",
+    aiCreditsIncluded: aiCreditLimitForTier("STARTER"),
     features: SELF_SERVE_FIX_BENEFITS,
   },
   {
@@ -61,6 +64,7 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     selfServe: true,
     productId: Secrets.DODO_PRODUCT_ID_GROWTH,
     description: "AI Search Fix for most founder sites.",
+    aiCreditsIncluded: aiCreditLimitForTier("GROWTH"),
     features: SELF_SERVE_FIX_BENEFITS,
   },
   {
@@ -73,6 +77,7 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     selfServe: true,
     productId: Secrets.DODO_PRODUCT_ID_SCALE,
     description: "AI Search Fix for larger content sites.",
+    aiCreditsIncluded: aiCreditLimitForTier("SCALE"),
     features: SELF_SERVE_FIX_BENEFITS,
   },
   {
@@ -84,6 +89,7 @@ export const FIX_TIER_CONFIGS: FixTierConfig[] = [
     sortOrder: 3,
     selfServe: false,
     description: "Custom quote for sites above 250 pages.",
+    aiCreditsIncluded: aiCreditLimitForTier("ENTERPRISE_CUSTOM"),
     features: ["250+ pages", "Contact only", "No automated checkout"],
   },
 ];
@@ -100,7 +106,10 @@ export function planSummaries(): PlanSummary[] {
     selfServe: tier.selfServe,
     pageCover: tier.maxPages ? `Up to ${tier.maxPages} pages` : "250+ pages",
     description: tier.description,
-    features: tier.features,
+    aiCreditsIncluded: tier.aiCreditsIncluded,
+    features: tier.selfServe
+      ? [...tier.features, `${tier.aiCreditsIncluded.toLocaleString()} follow-up AI credits`]
+      : tier.features,
   }));
 }
 

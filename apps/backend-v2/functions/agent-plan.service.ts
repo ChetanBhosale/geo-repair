@@ -10,13 +10,14 @@ import type {
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
-import { getPrStatus } from "../lib/github";
-import type { CompleteRunResponse } from "@repo/types/agent";
-import { CHAT_MESSAGE_LIMIT } from "@repo/types/entitlements";
+import { FIX_ATTEMPT_LIMIT } from "@repo/types/entitlements";
 import type { PlanCheckInput } from "../temporal/worker/agent-plan/types";
 import type { AgentPlanWorkflowInput } from "../temporal/worker/agent-plan/workflow-types";
 import { getPaidOrderForAgentPlan } from "./billing.service";
 import { sendFixFailedEmail } from "../lib/email-notifications";
+import { aiCreditSnapshot } from "./ai-credits";
+
+const AGENT_DETAIL_LOG_LIMIT = 500;
 
 export class AgentPlanError extends Error {
   constructor(
@@ -96,23 +97,52 @@ export async function startAgentPlan(
   });
   if (!project) throw new AgentPlanError(404, "Project not found.");
 
-  const order = await getPaidOrderForAgentPlan({ orderId, userId, projectId });
+  const order = await getPaidOrderForAgentPlan({
+    orderId,
+    userId,
+    projectId,
+    allowUsedAttempt: true,
+  });
 
-  // Only one open run per project. The user must complete/merge the current run
-  // (or it must fail) before starting a new one.
+  const existingRun = await prisma.agentRun.findFirst({
+    where: {
+      projectId,
+      userId,
+      status: { notIn: ["FAILED", "CANCELED"] },
+    },
+    include: { plan: { include: { checks: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existingRun?.plan) {
+    return {
+      agentRunId: existingRun.id,
+      agentPlanId: existingRun.plan.id,
+      status: existingRun.status as StartAgentPlanResponse["status"],
+      plannedChecks: existingRun.plan.checks.length,
+    };
+  }
+
+  if (order.fixAttemptsUsed >= FIX_ATTEMPT_LIMIT) {
+    throw new AgentPlanError(
+      409,
+      "This paid order already has an agent. Resume the existing thread.",
+    );
+  }
+
+  // Only one live agent thread per project. PR merge/close does not close the
+  // thread; the user can keep spending the same order-level chat budget.
   const openRun = await prisma.agentRun.findFirst({
     where: {
       projectId,
       userId,
-      prMerged: false,
-      status: { notIn: ["COMPLETED", "FAILED", "CANCELED"] },
+      status: { notIn: ["FAILED", "CANCELED"] },
     },
     orderBy: { createdAt: "desc" },
   });
   if (openRun) {
     throw new AgentPlanError(
       409,
-      "There is already an active agent run for this project. Complete it before starting a new one.",
+      "There is already an active agent thread for this project.",
     );
   }
 
@@ -152,7 +182,7 @@ export async function startAgentPlan(
       scrapingId: scraping.id,
       orderId: order.id,
       status: "PLANNING",
-      chatMessagesLeft: CHAT_MESSAGE_LIMIT,
+      chatMessagesLeft: aiCreditSnapshot(order).chatMessagesLeft,
       scoreBefore: scraping.score,
       rubricVersion: result.rubricVersion ?? null,
       startedAt: new Date(),
@@ -249,10 +279,16 @@ export async function startAgentPlan(
 // Reads
 // ---------------------------------------------------------------------------
 
-// A run is "open" (blocks starting a new one) until it's merged or terminal.
-const TERMINAL_RUN_STATUS = new Set(["COMPLETED", "FAILED", "CANCELED"]);
-export function isRunOpen(row: { status: string; prMerged: boolean }): boolean {
-  if (row.prMerged) return false;
+// A run is "open" while the paid agent thread can still be viewed or messaged.
+// PR merge/close is routing context for the next chat turn, not a close signal.
+const TERMINAL_RUN_STATUS = new Set(["FAILED", "CANCELED"]);
+export function isRunOpen(row: {
+  status: string;
+  prState: string;
+  prUrl?: string | null;
+  prMerged?: boolean;
+}): boolean {
+  if (row.status === "COMPLETED" && !row.prUrl) return false;
   return !TERMINAL_RUN_STATUS.has(row.status);
 }
 
@@ -261,7 +297,7 @@ async function syncAgentRunFromTemporal(row: {
   userId: string;
   projectId: string;
   status: string;
-  prMerged: boolean;
+  prState: string;
   temporalWorkflowId: string | null;
 }): Promise<void> {
   if (!isRunOpen(row) || !row.temporalWorkflowId) return;
@@ -328,11 +364,26 @@ function toRunSummary(row: {
   prMerged: boolean;
   branch: string | null;
   chatMessagesLeft: number;
+  order?: {
+    tier: "STARTER" | "GROWTH" | "SCALE" | "ENTERPRISE_CUSTOM";
+    aiCreditsIncluded: number;
+    aiCreditsUsed: number;
+  } | null;
   orderId: string | null;
   error: string | null;
   createdAt: Date;
   finishedAt: Date | null;
 }): AgentRunSummary {
+  const prMerged = row.prState === "MERGED";
+  const credits = row.order
+    ? aiCreditSnapshot(row.order)
+    : {
+        aiCreditsUsed: 0,
+        aiCreditsIncluded: 0,
+        aiCreditsLeft: 0,
+        chatMessagesLeft: row.chatMessagesLeft,
+      };
+
   return {
     id: row.id,
     projectId: row.projectId,
@@ -343,9 +394,12 @@ function toRunSummary(row: {
     sandboxStatus: row.sandboxStatus as AgentRunSummary["sandboxStatus"],
     prState: row.prState as AgentRunSummary["prState"],
     prUrl: row.prUrl,
-    prMerged: row.prMerged,
+    prMerged,
     branch: row.branch,
-    chatMessagesLeft: row.chatMessagesLeft,
+    aiCreditsUsed: credits.aiCreditsUsed,
+    aiCreditsIncluded: credits.aiCreditsIncluded,
+    aiCreditsLeft: credits.aiCreditsLeft,
+    chatMessagesLeft: credits.chatMessagesLeft,
     orderId: row.orderId,
     isOpen: isRunOpen(row),
     error: row.error,
@@ -361,6 +415,11 @@ export async function listAgentRuns(
 ): Promise<AgentRunSummary[]> {
   const rows = await prisma.agentRun.findMany({
     where: { projectId, userId },
+    include: {
+      order: {
+        select: { tier: true, aiCreditsIncluded: true, aiCreditsUsed: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -369,6 +428,11 @@ export async function listAgentRuns(
     await Promise.all(openRows.map((row) => syncAgentRunFromTemporal(row)));
     const freshRows = await prisma.agentRun.findMany({
       where: { projectId, userId },
+      include: {
+        order: {
+          select: { tier: true, aiCreditsIncluded: true, aiCreditsUsed: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -393,11 +457,32 @@ export async function getAgentRunDetail(
   const row = await prisma.agentRun.findFirst({
     where: { id: agentRunId, userId },
     include: {
+      order: {
+        select: { tier: true, aiCreditsIncluded: true, aiCreditsUsed: true },
+      },
       plan: { include: { checks: { orderBy: { seq: "asc" } } } },
-      logs: { orderBy: [{ createdAt: "asc" }, { seq: "asc" }], take: 500 },
     },
   });
   if (!row) return null;
+
+  const recentLogs = await prisma.log.findMany({
+    where: { agentRunId },
+    orderBy: [{ createdAt: "desc" }, { seq: "desc" }],
+    take: AGENT_DETAIL_LOG_LIMIT,
+  });
+  const latestPlanLog = await prisma.log.findFirst({
+    where: { agentRunId, agentPlanId: { not: null } },
+    orderBy: [{ createdAt: "desc" }, { seq: "desc" }],
+  });
+  const logRowsById = new Map(recentLogs.map((log) => [log.id, log]));
+  if (latestPlanLog) logRowsById.set(latestPlanLog.id, latestPlanLog);
+  const orderedLogRows = [...logRowsById.values()].sort((a, b) => {
+    const createdDelta = a.createdAt.getTime() - b.createdAt.getTime();
+    if (createdDelta !== 0) return createdDelta;
+    const seqDelta = a.seq - b.seq;
+    if (seqDelta !== 0) return seqDelta;
+    return a.id.localeCompare(b.id);
+  });
 
   const plan: AgentPlanDTO | null = row.plan
     ? {
@@ -438,7 +523,7 @@ export async function getAgentRunDetail(
       }
     : null;
 
-  const logs: AgentChatLog[] = row.logs.map((l) => ({
+  const logs: AgentChatLog[] = orderedLogRows.map((l) => ({
     id: l.id,
     source: l.source as AgentChatLog["source"],
     level: l.level.toLowerCase() as AgentChatLog["level"],
@@ -451,49 +536,4 @@ export async function getAgentRunDetail(
   }));
 
   return { ...toRunSummary(row), plan, logs };
-}
-
-// Mark a run complete so a new run can start. The user confirms "I'm done with
-// the last run". We also check GitHub for the real merge state and record it.
-export async function completeAgentRun(
-  userId: string,
-  agentRunId: string,
-): Promise<CompleteRunResponse> {
-  const run = await prisma.agentRun.findFirst({
-    where: { id: agentRunId, userId },
-    include: {
-      project: { include: { account: { select: { accessToken: true } } } },
-    },
-  });
-  if (!run) throw new AgentPlanError(404, "Agent run not found.");
-
-  // Best-effort: reflect the real PR state if we can read it.
-  let prMergedAt: Date | undefined;
-  let prState = run.prState;
-  if (run.prNumber && run.project) {
-    const status = await getPrStatus(
-      run.project.owner,
-      run.project.name,
-      run.prNumber,
-      run.project.account?.accessToken,
-    );
-    if (status?.merged) {
-      prState = "MERGED";
-      prMergedAt = new Date();
-    } else if (status?.state === "closed") {
-      prState = "CLOSED";
-    }
-  }
-
-  await prisma.agentRun.update({
-    where: { id: run.id },
-    data: {
-      prMerged: true,
-      prState,
-      ...(prMergedAt ? { prMergedAt } : {}),
-      finishedAt: run.finishedAt ?? new Date(),
-    },
-  });
-
-  return { agentRunId: run.id, prMerged: true };
 }

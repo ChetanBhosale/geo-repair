@@ -45,6 +45,10 @@ export const OrderSummarySchema = z.object({
   // Entitlement usage for this order (see @repo/types/entitlements).
   fixAttemptsUsed: z.number().int().nonnegative(),
   fixAttemptLimit: z.number().int().positive(),
+  aiCreditsUsed: z.number().int().nonnegative(),
+  aiCreditsIncluded: z.number().int().nonnegative(),
+  aiCreditsLeft: z.number().int().nonnegative(),
+  // Deprecated compatibility fields. AI credits are the source of truth.
   chatMessagesUsed: z.number().int().nonnegative(),
   chatMessageLimit: z.number().int().positive(),
   manualRevalidationsUsed: z.number().int().nonnegative(),
@@ -73,6 +77,7 @@ export interface PlanSummary {
   // Display copy pulled from the plan's `details` JSON.
   pageCover: string | null;
   description: string | null;
+  aiCreditsIncluded: number;
   features: string[];
 }
 
@@ -115,7 +120,12 @@ export interface BillingOrder {
   // Entitlement usage (see @repo/types/entitlements).
   fixAttemptsUsed: number;
   fixAttemptLimit: number;
+  aiCreditsUsed: number;
+  aiCreditsIncluded: number;
+  aiCreditsLeft: number;
+  /** @deprecated AI credits are the source of truth for follow-up budget. */
   chatMessagesUsed: number;
+  /** @deprecated AI credits are the source of truth for follow-up budget. */
   chatMessageLimit: number;
   manualRevalidationsUsed: number;
   manualRevalidationLimit: number;

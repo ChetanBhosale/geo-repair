@@ -5,4 +5,5 @@ export interface AgentChatWorkflowInput {
   projectId: string;
   userId: string;
   message: string;
+  kind?: "USER" | "REVALIDATE";
 }

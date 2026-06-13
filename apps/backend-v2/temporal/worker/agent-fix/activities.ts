@@ -24,15 +24,17 @@ import type {
   AgentFixWorkflowInput,
   FixCheckInput,
   FixGroup,
-  RevalidateSetup,
   FixSetup,
 } from "./workflow-types";
 import {
   buildNoVerifiedFixesMessage,
   buildPrBlockerMessage,
+  buildScoreGateBlockerMessage,
   formatCommandFailure,
+  scoreGateBlockersForPr,
   unresolvedCheckIdsForPr,
 } from "./verification";
+import type { ScrapeResult, SiteCheck } from "../scraper/types";
 import {
   sendFixFailedEmail,
   sendFixPrOpenedEmail,
@@ -133,7 +135,7 @@ const GROUP_META: Record<
   "aeo-delivery": { label: "Markdown-twin delivery", cheap: false, order: 5 },
 };
 
-// Bucket the approved checks into ordered groups. Unknown ids get their own
+// Bucket repairable score blockers into ordered groups. Unknown ids get their own
 // single-check group (still works, just not batched).
 function groupChecks(checks: FixCheckInput[]): FixGroup[] {
   const buckets = new Map<string, FixCheckInput[]>();
@@ -159,6 +161,166 @@ function groupChecks(checks: FixCheckInput[]): FixGroup[] {
     (a, b) => (GROUP_META[a.id]?.order ?? 99) - (GROUP_META[b.id]?.order ?? 99),
   );
   return groups;
+}
+
+function checkNeedsDecision(check: FixCheckInput): boolean {
+  return check.mode === "NEEDS_INPUT" && check.choice !== "APPROVED";
+}
+
+function decisionOptions(): Prisma.InputJsonValue {
+  return [
+    {
+      id: "try_bigger_change",
+      label: "Try a bigger change",
+      description: "Let the agent make broader edits for this check.",
+    },
+    {
+      id: "skip",
+      label: "Skip this check",
+      description: "Do not include this check in the PR.",
+    },
+  ];
+}
+
+function pathFromScannedUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return value.startsWith("/") ? value : null;
+  }
+}
+
+function pathsFromStoredScan(result: ScrapeResult | null): string[] {
+  if (!result) return [];
+  const paths = new Set<string>();
+  for (const value of [result.url, result.finalUrl]) {
+    const path = pathFromScannedUrl(value);
+    if (path) paths.add(path);
+  }
+  for (const log of result.logs ?? []) {
+    const path = pathFromScannedUrl(log.page);
+    if (path) paths.add(path);
+  }
+  for (const check of result.checks ?? []) {
+    for (const affected of check.affectedPages ?? []) {
+      const path = pathFromScannedUrl(affected.page);
+      if (path) paths.add(path);
+    }
+  }
+  return [...paths];
+}
+
+async function validationPathsForRun(
+  input: AgentFixWorkflowInput,
+): Promise<string[]> {
+  const run = await prisma.agentRun.findUnique({
+    where: { id: input.agentRunId },
+    include: { scraping: { select: { result: true } } },
+  });
+  return pathsFromStoredScan(
+    (run?.scraping?.result as unknown as ScrapeResult | null) ?? null,
+  );
+}
+
+function statusNeedsWork(status: string | null | undefined): boolean {
+  return status === "FAILED" || status === "MID";
+}
+
+function fixabilityToString(value: SiteCheck["fixableByAgent"]): string {
+  if (value === "partial") return "partial";
+  return value ? "true" : "false";
+}
+
+function checkRowToFixInput(check: {
+  id: string;
+  rubricId: string;
+  category: string;
+  approach: string | null;
+  recommendation: string | null;
+  evidence: string | null;
+  targetPages: unknown;
+  userSuggestion: string | null;
+  mode: string;
+  choice: string;
+  fixableByAgent: string | null;
+}): FixCheckInput {
+  return {
+    id: check.id,
+    rubricId: check.rubricId,
+    category: check.category,
+    approach: check.approach,
+    recommendation: check.recommendation,
+    evidence: check.evidence,
+    targetPages:
+      (check.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
+    userSuggestion: check.userSuggestion,
+    mode: check.mode,
+    choice: check.choice,
+    fixableByAgent: check.fixableByAgent,
+  };
+}
+
+async function createMissingPlanCheck(args: {
+  input: AgentFixWorkflowInput;
+  check: SiteCheck;
+  seq: number;
+}) {
+  const { input, check, seq } = args;
+  const fixable = fixabilityToString(check.fixableByAgent);
+  const needsInput = fixable !== "true";
+  const firstAffected = check.affectedPages[0];
+  return prisma.agentPlanCheck.create({
+    data: {
+      agentPlanId: input.agentPlanId,
+      rubricId: check.name,
+      category: check.category,
+      tier: check.tier,
+      weight: check.weight,
+      scanStatus: check.status,
+      fixableByAgent: fixable,
+      evidence: firstAffected?.issue ?? check.summary,
+      recommendation: check.recommendation,
+      mode: needsInput ? "NEEDS_INPUT" : "AUTO",
+      approach:
+        check.recommendation ??
+        `Fix ${check.name} so the validation scan reaches a full pass.`,
+      targetPages: check.affectedPages.map((affected) => ({
+        url: affected.page,
+        action: "modify",
+        reason: affected.issue,
+      })) as unknown as Prisma.InputJsonValue,
+      question: needsInput
+        ? "This check is blocking a 100/100 validation score and may need a broader change. Should the agent try the bigger change, or skip it?"
+        : null,
+      options: needsInput ? decisionOptions() : undefined,
+      seq,
+    },
+  });
+}
+
+async function repairGroupsAfterValidationFailure(
+  input: AgentFixWorkflowInput,
+  reason: string,
+): Promise<FixGroup[]> {
+  const rows = await prisma.agentPlanCheck.findMany({
+    where: {
+      agentPlanId: input.agentPlanId,
+      choice: { not: "DECLINED" },
+      outcome: { notIn: ["FIXED", "SKIPPED_BY_USER", "ALREADY_OK"] },
+    },
+    orderBy: { seq: "asc" },
+  });
+  return groupChecks(
+    rows.map((row) => ({
+      ...checkRowToFixInput(row),
+      recommendation:
+        `${row.recommendation ?? ""} | Validation could not complete: ${reason}`
+          .trim()
+          .slice(0, 800),
+    })),
+  );
 }
 
 // 1. Create the sandbox, clone the repo, and resolve which checks to fix.
@@ -248,6 +410,9 @@ export async function fixSetupActivity(
       targetPages:
         (c.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
       userSuggestion: c.userSuggestion,
+      mode: c.mode,
+      choice: c.choice,
+      fixableByAgent: c.fixableByAgent,
     });
   }
 
@@ -275,74 +440,6 @@ export async function fixSetupActivity(
   };
 }
 
-// Clone the already-open PR branch into a short-lived sandbox for an explicit
-// user-triggered revalidation. This must not touch the default branch.
-export async function revalidateSetupActivity(
-  input: AgentFixWorkflowInput,
-): Promise<RevalidateSetup> {
-  const ref = refOf(input);
-  const run = await prisma.agentRun.findFirst({
-    where: { id: input.agentRunId, userId: input.userId },
-    include: {
-      project: { include: { account: { select: { accessToken: true } } } },
-    },
-  });
-  if (!run?.project) throw new Error("Run/project not found for revalidation.");
-  if (!run.prUrl || !run.prNumber || !run.branch) {
-    throw new Error("No open PR branch to revalidate.");
-  }
-
-  await prisma.agentRun.update({
-    where: { id: input.agentRunId },
-    data: { status: "VERIFYING", error: null },
-  });
-  await writeLog(
-    ref,
-    "AGENT",
-    "INFO",
-    "revalidate_started",
-    "Revalidating the open PR branch...",
-  );
-
-  const sandbox = await createSandbox();
-  await prisma.agentRun.update({
-    where: { id: input.agentRunId },
-    data: { sandboxId: sandbox.sandboxId, sandboxStatus: "RUNNING" },
-  });
-  await writeLog(
-    ref,
-    "AGENT",
-    "INFO",
-    "sandbox_started",
-    `Sandbox ready (${sandbox.sandboxId}).`,
-  );
-
-  await writeLog(
-    ref,
-    "AGENT",
-    "INFO",
-    "cloning_repo",
-    `Cloning ${run.project.fullName} (${run.branch})...`,
-  );
-  const { dir, result } = await cloneRepo(sandbox, {
-    cloneUrl: run.project.cloneUrl,
-    branch: run.branch,
-    token: run.project.account?.accessToken ?? undefined,
-  });
-  if (result.exitCode !== 0) {
-    throw new Error(`Clone failed: ${result.stderr.slice(0, 300)}`);
-  }
-  await writeLog(
-    ref,
-    "AGENT",
-    "INFO",
-    "repo_cloned",
-    "PR branch cloned. Running checks...",
-  );
-
-  return { sandboxId: sandbox.sandboxId, workdir: dir };
-}
-
 function fixSystemPrompt(repoSummary: string): string {
   const context = repoSummary
     ? `\n\nWhat the planner already found about this repo (reuse it — do NOT re-explore from scratch):\n${repoSummary}\n`
@@ -352,7 +449,7 @@ Tools: list_dir, read_file, edit_file (surgical edits — preferred), write_file
 
 Rules:
 - Work efficiently: read each shared file ONCE and apply every fix in this batch that touches it. Don't re-read or re-grep files you've already seen.
-- Think out loud: one short, jargon-free sentence before a tool call (streams live to the user).
+- Narrate like a human engineer before tool calls. Use varied, context-aware sentences that explain what the last result suggests and why the next step follows; one sentence is fine for simple steps, two is better when the reasoning would otherwise feel abrupt. Avoid repeating "I will..." or "I am going to...", and do not just restate the command or file name.
 - Make the SMALLEST edits that satisfy these checks. Match the file's existing style exactly. Change only what's needed.
 - Use only facts already on the site or provided by the user. Never invent claims, pricing, stats, FAQ answers, definitions, or sources.
 - Do NOT commit or use git — the harness opens the PR after all checks are done.
@@ -503,8 +600,9 @@ export async function fixGroupActivity(args: {
     }
   };
 
-  // Budget steps with the group size: one shared exploration + a few per check.
-  const maxSteps = Math.min(40, 10 + group.checks.length * 6);
+  // Internal safety cap only. The paid fix is not metered by customer credits,
+  // but the worker still needs a bounded loop.
+  const safetyMaxSteps = Math.min(220, Math.max(120, 24 + group.checks.length * 12));
 
   try {
     const res = await runAgent({
@@ -512,8 +610,8 @@ export async function fixGroupActivity(args: {
       user: fixGroupUserPrompt(group),
       tools,
       model: group.model,
-      maxSteps,
-      forceFinalAfterSteps: maxSteps - 4,
+      maxSteps: safetyMaxSteps,
+      forceFinalAfterSteps: safetyMaxSteps - 16,
       keepToolsAfterFinal: false,
       finalInstruction:
         "Stop editing and summarize what you changed for each check in one sentence each.",
@@ -564,14 +662,15 @@ export async function fixGroupActivity(args: {
 
 // 3. Verify by RE-SCANNING the fixed site. Build + serve the repo inside the
 // sandbox, run our own checker against it, mark each check's outcome from the
-// real result (not the agent's claim), and return the groups still failing so
-// the workflow can re-fix them. If the re-scan cannot run, the workflow falls
-// back to the build gate below; a failed build is always a hard stop before PR.
+// real result (not the agent's claim), and return the groups still blocking the
+// 100/100 score so the workflow can re-fix them. If the re-scan cannot run, PR
+// creation remains blocked.
 export interface RescanResult {
   ok: boolean;
   score: number | null;
   done: boolean;
   nextGroups: FixGroup[];
+  needsDecision?: boolean;
   reason?: string;
 }
 
@@ -655,7 +754,10 @@ export async function fixRescanActivity(args: {
         ok: false,
         score: null,
         done: false,
-        nextGroups: [],
+        nextGroups: await repairGroupsAfterValidationFailure(
+          input,
+          "no serve command",
+        ),
         reason: "no serve command",
       };
     }
@@ -684,7 +786,10 @@ export async function fixRescanActivity(args: {
           ok: false,
           score: null,
           done: false,
-          nextGroups: [],
+          nextGroups: await repairGroupsAfterValidationFailure(
+            input,
+            "build failed",
+          ),
           reason: "build failed",
         };
       }
@@ -731,13 +836,22 @@ export async function fixRescanActivity(args: {
         ok: false,
         score: null,
         done: false,
-        nextGroups: [],
+        nextGroups: await repairGroupsAfterValidationFailure(
+          input,
+          "server did not start",
+        ),
         reason: "server did not start",
       };
     }
 
-    // Re-scan the served site with our own checker.
-    const result = await runScrape(url, { maxPages: 6, concurrency: 3 });
+    // Re-scan the served site with our own checker, pinned to the same paths
+    // the original paid scan touched so the after-score is comparable.
+    const includePaths = await validationPathsForRun(input);
+    const result = await runScrape(url, {
+      maxPages: Math.max(20, includePaths.length),
+      includePaths,
+      concurrency: 3,
+    });
     const statusByRubric = new Map<string, string>();
     const summaryByRubric = new Map<string, string>();
     for (const c of result.checks) {
@@ -756,59 +870,115 @@ export async function fixRescanActivity(args: {
       `Re-scan score: ${score}/100 (pass ${iteration}).`,
     );
 
-    // Mark each approved check from the real result, and collect what still fails.
-    const rows = await prisma.agentPlanCheck.findMany({
+    // Create plan rows for validation blockers discovered after the first plan
+    // (for example a regression or a path not covered by the initial failing list).
+    const existingRows = await prisma.agentPlanCheck.findMany({
       where: { agentPlanId: input.agentPlanId },
       orderBy: { seq: "asc" },
     });
+    const rowsByRubric = new Map(
+      existingRows.map((row) => [row.rubricId, row]),
+    );
+    const createdRows = [];
+    let nextSeq =
+      existingRows.reduce((max, row) => Math.max(max, row.seq), -1) + 1;
+    for (const check of result.checks) {
+      if (!statusNeedsWork(check.status) || rowsByRubric.has(check.name)) {
+        continue;
+      }
+      const created = await createMissingPlanCheck({
+        input,
+        check,
+        seq: nextSeq++,
+      });
+      createdRows.push(created);
+      rowsByRubric.set(created.rubricId, created);
+    }
+
+    const rows = [...existingRows, ...createdRows];
     const stillFailing: FixCheckInput[] = [];
     for (const c of rows) {
-      const approved = c.mode === "AUTO" || c.choice === "APPROVED";
-      if (!approved) continue;
       const st = statusByRubric.get(c.rubricId);
       if (st === "SUCCESS") {
         await prisma.agentPlanCheck.update({
           where: { id: c.id },
-          data: { outcome: "FIXED", reason: "Verified passing by re-scan." },
+          data: {
+            scanStatus: st,
+            outcome: "FIXED",
+            reason: "Verified passing by re-scan.",
+          },
         });
       } else if (st === "NOT_APPLICABLE" || st === undefined) {
         // Not measured on the re-scan (e.g. site-wide check, or no applicable
         // page in the small re-scan). Leave the optimistic outcome as-is.
-      } else {
+        if (st) {
+          await prisma.agentPlanCheck.update({
+            where: { id: c.id },
+            data: { scanStatus: st },
+          });
+        }
+      } else if (statusNeedsWork(st)) {
+        const skipped = c.choice === "DECLINED" || c.outcome === "SKIPPED_BY_USER";
+        if (skipped) {
+          await prisma.agentPlanCheck.update({
+            where: { id: c.id },
+            data: {
+              scanStatus: st,
+              outcome: "SKIPPED_BY_USER",
+              reason: "User chose to skip this score blocker.",
+            },
+          });
+          continue;
+        }
         const summary = summaryByRubric.get(c.rubricId) ?? "";
         await prisma.agentPlanCheck.update({
           where: { id: c.id },
           data: {
-            outcome: "FAILED",
+            scanStatus: st,
+            outcome:
+              c.mode === "NEEDS_INPUT" && c.choice !== "APPROVED"
+                ? "PENDING"
+                : "FAILED",
             reason: `Still ${st} after the fix: ${summary}`.slice(0, 500),
           },
         });
         stillFailing.push({
-          id: c.id,
-          rubricId: c.rubricId,
-          category: c.category,
-          approach: c.approach,
+          ...checkRowToFixInput(c),
           recommendation:
             `${c.recommendation ?? ""} | Re-scan still found this ${st}: ${summary}`
               .trim()
               .slice(0, 800),
-          evidence: c.evidence,
-          targetPages:
-            (c.targetPages as unknown as FixCheckInput["targetPages"]) ?? [],
-          userSuggestion: c.userSuggestion,
         });
       }
     }
 
     const nextGroups = groupChecks(stillFailing);
-    const done = stillFailing.length === 0;
+    const readiness = rows.map((row) => ({
+      rubricId: row.rubricId,
+      mode: row.mode,
+      choice: row.choice,
+      outcome: row.outcome,
+    }));
+    const scoreChecks = result.checks.map((check) => ({
+      rubricId: check.name,
+      status: check.status,
+      pointsPossible: check.pointsPossible,
+    }));
+    const scoreBlockers = scoreGateBlockersForPr({
+      score,
+      checks: scoreChecks,
+      readiness,
+    });
+    const done = scoreBlockers.length === 0;
     if (done) {
       await writeLog(
         ref,
         "AGENT",
         "INFO",
         "rescan_clean",
-        "All targeted checks pass. No further fixes needed.",
+        score === 100
+          ? "Validation reached 100/100. No further fixes needed."
+          : "All remaining score loss was explicitly skipped by the user.",
       );
     } else {
       await writeLog(
@@ -816,10 +986,35 @@ export async function fixRescanActivity(args: {
         "AGENT",
         "INFO",
         "rescan_remaining",
-        `${stillFailing.length} check(s) still need work: ${stillFailing.map((c) => c.rubricId).join(", ")}.`,
+        `${scoreBlockers.length} score blocker(s) remain: ${scoreBlockers.join(", ")}.`,
       );
     }
-    return { ok: true, score, done, nextGroups };
+    await writeLog(
+      ref,
+      "AGENT_FILE",
+      done ? "INFO" : "ERROR",
+      done ? "validation_passed" : "verify_failed",
+      done
+        ? `Validation gate passed. Score: ${score}/100.`
+        : `Validation gate failed. Score: ${score}/100.`,
+      {
+        score,
+        scoreBlockers,
+        includePaths,
+        failedChecks: result.checks
+          .filter((check) => statusNeedsWork(check.status))
+          .map((check) => `${check.name}:${check.status}`),
+      },
+    );
+    return {
+      ok: true,
+      score,
+      done,
+      nextGroups,
+      needsDecision: nextGroups.some((group) =>
+        group.checks.some(checkNeedsDecision),
+      ),
+    };
   } catch (err) {
     await writeLog(
       ref,
@@ -832,7 +1027,10 @@ export async function fixRescanActivity(args: {
       ok: false,
       score: null,
       done: false,
-      nextGroups: [],
+      nextGroups: await repairGroupsAfterValidationFailure(
+        input,
+        "rescan error",
+      ),
       reason: "rescan error",
     };
   } finally {
@@ -849,19 +1047,6 @@ export async function requestFixDecisionActivity(args: {
   const ids = groups.flatMap((group) => group.checks.map((check) => check.id));
   if (ids.length === 0) return { pending: 0 };
 
-  const options = [
-    {
-      id: "try_bigger_change",
-      label: "Try a bigger change",
-      description: "Let the agent make broader edits for this check.",
-    },
-    {
-      id: "skip",
-      label: "Skip this check",
-      description: "Do not include this check in the PR.",
-    },
-  ];
-
   await Promise.all(
     ids.map((id) =>
       prisma.agentPlanCheck.update({
@@ -873,15 +1058,18 @@ export async function requestFixDecisionActivity(args: {
           userSuggestion: null,
           outcome: "PENDING",
           question:
-            "This check still is not verified. Should the agent try a bigger change, or skip it?",
-          options: options as Prisma.InputJsonValue,
+            "This check is blocking a 100/100 validation score. Should the agent try a bigger change, or skip it?",
+          options: decisionOptions(),
         },
       }),
     ),
   );
 
   await prisma.agentRun
-    .update({ where: { id: input.agentRunId }, data: { status: "AWAITING_INPUT" } })
+    .update({
+      where: { id: input.agentRunId },
+      data: { status: "AWAITING_INPUT" },
+    })
     .catch(() => {});
 
   await writeLog(
@@ -916,7 +1104,9 @@ export async function collectFixDecisionActivity(args: {
 }): Promise<{ groups: FixGroup[] }> {
   const { input, decision } = args;
   const ref = refOf(input);
-  const byRubric = new Map(decision.answers.map((answer) => [answer.rubricId, answer]));
+  const byRubric = new Map(
+    decision.answers.map((answer) => [answer.rubricId, answer]),
+  );
 
   const rows = await prisma.agentPlanCheck.findMany({
     where: {
@@ -1055,7 +1245,13 @@ export async function fixVerifyActivity(args: {
   }
 }
 
-export async function assertPrReadyActivity(input: AgentFixWorkflowInput): Promise<void> {
+export async function assertPrReadyActivity(
+  input: AgentFixWorkflowInput,
+): Promise<void> {
+  const run = await prisma.agentRun.findUnique({
+    where: { id: input.agentRunId },
+    select: { scoreAfter: true },
+  });
   const rows = await prisma.agentPlanCheck.findMany({
     where: { agentPlanId: input.agentPlanId },
     select: {
@@ -1063,6 +1259,8 @@ export async function assertPrReadyActivity(input: AgentFixWorkflowInput): Promi
       mode: true,
       choice: true,
       outcome: true,
+      scanStatus: true,
+      weight: true,
     },
     orderBy: { seq: "asc" },
   });
@@ -1078,6 +1276,24 @@ export async function assertPrReadyActivity(input: AgentFixWorkflowInput): Promi
     throw new Error(
       `PR was not opened because these checks are still unresolved: ${unresolved.join(", ")}.`,
     );
+  }
+
+  const scoreBlockers = scoreGateBlockersForPr({
+    score: run?.scoreAfter,
+    checks: rows.map((row) => ({
+      rubricId: row.rubricId,
+      status: row.scanStatus,
+      pointsPossible: row.weight,
+    })),
+    readiness: rows.map((row) => ({
+      rubricId: row.rubricId,
+      mode: row.mode,
+      choice: row.choice,
+      outcome: row.outcome,
+    })),
+  });
+  if (scoreBlockers.length > 0) {
+    throw new Error(buildScoreGateBlockerMessage(scoreBlockers));
   }
 }
 
@@ -1248,58 +1464,6 @@ export async function fixTeardownActivity(
       data: { sandboxId: null, sandboxStatus: "KILLED" },
     })
     .catch(() => {});
-}
-
-export async function revalidateTeardownActivity(args: {
-  input: AgentFixWorkflowInput;
-  sandboxId: string;
-}): Promise<void> {
-  try {
-    const sandbox = await connectSandbox(args.sandboxId);
-    await killSandbox(sandbox);
-  } catch {
-    /* already gone */
-  }
-
-  await prisma.agentRun
-    .updateMany({
-      where: { id: args.input.agentRunId, sandboxId: args.sandboxId },
-      data: { sandboxId: null, sandboxStatus: "KILLED" },
-    })
-    .catch(() => {});
-}
-
-export async function completeRevalidateActivity(
-  input: AgentFixWorkflowInput,
-): Promise<void> {
-  const ref = refOf(input);
-  await prisma.agentRun
-    .update({
-      where: { id: input.agentRunId },
-      data: { status: "PR_OPENED", error: null },
-    })
-    .catch(() => {});
-  await writeLog(
-    ref,
-    "AGENT",
-    "INFO",
-    "revalidate_complete",
-    "Revalidation finished. Checks are updated.",
-  );
-}
-
-export async function failRevalidateActivity(
-  input: AgentFixWorkflowInput,
-  message: string,
-): Promise<void> {
-  const ref = refOf(input);
-  await prisma.agentRun
-    .update({
-      where: { id: input.agentRunId },
-      data: { status: "PR_OPENED", error: message },
-    })
-    .catch(() => {});
-  await writeLog(ref, "AGENT", "ERROR", "revalidate_failed", message);
 }
 
 export async function failFixActivity(

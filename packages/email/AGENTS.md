@@ -21,7 +21,7 @@ break the work that triggered it (`await … .catch(() => {})`).
 | **Fix agent** | `fixPlanReady` | `AgentPlan` → `AWAITING_USER` / run `AWAITING_INPUT` | `user.email` |
 | **Fix agent** | `fixPrOpened` | `AgentRun` → `PR_OPENED` (also the no-change `COMPLETED` case) | `user.email` |
 | **Fix agent** | `fixFailed` | `AgentRun` → `FAILED` | `user.email` |
-| **Fix agent** | `chatLimitReached` | `AgentRun.chatMessagesLeft` hits 0 | `user.email` |
+| **Fix agent** | `aiCreditsExhausted` | computed order AI credits left hits 0 after follow-up usage | `user.email` |
 | **Waitlist** (live today) | `waitlistWelcome` | `POST /api/waitlist` | submitted email |
 | **Contact** (live today) | `contactNotification` + `contactAck` | `POST /api/contact` | team inbox + submitter |
 
@@ -31,7 +31,7 @@ and the schema in [`packages/db/prisma/schema.prisma`](../db/prisma/schema.prism
 ### Two rules that are DEFERRED — do them when you wire, not before
 
 1. **Presence-aware suppression.** The scan and fix emails (`checkupComplete`, `scanFailed`,
-   `fixPlanReady`, `fixPrOpened`, `fixFailed`, `chatLimitReached`) should be skipped if the
+   `fixPlanReady`, `fixPrOpened`, `fixFailed`, `aiCreditsExhausted`) should be skipped if the
    user was active in the dashboard when the event fired (they already saw it in-app).
    When you build the dashboard, add `User.lastSeenAt` (heartbeat + piggyback on polled
    endpoints) and gate these sends on `now - lastSeenAt > threshold`. Welcome, billing,

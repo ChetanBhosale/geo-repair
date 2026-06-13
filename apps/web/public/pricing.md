@@ -33,12 +33,12 @@ When you connect a repository, the agent opens the pull requests that close the 
 
 **Every fix includes**
 
-- The agent fixes every flagged check and opens one pull request
-- Build- and type-checked in an ephemeral sandbox before the PR opens
+- The agent fixes every flagged check and opens a pull request
+- Build and type checks run in an ephemeral sandbox before any PR opens
 - You review and merge. Nothing ships without you
 - Net-new content stays gated behind your approval
-- Up to 3 fix attempts if a run needs a retry
-- 20 follow-up chat messages to refine the pull request with the agent
+- One persistent agent thread for the paid fix
+- Follow-up AI credits for PR refinements after the first fix
 - Charged once, upfront, only after we confirm your stack is buildable
 
 The fix is a single upfront charge sized to your sitemap. We never promise rankings or AI citations, only that your site is measurably more ready.
@@ -60,7 +60,7 @@ Yes. The checkup reads your public pages and returns the full 0–100 score with
 
 ### How much does the fix cost?
 
-The fix is a one-time fee based on how many pages are in your sitemap: $49 up to 25 pages, $149 up to 100, $399 up to 250, and custom pricing beyond that. We measure your page count automatically during the free checkup and show your exact price before you pay anything.
+The fix is a one-time fee based on how many pages are in your sitemap: $49 up to 25 pages with 3M follow-up AI credits, $149 up to 100 with 10M credits, $399 up to 250 with 25M credits, and custom pricing beyond that. We measure your page count during the free checkup and show your exact price before you pay.
 
 ### When do I pay?
 

@@ -43,6 +43,9 @@ Each check returns:
 - Scores must be **reproducible** across runs on unchanged input (deterministic checker).
 - The set of `fixable_by_agent: true` failing checks becomes the agent's **bounded task
   list** — the primary cost control (the agent only touches flagged checks, never free-roams).
+- The fix workflow's PR gate is score-based: the latest local validation scan must reach
+  **100/100** before a PR opens. A non-100 PR is allowed only when every remaining scored
+  `fail` / `partial` blocker was explicitly skipped by the user.
 
 ## Capability tiers
 

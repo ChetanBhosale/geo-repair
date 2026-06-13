@@ -100,7 +100,7 @@ export interface FixRunSummary {
   website: string;
   repoFullName: string;
   // The paid order this run belongs to (lets the UI surface that order's
-  // attempt + chat-message usage alongside the run).
+  // attempt + AI credit usage alongside the run).
   orderId: string | null;
   state: FixRunState;
   sandboxStatus: SandboxStatus;

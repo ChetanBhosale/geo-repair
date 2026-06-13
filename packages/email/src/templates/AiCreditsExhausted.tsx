@@ -4,27 +4,27 @@ import { Button } from "../components/Button"
 import { H1, Layout, P } from "../components/Layout"
 import { MUTED } from "../theme"
 
-export type ChatLimitReachedProps = {
+export type AiCreditsExhaustedProps = {
   projectName: string
   prUrl?: string
 }
 
-/** Sent when the post-PR chat for a run runs out of messages. */
-export default function ChatLimitReached({
+/** Sent when follow-up AI credits for a paid fix workspace run out. */
+export default function AiCreditsExhausted({
   projectName,
   prUrl,
-}: ChatLimitReachedProps) {
+}: AiCreditsExhaustedProps) {
   return (
-    <Layout preview={`You've reached the chat limit for ${projectName}`}>
-      <H1>You&apos;ve reached the chat limit</H1>
+    <Layout preview={`You've used the follow-up AI credits for ${projectName}`}>
+      <H1>Your follow-up AI credits are used</H1>
       <P>
-        You&apos;ve used all the follow-up messages for the fix run on{" "}
-        <strong>{projectName}</strong>. The pull request stays open, so you can
-        still review and merge it.
+        You&apos;ve used the included follow-up AI credits for{" "}
+        <strong>{projectName}</strong>. The pull request stays open, and you can
+        still review or merge it.
       </P>
       <P>
-        Need more changes? Start a fresh run to plan and apply the next round of
-        fixes.
+        Need more changes? Reply to this email and we&apos;ll help add credits
+        or route the next round.
       </P>
       {prUrl ? (
         <Section style={{ marginTop: "8px" }}>
@@ -38,7 +38,7 @@ export default function ChatLimitReached({
   )
 }
 
-ChatLimitReached.PreviewProps = {
+AiCreditsExhausted.PreviewProps = {
   projectName: "acme/marketing-site",
   prUrl: "https://github.com/acme/marketing-site/pull/42",
-} satisfies ChatLimitReachedProps
+} satisfies AiCreditsExhaustedProps

@@ -23,7 +23,6 @@ import type {
   AgentRunSummary,
   AgentPlanAnswer,
   ChatResponse,
-  CompleteRunResponse,
   ListAgentRunsResponse,
   RevalidateRunResponse,
   StartAgentPlanRequest,
@@ -284,14 +283,6 @@ export async function revalidateAgentRun(
     ENDPOINTS.agentRunRevalidate(agentRunId),
     { method: "POST" }
   )
-}
-
-export async function completeAgentRun(
-  agentRunId: string
-): Promise<CompleteRunResponse> {
-  return request<CompleteRunResponse>(ENDPOINTS.agentRunComplete(agentRunId), {
-    method: "POST",
-  })
 }
 
 export async function getWorkerStatus(

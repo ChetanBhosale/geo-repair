@@ -15,6 +15,10 @@ export interface SandboxToolsOptions {
   workdir: string;
   // Cap on bytes returned by read/run so huge outputs don't blow up context.
   maxOutputChars?: number;
+  // Default timeout for ad-hoc shell commands. Long build/serve validation
+  // should use a dedicated caller/tool with explicit timeouts instead.
+  defaultCommandTimeoutMs?: number;
+  maxCommandTimeoutMs?: number;
 }
 
 function clamp(s: string, max: number): string {
@@ -22,25 +26,55 @@ function clamp(s: string, max: number): string {
   return s.slice(0, max) + `\n…[truncated ${s.length - max} chars]`;
 }
 
+function commandTimeout(
+  args: Record<string, unknown>,
+  opts: SandboxToolsOptions,
+): number {
+  const fallback = opts.defaultCommandTimeoutMs ?? 2 * 60 * 1000;
+  const max = opts.maxCommandTimeoutMs ?? 5 * 60 * 1000;
+  const requested =
+    typeof args.timeoutMs === "number" ? args.timeoutMs : fallback;
+  return Math.max(1_000, Math.min(requested, max));
+}
+
+function broadRepoWalk(command: string): boolean {
+  const normalized = command.trim().replace(/\s+/g, " ");
+  if (!/^find\s+\.(\s|$)/.test(normalized)) return false;
+  return !/node_modules|\.next|\.git|dist|build/.test(normalized);
+}
+
 // File-edit + shell tools the fix agent uses to operate the cloned repo. All
 // paths are relative to `workdir`. Returns plain SandboxTool[] — the caller
 // (backend) adapts them to @repo/ai's AgentTool (identical shape).
-export function sandboxTools(sandbox: Sandbox, opts: SandboxToolsOptions): SandboxTool[] {
+export function sandboxTools(
+  sandbox: Sandbox,
+  opts: SandboxToolsOptions,
+): SandboxTool[] {
   const workdir = opts.workdir;
   const maxOut = opts.maxOutputChars ?? 30_000;
 
   return [
     {
       name: "list_dir",
-      description: "List files and directories under a path (relative to the repo root).",
+      description:
+        "List files and directories under a path (relative to the repo root).",
       parameters: {
         type: "object",
-        properties: { path: { type: "string", description: "Relative path. Use '.' for repo root." } },
+        properties: {
+          path: {
+            type: "string",
+            description: "Relative path. Use '.' for repo root.",
+          },
+        },
         required: ["path"],
       },
       execute: async (args) => {
         const path = String(args.path ?? ".");
-        const res = await runCommand(sandbox, `ls -la ${JSON.stringify(path)}`, { cwd: workdir });
+        const res = await runCommand(
+          sandbox,
+          `ls -la ${JSON.stringify(path)}`,
+          { cwd: workdir },
+        );
         return clamp(res.stdout || res.stderr || "(empty)", maxOut);
       },
     },
@@ -56,7 +90,10 @@ export function sandboxTools(sandbox: Sandbox, opts: SandboxToolsOptions): Sandb
         const path = String(args.path ?? "");
         try {
           const content = await sandbox.files.read(`${workdir}/${path}`);
-          return clamp(typeof content === "string" ? content : String(content), maxOut);
+          return clamp(
+            typeof content === "string" ? content : String(content),
+            maxOut,
+          );
         } catch (err) {
           return `Error reading ${path}: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -83,7 +120,8 @@ export function sandboxTools(sandbox: Sandbox, opts: SandboxToolsOptions): Sandb
           new_string: { type: "string", description: "Replacement text." },
           replace_all: {
             type: "boolean",
-            description: "Replace every occurrence of old_string (default false).",
+            description:
+              "Replace every occurrence of old_string (default false).",
           },
         },
         required: ["path", "old_string", "new_string"],
@@ -146,21 +184,34 @@ export function sandboxTools(sandbox: Sandbox, opts: SandboxToolsOptions): Sandb
     {
       name: "run_command",
       description:
-        "Run a shell command in the repo root (e.g. 'grep -r foo .', 'bun run build', 'git add -A'). Returns exit code, stdout, stderr.",
+        "Run a bounded diagnostic shell command in the repo root. This is for inspection and short checks; use the dedicated validation tool for build/serve/scan verification. Returns exit code, stdout, stderr.",
       parameters: {
         type: "object",
         properties: {
           command: { type: "string" },
-          timeoutMs: { type: "number", description: "Optional command timeout in ms." },
+          timeoutMs: {
+            type: "number",
+            description: "Optional command timeout in ms.",
+          },
         },
         required: ["command"],
       },
       execute: async (args) => {
         const command = String(args.command ?? "");
-        const timeoutMs = typeof args.timeoutMs === "number" ? args.timeoutMs : undefined;
-        const res = await runCommand(sandbox, command, { cwd: workdir, timeoutMs });
+        if (broadRepoWalk(command)) {
+          return [
+            "Error: broad `find .` repo walks are disabled for agent diagnostics because they dump node_modules/build output and derail the turn.",
+            "Scope the command to the relevant app/package, for example `find apps/web apps/backend-v2 packages -path '*/node_modules' -prune -o -name '*scrape*' -print`.",
+          ].join("\n");
+        }
+        const timeoutMs = commandTimeout(args, opts);
+        const res = await runCommand(sandbox, command, {
+          cwd: workdir,
+          timeoutMs,
+        });
         const body = [
           `exit: ${res.exitCode}`,
+          `timeoutMs: ${timeoutMs}`,
           res.stdout ? `stdout:\n${res.stdout}` : "",
           res.stderr ? `stderr:\n${res.stderr}` : "",
         ]

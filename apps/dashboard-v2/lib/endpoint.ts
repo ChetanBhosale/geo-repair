@@ -44,8 +44,6 @@ export const ENDPOINTS = {
     `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/chat`,
   agentRunRevalidate: (id: string) =>
     `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/revalidate`,
-  agentRunComplete: (id: string) =>
-    `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}/complete`,
   aiVisibilityInterest: `${BACKEND_URL}/api/feature-interests/ai-visibility`,
   scraping: (id: string) =>
     `${BACKEND_URL}/api/scrapings/${encodeURIComponent(id)}`,

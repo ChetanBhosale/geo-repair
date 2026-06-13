@@ -24,11 +24,20 @@ export interface AgentStepLog {
   toolArgs?: Record<string, unknown>;
 }
 
+export interface AgentUsageDelta {
+  step: number;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface RunAgentOptions {
   system: string;
   user: string;
   tools: AgentTool[];
   model?: string;
+  // Internal safety cap only. Customer-facing follow-up usage is governed by AI
+  // credits, not by this step count.
   maxSteps?: number;
   forceFinalAfterSteps?: number;
   finalInstruction?: string;
@@ -41,6 +50,8 @@ export interface RunAgentOptions {
   maxTokens?: number;
   // Called on every assistant message, tool call, and tool result — for logging.
   onEvent?: (log: AgentStepLog) => void | Promise<void>;
+  // Called after each model response with just that response's usage.
+  onUsage?: (usage: AgentUsageDelta) => void | Promise<void>;
 }
 
 export interface RunAgentResult {
@@ -65,7 +76,7 @@ function toOpenAiTools(tools: AgentTool[]): ChatCompletionTool[] {
 // Generic tool-calling agent loop over the OpenRouter (OpenAI-compatible) API.
 // Model is env-driven (LLM_MODEL) — swap models without touching code. The loop:
 // call model -> if it requests tool calls, run them and feed results back ->
-// repeat until the model answers with no tool calls (or maxSteps is hit).
+// repeat until the model answers with no tool calls (or the safety cap is hit).
 export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
   const model = opts.model ?? DEFAULT_MODEL;
   const maxSteps = opts.maxSteps ?? 30;
@@ -107,8 +118,11 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
       max_tokens: opts.maxTokens,
     });
 
-    tokensIn += res.usage?.prompt_tokens ?? 0;
-    tokensOut += res.usage?.completion_tokens ?? 0;
+    const inputTokens = res.usage?.prompt_tokens ?? 0;
+    const outputTokens = res.usage?.completion_tokens ?? 0;
+    tokensIn += inputTokens;
+    tokensOut += outputTokens;
+    await opts.onUsage?.({ step, model, inputTokens, outputTokens });
 
     const choice = res.choices[0];
     const msg = choice?.message;

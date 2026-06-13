@@ -136,24 +136,39 @@ Done:
   avoiding password-manager autofill overlays on focus.
 - Agent chat now renders user-sent messages in right-aligned bubbles while
   keeping agent messages flat.
+- Agent chat now sends on Enter, keeps Shift+Enter for line breaks, and inserts
+  an optimistic user bubble immediately while the backend starts the chat turn.
+- Agent run floating controls now show check progress as done/total alongside
+  the score target.
+- Agent chat activity now collapses raw tool and command logs into plain-English
+  summaries like `Searched code`, `Read 2 files`, and `Ran a command`.
 - Fix-run build verification now hard-fails before PR creation. If install/build
   exits non-zero, the run is marked failed and no branch is pushed.
 - Fix-run PR creation now also requires at least one check verified as fixed, so
   changed files alone cannot open a PR.
-- Fix-run PR creation now blocks partial-success PRs. Every approved check must
-  be verified fixed or explicitly skipped by the user before a PR opens.
-- Fix workflow now pauses after retrying unresolved checks and asks MCQs:
-  retry with bigger changes or skip the check. User decisions resume the same
-  Temporal workflow via signal.
-- Added a dedicated PR-branch revalidation action. The Checks tab can start
-  `POST /api/agent-runs/:id/revalidate`, which runs build/re-scan verification
-  on the saved PR branch, updates check outcomes, and does not consume chat
-  messages.
-- Manual PR-branch revalidation is now capped at 3 uses per paid order, tracked
-  on `Order.manualRevalidationsUsed`.
-- Post-PR chat continues to work on the saved PR branch and pushes updates into
-  the existing pull request, not the default branch. Chat sandboxes are kept
-  warm for 15 minutes after each turn, then E2B expires them.
+- Fix-run PR creation now blocks partial-success PRs at the score level. The
+  latest validation scan must reach 100/100 before a PR opens, unless every
+  remaining scored blocker was explicitly skipped by the user.
+- Fix workflow now pauses after repeated unresolved blockers or broad-change
+  blockers and asks MCQs: retry with bigger changes or skip the check. User
+  decisions resume the same Temporal workflow via signal.
+- Revalidate now queues a preset chat-agent turn instead of a verify-only
+  workflow. It spends from the same follow-up AI credit balance.
+- Post-PR chat edits now have the same validation gate: the agent is instructed
+  to call `validate_pr_branch` after edits, and the harness refuses to push if
+  validation did not pass on the latest changed tree.
+- Revalidation now returns detailed score-blocker data to the chat agent, keeps
+  tools available after the wrap-up nudge, and steers the agent toward website/
+  app edits instead of spending the turn only auditing checker internals.
+- Agent narration prompts now ask for more human, varied, context-aware
+  sentences and explicitly avoid repetitive "I will..." tool prefaces.
+- Post-PR chat and revalidation turns now ask the agent to finish with a
+  detailed multi-paragraph summary, and the closing message is stored with a
+  larger limit so the dashboard does not truncate it immediately.
+- Post-PR chat updates the current PR while it is open. If GitHub reports the
+  latest PR as merged or closed, the next message opens a follow-up PR in the
+  same agent thread. Chat sandboxes are kept warm for 15 minutes after each
+  turn, then E2B expires them.
 - Agent run page now centers the chat as the main surface, with a vertical
   floating context toolbar and animated on-demand right preview for plan,
   checks, and changes. The preview takes layout space and pushes the chat and
@@ -238,7 +253,7 @@ Done:
 - Schema: added `LogSource.AGENT_FILE` (code-change/build logs, shown on the right panel, not the chat). `prisma generate` run; needs migration.
 - New Temporal queue `agent-fix` (+ `agent-fix-worker`), registered in worker/index.ts.
 - `POST /api/agent-runs/:id/fix` -> `startFix`: guards `status === AWAITING_INPUT` (rejects double-submit with 409), persists each NEEDS_INPUT answer (choice/selectedOption/userSuggestion) onto AgentPlanCheck, sets plan SUBMITTED + run QUEUED, enqueues `agentFixWorkflow`.
-- `agentFixWorkflow`: fixSetupActivity (create sandbox + save id + clone + resolve approved checks) -> fixCheckActivity per check (own activity; runAgent with read/edit/write/run tools; narration -> AGENT chat logs, edits/commands -> AGENT_FILE logs; sets check outcome FIXED/FAILED/SKIPPED) -> fixVerifyActivity (bun/npm install + build, best-effort) -> fixOpenPrActivity (branch + commit + push with account token + open PR via GitHub REST, save prUrl/prNumber/branch/prState/fixedChecks on AgentRun) -> fixTeardownActivity (kill sandbox + clear sandboxId). Single attempt.
+- `agentFixWorkflow`: fixSetupActivity (create sandbox + save id + clone + resolve approved or automatic score blockers) -> grouped fix activities by shared surface -> fixRescanActivity (build/serve + local scanner against original scan paths) -> repeat fresh grouped repair activities until the latest validation reaches 100/100 or remaining scored blockers are user-skipped -> fixVerifyActivity -> assertPrReadyActivity -> fixOpenPrActivity (branch + commit + push with account token + open PR via GitHub REST, save prUrl/prNumber/branch/prState/fixedChecks on AgentRun) -> fixTeardownActivity.
 - Frontend: Submit disabled until every NEEDS_INPUT question is answered; calls `useStartFix`; once submitted the plan locks (driven by server status != AWAITING_INPUT) so it can't be re-clicked. Backend 409 also blocks double-submit.
 - Agent screen right panel: Changes tab shows real `file_change` AGENT_FILE logs (falls back to planned target pages pre-fix); Code tab shows commands + build output as a terminal stream. Chat (left) only shows AGENT logs.
 
@@ -255,22 +270,47 @@ Done:
 - Wired into the fix agent: when `OPEN_ROUTER_KEY` is set, `fixCheckActivity` adds `generate_image`, writing the PNG into the cloned repo (e.g. a missing OG image) and logging it as an AGENT_FILE `file_change`.
 - (Replaced the earlier Vertex-only `vertex-image.ts` with the multi-provider `image.ts`.)
 
-## Post-PR chat + run lifecycle (chat / complete / one-open-run / history)
+## Agent lifecycle simplified to one paid thread
 
 Done (backend):
 
 - `lib/github.ts` `getPrStatus()` — reads a PR's merged/closed state with the user's token.
-- `POST /api/agent-runs/:id/chat` -> `startChat`: guards (PR must exist, live GitHub merge check sets `prMerged`, blocked if merged or `chatMessagesLeft<=0`), persists the user message as a `USER` log, decrements `chatMessagesLeft`, sets status `CHATTING`, enqueues `agentChatWorkflow` (queue `agent-chat`, workflowId unique per turn).
-- `agent-chat` worker: `runChatActivity` revives the run's sandbox (or creates + re-clones the fix branch, keeps it ALIVE), rebuilds memory context from DB (plan summary, check outcomes, changed files, recent USER/AGENT transcript), runs the chat agent with edit/run tools + image tool, commits + pushes to update the PR, logs to AGENT/AGENT_FILE, then re-checks merge and returns status to PR_OPENED. Sandbox is NOT killed.
-- `POST /api/agent-runs/:id/complete` -> `completeAgentRun`: reflects real PR state via GitHub, sets `prMerged=true` so a new run can start.
-- One-open-run guard in `startAgentPlan`: 409 if the project already has an open run (`prMerged=false` and non-terminal).
-- Run summary DTO now includes `prMerged`, `branch`, `chatMessagesLeft`, `isOpen`.
+- `FIX_ATTEMPT_LIMIT` is now 1. Each paid order gets one fix agent thread and
+  tiered follow-up AI credits: Starter 3M, Growth 10M, Scale 25M.
+- `startAgentPlan` resumes the existing live project agent thread instead of
+  requiring the user to close a run or start a new one.
+- `POST /api/agent-runs/:id/complete` was removed from backend routes and
+  client APIs.
+- `POST /api/agent-runs/:id/chat` now checks `Order.aiCreditsIncluded` /
+  `Order.aiCreditsUsed`, records the user message without upfront spend, and
+  no longer blocks when GitHub reports the latest PR as merged or closed.
+- `agent-chat` worker updates the existing PR branch while the latest PR is
+  open. If it is merged or closed, the worker clones the default branch, creates
+  a follow-up branch, opens a new PR, and stores the new PR as the run's latest
+  target while keeping the same transcript.
+- The internal revalidate endpoint now uses the same AI credit balance instead
+  of `manualRevalidationsUsed`.
+- Run summaries derive AI credit balance from the order and keep merged PR
+  threads resumable. Actual input/output token usage is recorded in
+  `ai_usage_events` and increments `Order.aiCreditsUsed`.
 
 Done (frontend):
 
-- Agent screen: real chat composer (enabled once PR exists; shows "N messages left"; disabled while CHATTING / when merged / when budget 0). USER messages render right-aligned. Polls during CHATTING.
-- Project page: "Agent runs" history list (every run, status/merged badge, links to its screen); button shows "Resume agent" + "New run" (-> complete-confirm dialog -> complete + start new) when a run is open, else "Agent Run".
-- Composer PR-merged state: when `prMerged` is true the chat box is disabled with "This run is complete. The PR has been merged." placeholder, a "PR merged" label (filled GitPullRequest icon), and a disabled green-tinted "PR merged" send button (filled CheckCircle). Zero-budget is a separate muted box. Chat markdown rendering via `<Markdown>` (react-markdown + remark-gfm).
+- Agent screen chat stays enabled after PR merge/close until the AI credit
+  balance is exhausted. Follow-up mode uses a shorter placeholder.
+- Project page removed the "New run" button and close-run dialog. The primary
+  action is Resume agent, Start agent, or Buy now.
+- Project page now shows AI credit balance instead of agent-run availability.
+- The separate Revalidate buttons were removed from the dashboard; users ask the
+  agent in chat when they want another pass.
+- Build cleanup: public Next route handlers with dynamic params now use the
+  Next 16 Promise-only route context shape.
+- Agent detail now returns the newest chat logs plus the latest plan card, so
+  long-running threads do not hide fresh user messages and agent updates.
+- Agent chat now enters repair mode when the user asks to fix/revalidate pending
+  checks after a failed validation. The worker feeds the latest validation
+  blockers as a structured work queue and uses a larger 180-step bounded tool
+  budget.
 
 Migration still pending (owner): agent tables + `USER` log source + `CHATTING` status + `prMerged`/`chatMessagesLeft` columns.
 
@@ -320,7 +360,7 @@ big lever; model routing to a cheaper tier keeps ~95% quality at 45-85% lower co
 
 Done (backend-v2 `agent-fix`):
 
-- **Batching**: `groupChecks()` buckets approved checks by shared surface into a few groups —
+- **Batching**: `groupChecks()` buckets repairable score blockers by shared surface into a few groups —
   `crawl` (robots/sitemap/llms.txt/indexability), `head` (meta/OG/canonical/JSON-LD/favicon/
   hreflang/charset/doctype/viewport/social-image-size), `semantics`, `content`, `aeo-delivery`
   (markdown-twin/content-negotiation/ai-delivery-headers). Unknown ids get their own group.
@@ -357,14 +397,15 @@ Done (backend-v2 `agent-fix`):
   kill) and `getSandboxHost(sandbox, port)` (public HTTPS host for a port inside the microVM).
 - New `fixRescanActivity`: detects how to serve the repo (a `start` script, else a static dir via
   `bunx serve`), installs + builds, starts the server in the background, polls `https://<host>`
-  until up, then runs our own `runScrape` against it (maxPages 6). Maps each approved check to the
-  REAL result: SUCCESS -> outcome FIXED ("verified passing"); FAILED/MID -> outcome FAILED with the
-  re-scan summary, and collected as `stillFailing`. Sets `AgentRun.scoreAfter` from the re-scan.
-  Returns `{ ok, score, done, nextGroups }`. Best-effort: build/serve failure returns ok:false.
-- Workflow loop (`agentFixWorkflow`): fix groups -> rescan -> if `done` stop; else re-fix only
-  `nextGroups` (still-failing checks, with the re-scan feedback appended to their recommendation),
-  up to `MAX_ITERATIONS = 3`. If a rescan can't build/serve, falls back to the legacy build-only
-  `fixVerifyActivity` and opens the PR (never blocks). Activity timeout raised to 30 min.
+  until up, then runs our own `runScrape` against it with the original scan paths pinned into the
+  validation input. Maps every scored blocker to the REAL result, creates plan rows for newly
+  discovered blockers, and sets `AgentRun.scoreAfter` from the re-scan. Returns `{ ok, score,
+  done, nextGroups, needsDecision }`.
+- Workflow loop (`agentFixWorkflow`): fix groups -> rescan -> if the score gate passes, stop; else
+  re-fix only `nextGroups` with a fresh agent activity. The old `MAX_ITERATIONS = 3` terminal cap
+  is gone; after repeated misses, or when a blocker needs broad/manual approval, the workflow asks
+  retry-or-skip MCQs and resumes via signal. A build/serve/scan failure no longer falls back to a
+  build-only PR path.
 - Outcomes + `scoreAfter` are now truthful (measured), and the PR's "N fixes" count reflects
   verified passes. `scoreBefore` already came from the originating scan, so the before/after delta
   is real. Status shows VERIFYING during each re-scan (badge already existed).
@@ -466,3 +507,30 @@ Done:
 
 Note: pre-existing lint error in `apps/web/app/(marketing)/blog/[slug]/page.tsx:90` (no-explicit-any)
 is unrelated to this change but will fail `next build`/the web deploy until fixed.
+
+## Agent revalidation chat stability
+
+Done:
+
+- Dashboard run detail now keeps polling in the background while a run is working.
+- Sending a chat message invalidates the run detail on both success and error, so a rejected send
+  refetches the latest status instead of leaving the screen stale.
+- Post-PR chat/revalidation workflows now have a 60-minute activity timeout instead of 15 minutes,
+  because revalidation can include install, server startup, local scanning, fixes, and rebuilds.
+- If the long chat/revalidation activity still times out or fails before its own cleanup runs, the
+  workflow now calls a short cleanup activity that logs the failure and releases the run from
+  `CHATTING` back to `PR_OPENED`.
+- Root cause of the observed timeout: the agent used raw `run_command` for `bun run build`, and
+  that generic shell tool had no default timeout. It could block until Temporal killed the whole
+  activity. Generic sandbox commands are now bounded to 2 minutes by default and capped at 5 minutes;
+  long build/serve/scan validation is routed through `validate_pr_branch`.
+- Raw command results are now logged as `command_result`, so the dashboard shows whether a diagnostic
+  command returned, failed, or timed out instead of only showing that it started.
+- Revalidation turns now carry the latest validation result, including `approvedCheckFailures`, back
+  into the next model context so the agent starts from the actual failing checks instead of
+  rediscovering scraper scripts.
+- Broad `find .` diagnostics are blocked in sandbox tools because they dump `node_modules`/build
+  output and derail the turn. Chat/revalidation command output is capped more tightly.
+- Revalidation tool budget was raised, but only after adding stricter tool/output guardrails.
+- If the model reaches its step limit or validation still fails, the harness now writes a deterministic
+  final summary from validation state instead of showing the model's last unfinished thought.

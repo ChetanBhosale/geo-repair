@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import {
   AgentPlanError,
-  completeAgentRun,
   getAgentRunDetail,
   listAgentRuns,
   startAgentPlan,
@@ -68,7 +67,7 @@ export async function postFix(req: Request, res: Response) {
   }
 }
 
-// POST /api/agent-runs/:id/revalidate -> re-run build/check verification on the PR branch
+// POST /api/agent-runs/:id/revalidate -> internal preset chat turn, charged against chat budget
 export async function postRevalidate(req: Request, res: Response) {
   const userId = req.userId!;
   const id = String(req.params.id ?? "");
@@ -99,23 +98,6 @@ export async function postAgentChat(req: Request, res: Response) {
     }
     return res.status(400).json({
       error: err instanceof Error ? err.message : "Failed to send message",
-    });
-  }
-}
-
-// POST /api/agent-runs/:id/complete -> mark the run done so a new one can start
-export async function postCompleteRun(req: Request, res: Response) {
-  const userId = req.userId!;
-  const id = String(req.params.id ?? "");
-  try {
-    const result = await completeAgentRun(userId, id);
-    return res.json(result);
-  } catch (err) {
-    if (err instanceof AgentPlanError) {
-      return res.status(err.status).json({ error: err.message });
-    }
-    return res.status(400).json({
-      error: err instanceof Error ? err.message : "Failed to complete run",
     });
   }
 }

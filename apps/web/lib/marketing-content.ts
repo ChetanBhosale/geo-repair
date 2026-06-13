@@ -1,7 +1,3 @@
-import {
-  CHAT_MESSAGE_LIMIT,
-  FIX_ATTEMPT_LIMIT,
-} from "@repo/types/entitlements"
 import type { FaqItem, SectionIntro } from "./landing-content"
 
 // Structured copy for the pricing, security, and contact pages. Hoisted out of
@@ -100,12 +96,12 @@ export const FIX_TIERS: FixTier[] = [
 ]
 
 export const FIX_INCLUDES = [
-  "The agent fixes every flagged check and opens one pull request",
-  "Build- and type-checked in an ephemeral sandbox before the PR opens",
+  "The agent fixes every flagged check and opens a pull request",
+  "Build and type checks run in an ephemeral sandbox before any PR opens",
   "You review and merge. Nothing ships without you",
   "Net-new content stays gated behind your approval",
-  `Up to ${FIX_ATTEMPT_LIMIT} fix attempts if a run needs a retry`,
-  `${CHAT_MESSAGE_LIMIT} follow-up chat messages to refine the pull request with the agent`,
+  "One persistent agent thread for the paid fix",
+  "Follow-up AI credits for PR refinements after the first fix",
   "Charged once, upfront, only after we confirm your stack is buildable",
 ]
 
@@ -126,7 +122,7 @@ export const PRICING_FAQ: FaqItem[] = [
   {
     question: "How much does the fix cost?",
     answer:
-      "The fix is a one-time fee based on how many pages are in your sitemap: $49 up to 25 pages, $149 up to 100, $399 up to 250, and custom pricing beyond that. We measure your page count automatically during the free checkup and show your exact price before you pay anything.",
+      "The fix is a one-time fee based on how many pages are in your sitemap: $49 up to 25 pages with 3M follow-up AI credits, $149 up to 100 with 10M credits, $399 up to 250 with 25M credits, and custom pricing beyond that. We measure your page count during the free checkup and show your exact price before you pay.",
   },
   {
     question: "When do I pay?",

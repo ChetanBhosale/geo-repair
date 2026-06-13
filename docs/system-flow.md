@@ -23,12 +23,11 @@ workflow activities, providers, and persistence models.
 - Transactional email: `@repo/email` renders React Email templates and sends
   through Resend best-effort. Live notifications cover new accounts, scan
   completion/failure, billing receipt/failure/refund, fix plan ready, PR/no-change
-  completion, fix failure, chat limit reached, waitlist, and contact.
-- Entitlements: a paid `Order` grants a bounded number of fix attempts
-  (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`), post-PR agent chat messages
-  (`chatMessagesUsed` / `CHAT_MESSAGE_LIMIT`), and manual PR-branch
-  revalidations (`manualRevalidationsUsed` / `MANUAL_REVALIDATION_LIMIT`).
-  Free scans are bounded in the public scan API. Paid-order enforcement lives in
+  completion, fix failure, AI credits exhausted, waitlist, and contact.
+- Entitlements: a paid `Order` grants one fix agent thread
+  (`fixAttemptsUsed` / `FIX_ATTEMPT_LIMIT`) and tiered follow-up AI credits
+  (`aiCreditsIncluded` / `aiCreditsUsed`). Free scans are bounded in the
+  public scan API. Paid-order enforcement lives in
   `apps/backend-v2/functions/billing.service.ts`,
   `apps/backend-v2/functions/agent-plan.service.ts`,
   `apps/backend-v2/functions/fix.service.ts`, and
@@ -99,8 +98,7 @@ flowchart TD
   Failed["Failed or support required"]
   Teardown["Teardown sandbox<br/>record sandbox COGS"]
   PRReady["PR opened<br/>dashboard transcript and summary"]
-  RevalidateCTA["Revalidate checks<br/>POST /api/agent-runs/:id/revalidate"]
-  TemporalRevalidate["agentRevalidateWorkflow<br/>clone PR branch, build, re-scan"]
+  AgentThread["Agent thread<br/>AI credits, update PR or follow-up PR"]
   Reports["Reports API<br/>/api/reports/generate"]
   ProjectReports["ProjectReport and ReportShareLink"]
   MergeWebhook["GitHub merge webhook<br/>planned"]
@@ -134,8 +132,8 @@ flowchart TD
   Clarify -->|"yes"| Intake --> TemporalFix
   Clarify -->|"no"| Sandbox
   Intake --> Sandbox --> Agent --> BuildGate
-  BuildGate -->|"some approved checks unresolved"| FixDecision --> Agent
-  BuildGate -->|"build passed, all approved checks fixed or skipped"| Commit
+  BuildGate -->|"validation below 100 or blockers unresolved"| FixDecision --> Agent
+  BuildGate -->|"100/100, or only user-skipped score loss remains"| Commit
   BuildGate -->|"failed"| Failed
   Commit -->|"yes"| PushPR --> PRReady
   Commit -->|"no"| NoChanges
@@ -147,8 +145,7 @@ flowchart TD
   PRReady --> Teardown
   NoChanges --> Teardown
   Failed --> Teardown
-  PRReady --> RevalidateCTA --> TemporalRevalidate --> FixRunDB
-  TemporalRevalidate --> PRReady
+  PRReady --> AgentThread --> FixRunDB
   PRReady --> Reports --> ProjectReports
   PRReady --> MergeWebhook --> Recheck --> Reports
 ```
@@ -241,7 +238,7 @@ sequenceDiagram
 
   User->>Dashboard: Buy fix from completed project scan
   Dashboard->>API: POST /api/billing/fix-checkout
-  API->>DB: Create or reuse Order scoped to project and latest completed scan
+  API->>DB: Create or reuse an unstarted paid Order
   API->>Dodo: Create checkout session
   Dodo-->>API: checkoutUrl, session/payment ids
   API->>DB: Mark order CHECKOUT_CREATED
@@ -267,9 +264,13 @@ sequenceDiagram
   User->>Dashboard: Confirm start
   Dashboard->>API: POST /api/projects/:id/agent-plan with orderId
   API->>DB: Verify paid order matches user and project
-  API->>DB: Create AgentRun and AgentPlan
-  API->>Temporal: Start agentPlanWorkflow
-  API-->>Dashboard: agentRunId, agentPlanId
+  alt Existing live agent thread
+    API-->>Dashboard: Existing agentRunId and agentPlanId
+  else No live agent thread
+    API->>DB: Create AgentRun and AgentPlan
+    API->>Temporal: Start agentPlanWorkflow
+    API-->>Dashboard: agentRunId, agentPlanId
+  end
 
   Temporal->>Worker: planRun
   Worker->>Target: Fresh checkSite scan
@@ -303,25 +304,25 @@ sequenceDiagram
   end
   Worker->>E2B: Check commit and collect diff summary
   Worker->>DB: Update FixCheck counters and COGS
-  Worker->>E2B: Run install/build verification
-  Worker->>DB: Confirm every approved check is fixed or user-skipped
+  Worker->>E2B: Run install/build and local score validation
+  Worker->>DB: Confirm score is 100/100 or only user-skipped score loss remains
 
   Temporal->>Worker: finalizeRun
-  alt Build fails
+  alt Build, serve, or validation scan fails
     Worker->>DB: Mark AgentRun FAILED and append verify_failed
     Worker->>Email: Send fixFailed
-  else Approved checks still fail after retry cap
+  else Validation below 100 after automatic repair window
     Worker->>DB: Mark AgentRun AWAITING_INPUT and ask retry-or-skip MCQs
     User->>Dashboard: Choose bigger retry or skip per check
     Dashboard->>API: POST /api/agent-runs/:id/fix with decisions
     API->>Temporal: Signal submitFixDecisions
-    Temporal->>Worker: Retry approved checks or mark skipped
-  else Build passes, all approved checks resolved, and commit exists
+    Temporal->>Worker: Retry score blockers or mark skipped
+  else Build passes, score gate passes, and commit exists
     Worker->>GitHub: Push branch and open pull request
     GitHub-->>Worker: PR URL and number
     Worker->>DB: Mark PR_OPENED and append pr_opened event
     Worker->>Email: Send fixPrOpened
-  else Build passes, all approved checks skipped, and no commit
+  else Build passes, all score blockers skipped, and no commit
     Worker->>DB: Mark COMPLETED and append no_changes event
     Worker->>Email: Send fixPrOpened no-change variant
   end
@@ -360,23 +361,21 @@ sequenceDiagram
 
 Enforced limits (source of truth: `@repo/types/entitlements`):
 
-- **Fix-run attempts:** a paid `Order` allows up to `FIX_ATTEMPT_LIMIT` (3) runs.
-  `startFix` requires a paid matching order, blocks once the cap is reached,
-  and increments `Order.fixAttemptsUsed` when the Temporal fix workflow is
-  queued. A failed workflow start refunds the attempt.
-- **Agent chat:** after the PR opens, `POST /api/agent-runs/:id/chat` charges one of
-  `CHAT_MESSAGE_LIMIT` (20) messages per order, records a `user_message` event,
-  flips the run to `CHATTING`, and starts `agentChatWorkflow`. That workflow
-  reconnects to a warm sandbox or creates one on the run's existing fix branch,
-  resets the sandbox TTL to 15 minutes after the turn, applies the request, and
-  pushes to the same branch (the PR updates in place), then returns the run to
-  `PR_OPENED`.
-- **PR-branch revalidation:** `POST /api/agent-runs/:id/revalidate` starts
-  `agentRevalidateWorkflow` without spending a chat message. It consumes one of
-  `MANUAL_REVALIDATION_LIMIT` (3) manual revalidations per order. The workflow
-  clones the saved PR branch into a short-lived sandbox, runs build/re-scan
-  verification, updates `AgentPlanCheck` outcomes and `scoreAfter`, kills the
-  sandbox, then returns the run to `PR_OPENED`.
+- **Fix agent:** a paid `Order` allows one fix agent thread:
+  `FIX_ATTEMPT_LIMIT` is 1. `startFix` requires a paid matching order and
+  increments `Order.fixAttemptsUsed` when the Temporal fix workflow is queued.
+  A failed workflow start refunds the attempt.
+- **Agent chat:** after the first PR opens, `POST /api/agent-runs/:id/chat`
+  checks the order's follow-up AI credit balance, records a `user_message`
+  event, flips the run to `CHATTING`, and starts `agentChatWorkflow`. Queue
+  failures spend no credits. The worker records actual input/output token usage
+  into `ai_usage_events` and increments `Order.aiCreditsUsed`. If the latest PR
+  is open, the workflow pushes to that branch. If the latest PR is merged or
+  closed, the workflow starts from the default branch and opens a follow-up PR
+  in the same agent thread.
+- **No manual close:** there is no user-facing complete/close action. PR merge
+  state comes from GitHub and only tells the next chat turn whether to update
+  the current PR or open a follow-up PR.
 - **Free scans:** `POST /api/checkups` (now behind `optionalAuth`) serves a cached
   report when one for the domain is < `SCAN_CACHE_TTL_HOURS` (24h) old (no quota
   spent), else consumes one daily scan from `ScanUsage` (per user when signed in,
@@ -396,28 +395,24 @@ sequenceDiagram
   participant E2B
   participant GitHub
 
-  User->>Dashboard: Send follow-up message (PR open)
+  User->>Dashboard: Send follow-up message
   Dashboard->>API: POST /api/agent-runs/:id/chat
-  API->>API: Lock order, check CHAT_MESSAGE_LIMIT, +1, log user_message
+  API->>API: Check aiCreditsLeft, log user_message
   API->>Temporal: Start agentChatWorkflow (run -> CHATTING)
-  opt Chat messages left hits 0
-    API->>Email: Send chatLimitReached
-  end
-  Temporal->>E2B: Reopen/create sandbox on PR branch, reset 15m idle TTL
+  Temporal->>GitHub: Read latest PR state
+  Temporal->>E2B: Reopen/create sandbox, reset 15m idle TTL
   Temporal->>E2B: Agent applies the request, commits
-  Temporal->>GitHub: Push branch (same target) -> existing PR updates
+  Temporal->>DB: Write ai_usage_events and increment Order.aiCreditsUsed
+  opt AI credits exhausted
+    Temporal->>Email: Send aiCreditsExhausted
+  end
+  alt Latest PR is open
+    Temporal->>GitHub: Push existing PR branch
+  else Latest PR merged or closed
+    Temporal->>GitHub: Push follow-up branch and open PR
+  end
   Temporal->>API: run -> PR_OPENED
   Dashboard->>API: Poll GET /api/agent-runs/:id (transcript + state)
-
-  User->>Dashboard: Click Revalidate in Checks tab
-  Dashboard->>API: POST /api/agent-runs/:id/revalidate
-  API->>API: Check MANUAL_REVALIDATION_LIMIT, increment order usage
-  API->>Temporal: Start agentRevalidateWorkflow (run -> VERIFYING)
-  Temporal->>E2B: Clone saved PR branch
-  Temporal->>E2B: Build and run checker re-scan
-  Temporal->>E2B: Kill short-lived revalidation sandbox
-  Temporal->>API: Update check outcomes, scoreAfter, run -> PR_OPENED
-  Dashboard->>API: Poll GET /api/agent-runs/:id
 ```
 
 ## Maintenance Rule
