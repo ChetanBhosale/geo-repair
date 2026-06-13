@@ -33,10 +33,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
 import { useBreadcrumbs } from "@/context/breadcrumb"
 import { AgentProvider, useAgent } from "@/context/agent"
-import {
-  useSendChat,
-  useStartFix,
-} from "@/query/agent.query"
+import { useSendChat, useStartFix } from "@/query/agent.query"
 import { Markdown } from "@/components/markdown"
 
 type Mode = "AUTO" | "NEEDS_INPUT"
@@ -80,6 +77,16 @@ type ActivityMeta = {
   singular: string
   plural: string
   order: number
+}
+
+type ActivityAction = {
+  kind: ActivityKind
+  target?: string | null
+}
+
+type ActivityGroup = {
+  count: number
+  targets: Set<string>
 }
 
 const RUN_BADGE: Record<AgentRunStatus, string> = {
@@ -522,8 +529,7 @@ function AgentPreviewPanel({
           <div>
             <h2 className="text-sm font-medium">{title[activePreview]}</h2>
             <p className="mt-0.5 text-[11px] text-foreground/65">
-              {scoreProgressText(run)} ·{" "}
-              {agentStatusLabel(run.status)}
+              {scoreProgressText(run)} · {agentStatusLabel(run.status)}
             </p>
           </div>
           <button
@@ -1347,12 +1353,152 @@ function activityData(log: AgentChatLog): Record<string, unknown> {
   return isRecord(log.data) ? log.data : {}
 }
 
+function cleanActivityTarget(value: string): string {
+  return value
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/^\.\//, "")
+}
+
+function compactActivityTarget(value: string): string {
+  const clean = cleanActivityTarget(value)
+  return clean.length > 64 ? `${clean.slice(0, 61)}...` : clean
+}
+
+function displayPathTarget(value: string): string {
+  const clean = compactActivityTarget(value)
+  if (!clean || clean === ".") return "repo root"
+  return clean
+}
+
+function quoteActivityTarget(value: string): string {
+  return `"${compactActivityTarget(value)}"`
+}
+
+function shellWords(command: string): string[] {
+  const words: string[] = []
+  const pattern = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^']*)'|(\S+)/g
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(command))) {
+    words.push(match[1] ?? match[2] ?? match[3] ?? "")
+  }
+
+  return words.filter(Boolean)
+}
+
+function optionValue(words: string[], names: string[]): string | null {
+  for (let i = 0; i < words.length; i += 1) {
+    const word = words[i]
+    const withEquals = names
+      .map((name) => `${name}=`)
+      .find((prefix) => word.startsWith(prefix))
+    if (withEquals) return word.slice(withEquals.length)
+
+    if (names.includes(word) && words[i + 1]) return words[i + 1]
+  }
+
+  return null
+}
+
+function firstCommandValue(words: string[], startAt: number): string | null {
+  const flagsWithValues = new Set([
+    "-A",
+    "-B",
+    "-C",
+    "-e",
+    "-f",
+    "-g",
+    "-m",
+    "-t",
+    "--after-context",
+    "--before-context",
+    "--context",
+    "--glob",
+    "--ignore-file",
+    "--max-count",
+    "--type",
+    "--type-add",
+  ])
+  let skipNext = false
+
+  for (let i = startAt; i < words.length; i += 1) {
+    const word = words[i]
+    if (skipNext) {
+      skipNext = false
+      continue
+    }
+    if (word === "--") continue
+    if (word.startsWith("-")) {
+      skipNext =
+        flagsWithValues.has(word) || flagsWithValues.has(word.split("=")[0])
+      continue
+    }
+    if (word === ".") continue
+    return word
+  }
+
+  return null
+}
+
 function commandFromLog(log: AgentChatLog): string | null {
   const message = log.message.trim()
   if (message.startsWith("$")) return message.replace(/^\$\s*/, "")
 
   const data = activityData(log)
   return typeof data.command === "string" ? data.command : null
+}
+
+function prefixedTarget(message: string, prefixes: string[]): string | null {
+  const prefix = prefixes.find((candidate) =>
+    message.toLowerCase().startsWith(`${candidate.toLowerCase()} `)
+  )
+  if (!prefix) return null
+
+  return cleanActivityTarget(message.slice(prefix.length + 1))
+}
+
+function targetFromCommand(command: string, kind: ActivityKind): string | null {
+  const words = shellWords(command)
+  if (words.length === 0) return null
+  const commandName = words[0]
+  const second = words[1]
+
+  if (kind === "list") {
+    const glob = optionValue(words, ["-g", "--glob"])
+    if (glob) return `files matching ${quoteActivityTarget(glob)}`
+    return firstCommandValue(words, 1)
+  }
+
+  if (kind === "search") {
+    const explicitPattern = optionValue(words, ["-e", "--regexp"])
+    if (explicitPattern) return explicitPattern
+
+    if (commandName === "find") {
+      return optionValue(words, ["-name", "-iname", "-path"]) ?? null
+    }
+    if (commandName === "fd") return firstCommandValue(words, 1)
+    return firstCommandValue(
+      words,
+      commandName === "git" && second === "grep" ? 2 : 1
+    )
+  }
+
+  if (kind === "read") {
+    for (let i = words.length - 1; i > 0; i -= 1) {
+      const word = words[i]
+      if (word.startsWith("-")) continue
+      if (/^\d+(,\d+)?[a-z]?$/i.test(word)) continue
+      if (word === ".") continue
+      return word
+    }
+  }
+
+  if (kind === "url") {
+    return words.find((word) => /^https?:\/\//.test(word)) ?? null
+  }
+
+  return null
 }
 
 function commandFailed(log: AgentChatLog): boolean {
@@ -1391,43 +1537,67 @@ function classifyCommand(command: string): ActivityKind {
   return "command"
 }
 
-function activityKindsForLog(log: AgentChatLog): ActivityKind[] {
+function activity(kind: ActivityKind, target?: string | null): ActivityAction {
+  return { kind, target: target ? cleanActivityTarget(target) : null }
+}
+
+function activityActionsForLog(log: AgentChatLog): ActivityAction[] {
   const event = log.event.toLowerCase()
   const message = log.message.trim()
   const data = activityData(log)
 
-  if (event === "workflow_reconcile_failed") return ["failed"]
-  if (event === "fix_decision_prompt") return ["decision"]
+  if (event === "workflow_reconcile_failed") return [activity("failed")]
+  if (event === "fix_decision_prompt") return [activity("decision")]
   if (event === "command_result") {
-    return commandFailed(log) ? ["command_failed"] : ["output"]
+    return [activity(commandFailed(log) ? "command_failed" : "output")]
   }
   if (event === "file_change") {
-    return data.action === "create" ? ["create"] : ["edit"]
+    const target =
+      typeof data.path === "string"
+        ? data.path
+        : prefixedTarget(message, ["Edited", "Created", "Generated image"])
+    return [activity(data.action === "create" ? "create" : "edit", target)]
   }
-  if (event === "read" || /^reading\s+/i.test(message)) return ["read"]
-  if (/^listing\s+/i.test(message)) return ["list"]
+
+  const readTarget = prefixedTarget(message, ["Reading"])
+  if (event === "read" || readTarget) {
+    return [activity("read", readTarget)]
+  }
+
+  const listTarget = prefixedTarget(message, ["Listing"])
+  if (listTarget) {
+    return [activity("list", listTarget)]
+  }
+
   if (event.includes("pr_") || message.toLowerCase().includes("pull request")) {
-    return ["pr"]
+    return [activity("pr")]
   }
   if (event.includes("clone") || message.toLowerCase().includes("cloning")) {
-    return ["clone"]
+    return [activity("clone")]
   }
-  if (event.includes("sandbox")) return ["setup"]
+  if (event.includes("sandbox")) return [activity("setup")]
   if (
     event.includes("verify") ||
     event.includes("validation") ||
     event.includes("rescan")
   ) {
-    return displayLevel(log) === "error" || event.includes("failed")
-      ? ["validation_failed"]
-      : ["validate"]
+    return [
+      activity(
+        displayLevel(log) === "error" || event.includes("failed")
+          ? "validation_failed"
+          : "validate"
+      ),
+    ]
   }
-  if (event.includes("failed")) return ["failed"]
+  if (event.includes("failed")) return [activity("failed")]
 
   const command = commandFromLog(log)
-  if (command) return [classifyCommand(command)]
+  if (command) {
+    const kind = classifyCommand(command)
+    return [activity(kind, targetFromCommand(command, kind))]
+  }
 
-  if (event === "tool_call") return ["command"]
+  if (event === "tool_call") return [activity("command")]
 
   return []
 }
@@ -1438,30 +1608,83 @@ function activityBatchLevel(logs: AgentChatLog[]): "info" | "warn" | "error" {
   return "info"
 }
 
-function withCount(kind: ActivityKind, count: number): string {
+function formatTargets(
+  targets: string[],
+  formatter: (target: string) => string
+): string {
+  if (targets.length === 1) return formatter(targets[0])
+  if (targets.length === 2) {
+    return `${formatter(targets[0])} and ${formatter(targets[1])}`
+  }
+  return ""
+}
+
+function formatActivityGroup(kind: ActivityKind, group: ActivityGroup): string {
   const meta = ACTIVITY_META[kind]
-  if (count === 1) return meta.singular
+  const targets = Array.from(group.targets).filter(Boolean)
+  const count = group.count
 
   switch (kind) {
+    case "search": {
+      const targetText = formatTargets(targets, quoteActivityTarget)
+      if (targetText) return `searched for ${targetText}`
+      return count > 1 ? `searched ${count} times` : meta.singular
+    }
+    case "list": {
+      const targetText = formatTargets(targets, displayPathTarget)
+      if (targetText) return `listed ${targetText}`
+      return meta.plural
+    }
     case "read":
+      if (targets.length === 1) return `read ${displayPathTarget(targets[0])}`
+      if (targets.length === 2) {
+        return `read ${displayPathTarget(targets[0])} and ${displayPathTarget(
+          targets[1]
+        )}`
+      }
+      if (count === 1) return meta.singular
       return `read ${count} files`
     case "edit":
+      if (targets.length === 1) return `edited ${displayPathTarget(targets[0])}`
+      if (targets.length === 2) {
+        return `edited ${displayPathTarget(targets[0])} and ${displayPathTarget(
+          targets[1]
+        )}`
+      }
+      if (count === 1) return meta.singular
       return `edited ${count} files`
     case "create":
+      if (targets.length === 1)
+        return `created ${displayPathTarget(targets[0])}`
+      if (targets.length === 2) {
+        return `created ${displayPathTarget(targets[0])} and ${displayPathTarget(
+          targets[1]
+        )}`
+      }
+      if (count === 1) return meta.singular
       return `created ${count} files`
     case "build":
+      if (count === 1) return meta.singular
       return `ran ${count} builds`
     case "url":
+      if (targets.length === 1)
+        return `checked ${displayPathTarget(targets[0])}`
+      if (count === 1) return meta.singular
       return `checked ${count} URLs`
     case "decision":
+      if (count === 1) return meta.singular
       return `asked for ${count} decisions`
     case "command":
+      if (count === 1) return meta.singular
       return `ran ${count} commands`
     case "command_failed":
+      if (count === 1) return meta.singular
       return `${count} commands returned errors`
     case "validation_failed":
+      if (count === 1) return meta.singular
       return `validation found ${count} issues`
     default:
+      if (count === 1) return meta.singular
       return meta.plural
   }
 }
@@ -1481,25 +1704,31 @@ function joinActivityPieces(pieces: string[]): string {
 }
 
 function displayActivityBatch(logs: AgentChatLog[]): string {
-  const counts = new Map<ActivityKind, number>()
+  const groups = new Map<ActivityKind, ActivityGroup>()
 
   for (const log of logs) {
-    for (const kind of activityKindsForLog(log)) {
-      counts.set(kind, (counts.get(kind) ?? 0) + 1)
+    for (const item of activityActionsForLog(log)) {
+      const group = groups.get(item.kind) ?? {
+        count: 0,
+        targets: new Set<string>(),
+      }
+      group.count += 1
+      if (item.target) group.targets.add(item.target)
+      groups.set(item.kind, group)
     }
   }
 
-  if (counts.has("validation_failed")) counts.delete("validate")
-  if (counts.has("command_failed")) counts.delete("command")
-  if (counts.size > 1) counts.delete("output")
+  if (groups.has("validation_failed")) groups.delete("validate")
+  if (groups.has("command_failed")) groups.delete("command")
+  if (groups.size > 1) groups.delete("output")
 
-  if (counts.size === 0) {
+  if (groups.size === 0) {
     return logs.length === 1 ? displayMessage(logs[0]) : "Worked in the repo"
   }
 
-  const pieces = Array.from(counts.entries())
+  const pieces = Array.from(groups.entries())
     .sort((a, b) => ACTIVITY_META[a[0]].order - ACTIVITY_META[b[0]].order)
-    .map(([kind, count]) => withCount(kind, count))
+    .map(([kind, group]) => formatActivityGroup(kind, group))
 
   return joinActivityPieces(pieces)
 }

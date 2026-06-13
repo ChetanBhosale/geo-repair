@@ -140,8 +140,8 @@ Done:
   an optimistic user bubble immediately while the backend starts the chat turn.
 - Agent run floating controls now show check progress as done/total alongside
   the score target.
-- Agent chat activity now collapses raw tool and command logs into plain-English
-  summaries like `Searched code`, `Read 2 files`, and `Ran a command`.
+- Agent chat activity now collapses raw tool and command logs into target-aware
+  summaries like `Searched for "agents"`, `Read AGENTS.md`, and `Edited AGENTS.md`.
 - Fix-run build verification now hard-fails before PR creation. If install/build
   exits non-zero, the run is marked failed and no branch is pushed.
 - Fix-run PR creation now also requires at least one check verified as fixed, so
