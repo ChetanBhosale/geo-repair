@@ -190,11 +190,14 @@ model FeatureInterest {
   id        String             @id @default(cuid())
   userId    String
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
   feature   FeatureInterestKey
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
   @@unique([userId, feature])
+  @@index([projectId])
   @@index([feature])
   @@map("feature_interests")
 }
@@ -240,6 +243,7 @@ model Project {
   account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   // Repo identity + the bits needed to clone and open a PR.
+  slug          String
   githubRepoId  BigInt
   name          String
   fullName      String
@@ -268,13 +272,15 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  scrapings    Scraping[]
-  agentRuns    AgentRun[]
-  logs         Log[]
-  workerStatus WorkerStatus[]
-  orders       Order[]
+  scrapings        Scraping[]
+  agentRuns        AgentRun[]
+  logs             Log[]
+  workerStatus     WorkerStatus[]
+  orders           Order[]
+  featureInterests FeatureInterest[]
 
   @@unique([userId, githubRepoId])
+  @@unique([userId, slug])
   @@index([userId])
   @@index([accountId])
   @@map("projects")
@@ -282,6 +288,7 @@ model Project {
 
 model Scraping {
   id        String  @id @default(cuid())
+  slug      String
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId    String
@@ -316,6 +323,7 @@ model Scraping {
   agentRuns    AgentRun[]
   orders       Order[]
 
+  @@unique([projectId, slug])
   @@index([projectId])
   @@index([userId])
   @@index([status])
@@ -519,9 +527,9 @@ model Log {
   @@map("logs")
 }
 
-
 model AgentRun {
   id        String  @id @default(cuid())
+  slug      String
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId    String
@@ -578,13 +586,13 @@ model AgentRun {
   logs Log[]
   aiUsageEvents AiUsageEvent[]
 
+  @@unique([projectId, slug])
   @@index([projectId])
   @@index([userId, status])
   @@index([scrapingId])
   @@index([orderId])
   @@map("agent_runs")
 }
-
 
 // The SINGLE plan a planning run produces for an AgentRun (1:1). It holds one
 // AgentPlanCheck per rubric check. Exactly one Log row (event "plan_proposed")

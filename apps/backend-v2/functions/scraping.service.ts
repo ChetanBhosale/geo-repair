@@ -6,6 +6,7 @@ import type {
   ScrapingSummary,
   WorkerStatusItem,
 } from "@repo/types/scraping";
+import { numberedSlug, uniqueSlug } from "@repo/types/slugs";
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
@@ -14,7 +15,10 @@ import { projectBrandDataFromScan } from "../lib/brand-identity";
 import { sendScrapingFinishedEmail } from "../lib/email-notifications";
 
 export class ScrapingError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "ScrapingError";
   }
@@ -22,6 +26,7 @@ export class ScrapingError extends Error {
 
 function toSummary(row: {
   id: string;
+  slug: string;
   projectId: string;
   status: string;
   websiteUrl: string;
@@ -34,6 +39,7 @@ function toSummary(row: {
 }): ScrapingSummary {
   return {
     id: row.id,
+    slug: row.slug,
     projectId: row.projectId,
     status: row.status as ScrapingSummary["status"],
     websiteUrl: row.websiteUrl,
@@ -44,6 +50,17 @@ function toSummary(row: {
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
   };
+}
+
+async function nextScrapingSlug(projectId: string): Promise<string> {
+  const rows = await prisma.scraping.findMany({
+    where: { projectId },
+    select: { slug: true },
+  });
+  return uniqueSlug(
+    numberedSlug("scan", rows.length),
+    rows.map((row) => row.slug),
+  );
 }
 
 // Maps a scraper log entry to a Log row level.
@@ -73,6 +90,7 @@ export async function startScan(
 
   const scraping = await prisma.scraping.create({
     data: {
+      slug: await nextScrapingSlug(project.id),
       projectId: project.id,
       userId,
       status: "RUNNING",
@@ -136,7 +154,10 @@ export async function startScan(
       },
     });
     await sendScrapingFinishedEmail(scraping.id).catch((sendErr) => {
-      console.error("[email] scan enqueue failure notification failed:", sendErr);
+      console.error(
+        "[email] scan enqueue failure notification failed:",
+        sendErr,
+      );
     });
     throw new ScrapingError(502, `Could not queue the scan: ${message}`);
   }
@@ -167,6 +188,19 @@ export async function listScrapingsForProject(
     take: 50,
   });
   return rows.map(toSummary);
+}
+
+export async function getScrapingDetailByProjectSlug(
+  userId: string,
+  projectId: string,
+  slug: string,
+): Promise<ScrapingDetail | null> {
+  const row = await prisma.scraping.findUnique({
+    where: { projectId_slug: { projectId, slug } },
+    select: { id: true, userId: true },
+  });
+  if (!row || row.userId !== userId) return null;
+  return getScrapingDetail(userId, row.id);
 }
 
 // Active (QUEUED/RUNNING) worker rows for the live "what's running" panel.
@@ -341,7 +375,10 @@ async function syncScrapingFromTemporal(row: {
         },
       });
       await sendScrapingFinishedEmail(row.id).catch((sendErr) => {
-        console.error("[email] scan reconcile failure notification failed:", sendErr);
+        console.error(
+          "[email] scan reconcile failure notification failed:",
+          sendErr,
+        );
       });
     }
     // RUNNING -> leave as-is.

@@ -5,7 +5,7 @@ import Secrets from "@repo/secrets/backend";
 export const config = {
   nodeEnv: Secrets.NODE_ENV,
   isProd: Secrets.NODE_ENV === "production",
-  port: Number(process.env.PORT_V2 ?? process.env.PORT ?? 4001),
+  port: Number(process.env.PORT_V2 ?? process.env.PORT ?? 4000),
 
   // Browser origins allowed to call this API with credentials.
   allowedOrigins: [

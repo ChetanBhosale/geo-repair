@@ -13,6 +13,7 @@ const monorepoRoot = path.resolve(
 )
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   pageExtensions: ["ts", "tsx", "md", "mdx"],
   turbopack: { root: monorepoRoot },
   // The Markdown-twin route (app/api/twin) reads blog MDX from content/ at

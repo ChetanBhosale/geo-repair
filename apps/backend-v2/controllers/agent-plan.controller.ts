@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import {
   AgentPlanError,
   getAgentRunDetail,
+  getAgentRunDetailByProjectSlug,
   listAgentRuns,
   startAgentPlan,
 } from "../functions/agent-plan.service";
@@ -38,6 +39,20 @@ export async function getProjectAgentRuns(req: Request, res: Response) {
   const projectId = String(req.params.id ?? "");
   const agentRuns = await listAgentRuns(userId, projectId);
   return res.json({ agentRuns });
+}
+
+// GET /api/projects/:id/agent-runs/:slug -> one run by project-scoped slug
+export async function getProjectAgentRunBySlug(req: Request, res: Response) {
+  const userId = req.userId!;
+  const projectId = String(req.params.id ?? "");
+  const slug = String(req.params.slug ?? "");
+  const agentRun = await getAgentRunDetailByProjectSlug(
+    userId,
+    projectId,
+    slug,
+  );
+  if (!agentRun) return res.status(404).json({ error: "Agent run not found" });
+  return res.json({ agentRun });
 }
 
 // GET /api/agent-runs/:id -> one run with its plan + checks + chat logs

@@ -24,6 +24,7 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
+      className="cursor-pointer"
       aria-label="Toggle theme"
       title="Toggle theme (D)"
       onClick={() => setTheme(isDark ? "light" : "dark")}

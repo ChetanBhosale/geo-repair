@@ -7,11 +7,15 @@ import {
   deleteProject,
   getAccounts,
   getProject,
+  getProjectBySlug,
   getProjects,
   getProjectScraping,
+  getProjectScrapingBySlug,
   getProjectScrapings,
   getRepos,
   getScraping,
+  getSelectedProject,
+  selectProject,
   startScan,
 } from "@/lib/api"
 
@@ -41,6 +45,15 @@ export function useProjects(enabled = true) {
   })
 }
 
+export function useSelectedProject(enabled = true) {
+  return useQuery({
+    queryKey: ["project", "selected"],
+    queryFn: getSelectedProject,
+    enabled,
+    retry: false,
+  })
+}
+
 // Repos from the linked GitHub account (for picking one when creating a project).
 export function useGithubRepos(enabled = true) {
   return useQuery({
@@ -56,8 +69,22 @@ export function useCreateProject() {
     mutationFn: (payload: CreateProjectRequest) => createProject(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] })
+      qc.invalidateQueries({ queryKey: ["project", "selected"] })
       // A scan auto-starts on create; refresh the live indicators.
       qc.invalidateQueries({ queryKey: ["worker-status"] })
+    },
+  })
+}
+
+export function useSelectProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => selectProject(id),
+    onSuccess: (project) => {
+      qc.invalidateQueries({ queryKey: ["projects"] })
+      qc.setQueryData(["project", "selected"], project)
+      qc.setQueryData(["project", project.id], project)
+      qc.setQueryData(["project", "slug", project.slug], project)
     },
   })
 }
@@ -72,6 +99,7 @@ export function useDeleteProject() {
       qc.removeQueries({ queryKey: ["project-scraping", id] })
       qc.removeQueries({ queryKey: ["project-scrapings", id] })
       qc.invalidateQueries({ queryKey: ["projects"] })
+      qc.invalidateQueries({ queryKey: ["project", "selected"] })
       qc.invalidateQueries({ queryKey: ["scraping"] })
       qc.invalidateQueries({ queryKey: ["worker-status"] })
     },
@@ -84,6 +112,14 @@ export function useProject(id: string, enabled = true) {
     queryKey: ["project", id],
     queryFn: () => getProject(id),
     enabled: enabled && !!id,
+  })
+}
+
+export function useProjectBySlug(slug: string, enabled = true) {
+  return useQuery({
+    queryKey: ["project", "slug", slug],
+    queryFn: () => getProjectBySlug(slug),
+    enabled: enabled && !!slug,
   })
 }
 
@@ -115,6 +151,21 @@ export function useScraping(scrapingId: string | null | undefined) {
     queryKey: ["scraping", scrapingId],
     queryFn: () => getScraping(scrapingId as string),
     enabled: !!scrapingId,
+    refetchInterval: (query) => {
+      const s = query.state.data?.status
+      return s === "RUNNING" || s === "QUEUED" ? 2000 : false
+    },
+  })
+}
+
+export function useProjectScrapingBySlug(
+  projectId: string,
+  slug: string | null | undefined
+) {
+  return useQuery({
+    queryKey: ["scraping", projectId, "slug", slug],
+    queryFn: () => getProjectScrapingBySlug(projectId, slug as string),
+    enabled: !!projectId && !!slug,
     refetchInterval: (query) => {
       const s = query.state.data?.status
       return s === "RUNNING" || s === "QUEUED" ? 2000 : false

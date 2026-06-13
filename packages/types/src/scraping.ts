@@ -97,6 +97,7 @@ export interface ScrapingLog {
 
 export interface ScrapingSummary {
   id: string;
+  slug: string;
   projectId: string;
   status: ScrapingStatus;
   websiteUrl: string;

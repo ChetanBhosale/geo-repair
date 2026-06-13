@@ -5,6 +5,11 @@
     "postinstall": "bun run --filter=@repo/db db:generate",
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:all": "bun scripts/dev-all.mjs",
+    "dev:dashboard": "bun run --cwd apps/dashboard-v2 dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:backend": "bun run --cwd apps/backend-v2 dev",
+    "dev:worker": "bun scripts/run-node-worker.mjs",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
@@ -12,6 +17,7 @@
   },
   "devDependencies": {
     "prettier": "^3.7.4",
+    "tsx": "^4.22.4",
     "turbo": "^2.9.16",
     "typescript": "5.9.2"
   },

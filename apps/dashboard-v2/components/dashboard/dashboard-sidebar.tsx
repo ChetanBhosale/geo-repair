@@ -1,18 +1,30 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import {
   ChartLineUpIcon,
   CreditCardIcon,
-  FolderIcon,
+  GearSixIcon,
   LifebuoyIcon,
-  SignOutIcon,
+  ListChecksIcon,
+  RobotIcon,
+  SquaresFourIcon,
 } from "@phosphor-icons/react"
+import type { Project } from "@repo/types/project"
 
 import { cn } from "@/lib/utils"
-import { BrandLogo } from "@/components/brand-logo"
-import { useAuth, useLogout } from "@/hooks/use-auth"
+import { selectedProjectForDashboardPath } from "@/lib/project-selection"
+import {
+  projectAiVisibilityPath,
+  projectFixAgentPath,
+  projectOverviewPath,
+  projectScansPath,
+  projectSettingsPath,
+  projectSupportPath,
+  projectUsagePath,
+} from "@/lib/project-routes"
+import { useProjects, useSelectedProject } from "@/query/project.query"
 
 type NavItem = {
   label: string
@@ -20,109 +32,94 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string; weight?: "fill" | "regular" }>
 }
 
-const MAIN_NAV: NavItem[] = [
-  { label: "Projects", href: "/dashboard/projects", icon: FolderIcon },
-  {
-    label: "AI Visibility",
-    href: "/dashboard/ai-visibility",
-    icon: ChartLineUpIcon,
-  },
-]
-
-const ACCOUNT_NAV: NavItem[] = [
-  { label: "Purchase", href: "/dashboard/purchase", icon: CreditCardIcon },
-  { label: "Support", href: "/dashboard/support", icon: LifebuoyIcon },
-]
+function navForProject(project: Project): NavItem[] {
+  return [
+    {
+      label: "Overview",
+      href: projectOverviewPath(project),
+      icon: SquaresFourIcon,
+    },
+    {
+      label: "AI Visibility",
+      href: projectAiVisibilityPath(project),
+      icon: ChartLineUpIcon,
+    },
+    {
+      label: "Fix Agent",
+      href: projectFixAgentPath(project),
+      icon: RobotIcon,
+    },
+    {
+      label: "Scans",
+      href: projectScansPath(project),
+      icon: ListChecksIcon,
+    },
+    {
+      label: "Usage",
+      href: projectUsagePath(project),
+      icon: CreditCardIcon,
+    },
+    {
+      label: "Settings",
+      href: projectSettingsPath(project),
+      icon: GearSixIcon,
+    },
+    {
+      label: "Support",
+      href: projectSupportPath(project),
+      icon: LifebuoyIcon,
+    },
+  ]
+}
 
 export function DashboardSidebar() {
   const pathname = usePathname()
-  const router = useRouter()
-  const { user } = useAuth()
-  const logout = useLogout()
+  const projects = useProjects()
+  const selectedQuery = useSelectedProject()
+  const selected = selectedProjectForDashboardPath(
+    projects.data ?? [],
+    selectedQuery.data ?? null,
+    pathname
+  )
+  const nav = selected ? navForProject(selected) : []
 
   return (
-    <aside className="sticky top-0 flex h-svh w-60 shrink-0 flex-col border-r border-border bg-sidebar">
-      {/* Brand header */}
-      <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-        <Link href="/dashboard/projects" aria-label="GEO Repair">
-          <BrandLogo />
-        </Link>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="px-2 pb-2 font-mono text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase">
-          Workspace
-        </p>
-        <div className="space-y-0.5">
-          {MAIN_NAV.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} />
-          ))}
-        </div>
-
-        <p className="mt-6 px-2 pb-2 font-mono text-[10px] font-medium tracking-widest text-muted-foreground/70 uppercase">
-          Account
-        </p>
-        <div className="space-y-0.5">
-          {ACCOUNT_NAV.map((item) => (
-            <NavLink key={item.href} item={item} pathname={pathname} />
-          ))}
+    <aside className="sticky top-14 flex h-[calc(100svh-3.5rem)] w-56 shrink-0 flex-col bg-sidebar px-3 py-4">
+      <nav className="flex-1 overflow-y-auto">
+        <div className="space-y-1">
+          {nav.length > 0 ? (
+            nav.map((item) => (
+              <NavLink key={item.href} item={item} pathname={pathname} />
+            ))
+          ) : (
+            <Link
+              href="/dashboard/projects"
+              className="flex items-center gap-2.5 px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <SquaresFourIcon className="size-4" />
+              Projects
+            </Link>
+          )}
         </div>
       </nav>
-
-      {/* Footer: user profile */}
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-accent/60">
-          <div className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-xs font-medium text-primary">
-            {user?.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.avatarUrl}
-                alt=""
-                className="size-full object-cover"
-              />
-            ) : (
-              (user?.name ?? user?.email ?? "U").slice(0, 1).toUpperCase()
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">
-              {user?.name ?? "Account"}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {user?.email ?? ""}
-            </p>
-          </div>
-          <button
-            aria-label="Sign out"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-            disabled={logout.isPending}
-            onClick={() =>
-              logout.mutate(undefined, {
-                onSuccess: () => router.replace("/sign-in"),
-              })
-            }
-          >
-            <SignOutIcon className="size-4" />
-          </button>
-        </div>
-      </div>
     </aside>
   )
 }
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
-  const active = pathname.startsWith(item.href)
+  const active =
+    pathname === item.href ||
+    (item.href.includes("/fix-agent") && pathname.startsWith(item.href))
   const Icon = item.icon
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+        "flex items-center gap-2.5 px-2.5 py-1.5 text-sm transition-colors",
         active
-          ? "bg-accent font-medium text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          ? "bg-secondary font-medium text-foreground"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
       )}
     >
       <Icon className="size-4" weight={active ? "fill" : "regular"} />

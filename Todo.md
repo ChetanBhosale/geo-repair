@@ -1,3 +1,25 @@
+## Project-first dashboard IA and friendly URLs
+
+Done:
+
+- Added stable dashboard slugs for projects, scans, and fix-agent runs while
+  keeping internal IDs as backend source of truth.
+- Dashboard root now resolves the selected project and redirects to
+  `/dashboard/:projectSlug`; old ID routes still resolve and redirect.
+- Top bar owns project switching and creation. The sidebar is scoped to the
+  selected project: Overview, AI Visibility, Fix Agent, Scans, Usage, Settings,
+  and Support.
+- Checkout returns, transactional email dashboard links, scan links, and agent
+  links now use project/run slugs where possible.
+- AI Visibility interest capture now stores the selected project context.
+- Updated `docs/system-flow.md` for the new route, selection, billing return,
+  email, and project-scoped AI Visibility flow.
+
+Pending:
+
+- Apply the slug and feature-interest project-context migrations to production
+  if it uses a different database.
+
 ## Transactional Resend emails
 
 Done:
@@ -32,7 +54,7 @@ Done:
 - Restored Prisma billing models for `Plan`, `Order`, and `PaymentWebhookEvent`, with `Order` linked to the current `Project`, latest `Scraping`, and `AgentRun`.
 - Added backend-v2 billing routes: `GET /api/billing/plans`, `POST /api/billing/fix-checkout`, `GET /api/billing/history`, `GET /api/billing/orders/:id`, `POST /api/billing/orders/:id/reconcile`, and raw-body `POST /api/webhooks/dodo`.
 - Gated agent planning and fixing behind a paid matching order. Refunds and disputes cancel active agent runs best-effort.
-- Dashboard project page now creates checkout from a completed scan before starting the agent. Project-linked checkout returns to `/dashboard/projects/:id?order_id=...&start_fix=1`, reconciles the payment, asks for confirmation, and then starts the agent run from the paid order.
+- Dashboard project page now creates checkout from a completed scan before starting the agent. Project-linked checkout returns to `/dashboard/:projectSlug?order_id=...&start_fix=1`, reconciles the payment, asks for confirmation, and then starts the agent run from the paid order.
 - Applied the billing tables/enums to the currently connected Neon DB while
   repairing migration drift.
 
@@ -46,8 +68,8 @@ Pending:
 
 Done:
 
-- Added the `AI Visibility` dashboard sidebar tab and `/dashboard/ai-visibility` coming-soon page.
-- Added authenticated interest capture through `feature_interests` with the `AI_VISIBILITY` feature key.
+- Added the project-scoped `AI Visibility` dashboard sidebar tab and `/dashboard/:projectSlug/ai-visibility` coming-soon page.
+- Added authenticated interest capture through `feature_interests` with the `AI_VISIBILITY` feature key and selected project context.
 - Documented the future product goal, sample-based reporting guardrails, and intended architecture in `docs/ai-visibility.md`.
 - Applied the `feature_interests` migration to the currently connected Neon DB.
 

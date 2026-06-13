@@ -5,7 +5,10 @@ import {
   createProject,
   deleteProject,
   getProject,
+  getProjectBySlug,
+  getSelectedProject,
   listProjects,
+  selectProject,
 } from "../functions/project.service";
 import { startScan } from "../functions/scraping.service";
 
@@ -43,6 +46,25 @@ export async function getProjects(req: Request, res: Response) {
   return res.json({ projects });
 }
 
+// GET /api/projects/selected — selected project for this user, with fallback.
+export async function getSelectedProjectForUser(req: Request, res: Response) {
+  const userId = req.userId!;
+  const project = await getSelectedProject(userId);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  return res.json({ project });
+}
+
+// GET /api/projects/by-slug/:slug — one project by stable user-scoped slug.
+export async function getProjectBySlugForUser(req: Request, res: Response) {
+  const userId = req.userId!;
+  const slug = String(req.params.slug ?? "");
+  if (!slug) return res.status(400).json({ error: "slug is required" });
+
+  const project = await getProjectBySlug(userId, slug);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  return res.json({ project });
+}
+
 // GET /api/projects/:id — one project.
 export async function getProjectById(req: Request, res: Response) {
   const userId = req.userId!;
@@ -52,6 +74,25 @@ export async function getProjectById(req: Request, res: Response) {
   const project = await getProject(userId, id);
   if (!project) return res.status(404).json({ error: "Project not found" });
   return res.json({ project });
+}
+
+// POST /api/projects/:id/select — make this project the selected dashboard context.
+export async function selectProjectById(req: Request, res: Response) {
+  const userId = req.userId!;
+  const id = String(req.params.id ?? "");
+  if (!id) return res.status(400).json({ error: "id is required" });
+
+  try {
+    const project = await selectProject(userId, id);
+    return res.json({ project });
+  } catch (err) {
+    if (err instanceof ProjectError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    return res.status(400).json({
+      error: err instanceof Error ? err.message : "Failed to select project",
+    });
+  }
 }
 
 // DELETE /api/projects/:id — soft-delete the project and purge its scans/logs.

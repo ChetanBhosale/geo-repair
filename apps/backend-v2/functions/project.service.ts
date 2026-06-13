@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import type { CreateProjectRequest, Project } from "@repo/types/project";
+import { projectSlugBase, uniqueSlug } from "@repo/types/slugs";
 import { getGithubAccount } from "./github.service";
 
 // Thrown for caller-fixable errors (missing GitHub link, etc.).
@@ -15,6 +16,7 @@ export class ProjectError extends Error {
 
 type ProjectRow = {
   id: string;
+  slug: string;
   githubRepoId: bigint;
   name: string;
   fullName: string;
@@ -39,6 +41,7 @@ type ProjectRow = {
 function toProject(row: ProjectRow): Project {
   return {
     id: row.id,
+    slug: row.slug,
     githubRepoId: Number(row.githubRepoId),
     name: row.name,
     fullName: row.fullName,
@@ -59,6 +62,18 @@ function toProject(row: ProjectRow): Project {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+async function nextProjectSlug(userId: string, value: string): Promise<string> {
+  const base = projectSlugBase(value);
+  const rows = await prisma.project.findMany({
+    where: { userId },
+    select: { slug: true },
+  });
+  return uniqueSlug(
+    base,
+    rows.map((row) => row.slug),
+  );
 }
 
 // Create a project from a repo the user picked. Requires a linked GitHub
@@ -84,6 +99,8 @@ export async function createProject(
     );
   }
 
+  const slug = await nextProjectSlug(userId, input.name || input.fullName);
+
   const [, row] = await prisma.$transaction([
     prisma.project.updateMany({
       where: { userId, selected: true },
@@ -92,6 +109,7 @@ export async function createProject(
     prisma.project.create({
       data: {
         userId,
+        slug,
         githubRepoId,
         accountId: account.id,
         name: input.name,
@@ -149,12 +167,61 @@ export async function listProjects(userId: string): Promise<Project[]> {
   return rows.map(toProject);
 }
 
+export async function getSelectedProject(
+  userId: string,
+): Promise<Project | null> {
+  const row = await prisma.project.findFirst({
+    where: { userId, selected: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (row) return toProject(row);
+
+  const fallback = await prisma.project.findFirst({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+  });
+  return fallback ? selectProject(userId, fallback.id) : null;
+}
+
+export async function selectProject(
+  userId: string,
+  projectId: string,
+): Promise<Project> {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId },
+  });
+  if (!project) throw new ProjectError(404, "Project not found.");
+
+  const [, row] = await prisma.$transaction([
+    prisma.project.updateMany({
+      where: { userId, selected: true, id: { not: projectId } },
+      data: { selected: false },
+    }),
+    prisma.project.update({
+      where: { id: projectId },
+      data: { selected: true },
+    }),
+  ]);
+
+  return toProject(row);
+}
+
 export async function getProject(
   userId: string,
   projectId: string,
 ): Promise<Project | null> {
   const row = await prisma.project.findFirst({
     where: { id: projectId, userId },
+  });
+  return row ? toProject(row) : null;
+}
+
+export async function getProjectBySlug(
+  userId: string,
+  slug: string,
+): Promise<Project | null> {
+  const row = await prisma.project.findUnique({
+    where: { userId_slug: { userId, slug } },
   });
   return row ? toProject(row) : null;
 }

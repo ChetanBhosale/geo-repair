@@ -9,6 +9,7 @@ import type {
 } from "@repo/types/agent"
 import {
   getAgentRun,
+  getProjectAgentRunBySlug,
   getProjectAgentRuns,
   revalidateAgentRun,
   sendAgentChat,
@@ -65,6 +66,20 @@ export function useAgentRun(agentRunId: string | null | undefined) {
     queryKey: ["agent-run", agentRunId],
     queryFn: () => getAgentRun(agentRunId as string),
     enabled: !!agentRunId,
+    refetchInterval: (query) =>
+      isAgentRunWorking(query.state.data?.status) ? 3000 : false,
+    refetchIntervalInBackground: true,
+  })
+}
+
+export function useProjectAgentRunBySlug(
+  projectId: string,
+  slug: string | null | undefined
+) {
+  return useQuery({
+    queryKey: ["agent-run", projectId, "slug", slug],
+    queryFn: () => getProjectAgentRunBySlug(projectId, slug as string),
+    enabled: !!projectId && !!slug,
     refetchInterval: (query) =>
       isAgentRunWorking(query.state.data?.status) ? 3000 : false,
     refetchIntervalInBackground: true,

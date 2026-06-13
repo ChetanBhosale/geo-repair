@@ -46,7 +46,9 @@ type OrderStatus =
   | "REFUNDED"
   | "DISPUTED";
 
-type OrderForCheckout = Prisma.OrderGetPayload<{ include: { user: true } }>;
+type OrderForCheckout = Prisma.OrderGetPayload<{
+  include: { user: true; project: { select: { slug: true } } };
+}>;
 
 type DodoPayment = Awaited<ReturnType<typeof retrieveDodoPayment>> & {
   status?: string | null;
@@ -63,9 +65,12 @@ function webCheckoutReturnUrl(orderId: string): string {
   return `${Secrets.WEB_URL.replace(/\/+$/, "")}/checkout/return?order_id=${encodeURIComponent(orderId)}`;
 }
 
-function dashboardProjectReturnUrl(orderId: string, projectId: string): string {
+function dashboardProjectReturnUrl(
+  orderId: string,
+  projectSlug: string,
+): string {
   const url = new URL(
-    `/dashboard/projects/${encodeURIComponent(projectId)}`,
+    `/dashboard/${encodeURIComponent(projectSlug)}`,
     `${Secrets.DASHBOARD_URL.replace(/\/+$/, "")}/`,
   );
   url.searchParams.set("order_id", orderId);
@@ -76,9 +81,10 @@ function dashboardProjectReturnUrl(orderId: string, projectId: string): string {
 function checkoutReturnUrl(order: {
   id: string;
   projectId: string | null;
+  project?: { slug: string } | null;
 }): string {
-  return order.projectId
-    ? dashboardProjectReturnUrl(order.id, order.projectId)
+  return order.project?.slug
+    ? dashboardProjectReturnUrl(order.id, order.project.slug)
     : webCheckoutReturnUrl(order.id);
 }
 
@@ -406,7 +412,7 @@ export async function createFixCheckoutForOrder(input: {
 }) {
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
-    include: { user: true },
+    include: { user: true, project: { select: { slug: true } } },
   });
 
   if (!order) throw new BillingError(404, "Order not found.");
@@ -443,7 +449,7 @@ export async function createFixCheckoutForProject(input: {
       status: "PAID",
       fixAttemptsUsed: { lt: FIX_ATTEMPT_LIMIT },
     },
-    include: { user: true },
+    include: { user: true, project: { select: { slug: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -468,7 +474,7 @@ export async function createFixCheckoutForProject(input: {
         { status: "PAID", fixAttemptsUsed: { lt: FIX_ATTEMPT_LIMIT } },
       ],
     },
-    include: { user: true },
+    include: { user: true, project: { select: { slug: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -491,7 +497,7 @@ export async function createFixCheckoutForProject(input: {
       providerProductId: productId,
       aiCreditsIncluded: tier.aiCreditsIncluded,
     },
-    include: { user: true },
+    include: { user: true, project: { select: { slug: true } } },
   });
 
   return createCheckoutForOrder(order);
@@ -659,7 +665,7 @@ export async function reconcileFixCheckoutReturn(input: {
 
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
-    include: { user: true },
+    include: { user: true, project: { select: { slug: true } } },
   });
   if (!order) throw new BillingError(404, "Order not found.");
   if (input.userId && order.userId !== input.userId) {
@@ -784,7 +790,7 @@ export async function createDevFixtureOrder(input: {
       providerProductId: productId,
       aiCreditsIncluded: tier.aiCreditsIncluded,
     },
-    include: { user: true },
+    include: { user: true, project: { select: { slug: true } } },
   });
 
   return createCheckoutForOrder(order);

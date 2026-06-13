@@ -7,7 +7,7 @@
     "dev": "bun run --watch index.ts",
     "start": "bun run index.ts",
     "open": "bun run free/index.ts",
-    "worker": "bun run temporal/worker/index.ts",
+    "worker": "bun ../../scripts/run-node-worker.mjs",
     "scraper": "bun run temporal/worker/scraper/cli.ts",
     "check-types": "tsc --noEmit"
   },

@@ -7,6 +7,7 @@ import type {
   AgentRunSummary,
   StartAgentPlanResponse,
 } from "@repo/types/agent";
+import { numberedSlug, uniqueSlug } from "@repo/types/slugs";
 import { getTemporalClient } from "../temporal/client";
 import { TASK_QUEUES } from "../temporal/constants";
 // import { checkWorkerRunning } from "../lib/worker-health";
@@ -27,6 +28,17 @@ export class AgentPlanError extends Error {
     super(message);
     this.name = "AgentPlanError";
   }
+}
+
+async function nextAgentRunSlug(projectId: string): Promise<string> {
+  const rows = await prisma.agentRun.findMany({
+    where: { projectId },
+    select: { slug: true },
+  });
+  return uniqueSlug(
+    numberedSlug("fix", rows.length),
+    rows.map((row) => row.slug),
+  );
 }
 
 // The shape we read out of Scraping.result (the scraper's SiteCheck). Only the
@@ -116,6 +128,7 @@ export async function startAgentPlan(
   if (existingRun?.plan) {
     return {
       agentRunId: existingRun.id,
+      agentRunSlug: existingRun.slug,
       agentPlanId: existingRun.plan.id,
       status: existingRun.status as StartAgentPlanResponse["status"],
       plannedChecks: existingRun.plan.checks.length,
@@ -177,6 +190,7 @@ export async function startAgentPlan(
 
   const run = await prisma.agentRun.create({
     data: {
+      slug: await nextAgentRunSlug(project.id),
       projectId: project.id,
       userId,
       scrapingId: scraping.id,
@@ -262,13 +276,17 @@ export async function startAgentPlan(
       },
     });
     await sendFixFailedEmail(run.id, message).catch((sendErr) => {
-      console.error("[email] plan enqueue failure notification failed:", sendErr);
+      console.error(
+        "[email] plan enqueue failure notification failed:",
+        sendErr,
+      );
     });
     throw new AgentPlanError(502, `Could not queue the plan: ${message}`);
   }
 
   return {
     agentRunId: run.id,
+    agentRunSlug: run.slug,
     agentPlanId: plan.id,
     status: run.status,
     plannedChecks: checks.length,
@@ -344,7 +362,10 @@ async function syncAgentRunFromTemporal(row: {
       },
     });
     await sendFixFailedEmail(row.id, message).catch((sendErr) => {
-      console.error("[email] agent reconcile failure notification failed:", sendErr);
+      console.error(
+        "[email] agent reconcile failure notification failed:",
+        sendErr,
+      );
     });
   } catch {
     // Temporal unreachable: leave the DB as-is.
@@ -353,6 +374,7 @@ async function syncAgentRunFromTemporal(row: {
 
 function toRunSummary(row: {
   id: string;
+  slug: string;
   projectId: string;
   status: string;
   scrapingId: string | null;
@@ -386,6 +408,7 @@ function toRunSummary(row: {
 
   return {
     id: row.id,
+    slug: row.slug,
     projectId: row.projectId,
     status: row.status as AgentRunSummary["status"],
     scrapingId: row.scrapingId,
@@ -536,4 +559,17 @@ export async function getAgentRunDetail(
   }));
 
   return { ...toRunSummary(row), plan, logs };
+}
+
+export async function getAgentRunDetailByProjectSlug(
+  userId: string,
+  projectId: string,
+  slug: string,
+): Promise<AgentRunDetail | null> {
+  const row = await prisma.agentRun.findUnique({
+    where: { projectId_slug: { projectId, slug } },
+    select: { id: true, userId: true },
+  });
+  if (!row || row.userId !== userId) return null;
+  return getAgentRunDetail(userId, row.id);
 }

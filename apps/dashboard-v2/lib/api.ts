@@ -84,10 +84,12 @@ export async function getAiVisibilityInterest(): Promise<FeatureInterestState> {
   return data.interest
 }
 
-export async function markAiVisibilityInterest(): Promise<FeatureInterestState> {
+export async function markAiVisibilityInterest(payload?: {
+  projectId?: string
+}): Promise<FeatureInterestState> {
   const data = await request<FeatureInterestResponse>(
     ENDPOINTS.aiVisibilityInterest,
-    { method: "POST" }
+    { method: "POST", body: JSON.stringify(payload ?? {}) }
   )
   return data.interest
 }
@@ -156,6 +158,11 @@ export async function getProjects(): Promise<Project[]> {
   return data.projects
 }
 
+export async function getSelectedProject(): Promise<Project> {
+  const data = await request<ProjectResponse>(ENDPOINTS.selectedProject)
+  return data.project
+}
+
 export async function createProject(
   payload: CreateProjectRequest
 ): Promise<Project> {
@@ -168,6 +175,18 @@ export async function createProject(
 
 export async function getProject(id: string): Promise<Project> {
   const data = await request<ProjectResponse>(ENDPOINTS.project(id))
+  return data.project
+}
+
+export async function getProjectBySlug(slug: string): Promise<Project> {
+  const data = await request<ProjectResponse>(ENDPOINTS.projectBySlug(slug))
+  return data.project
+}
+
+export async function selectProject(id: string): Promise<Project> {
+  const data = await request<ProjectResponse>(ENDPOINTS.selectProject(id), {
+    method: "POST",
+  })
   return data.project
 }
 
@@ -220,6 +239,16 @@ export async function getScraping(id: string): Promise<ScrapingDetail> {
   return data.scraping
 }
 
+export async function getProjectScrapingBySlug(
+  projectId: string,
+  slug: string
+): Promise<ScrapingDetail> {
+  const data = await request<ScrapingDetailResponse>(
+    ENDPOINTS.projectScrapingBySlug(projectId, slug)
+  )
+  return data.scraping
+}
+
 export async function reconcileScraping(id: string): Promise<ScrapingDetail> {
   const data = await request<ScrapingDetailResponse>(
     ENDPOINTS.scrapingReconcile(id)
@@ -253,6 +282,16 @@ export async function getProjectAgentRuns(
 
 export async function getAgentRun(id: string): Promise<AgentRunDetail> {
   const data = await request<AgentRunDetailResponse>(ENDPOINTS.agentRun(id))
+  return data.agentRun
+}
+
+export async function getProjectAgentRunBySlug(
+  projectId: string,
+  slug: string
+): Promise<AgentRunDetail> {
+  const data = await request<AgentRunDetailResponse>(
+    ENDPOINTS.projectAgentRunBySlug(projectId, slug)
+  )
   return data.agentRun
 }
 

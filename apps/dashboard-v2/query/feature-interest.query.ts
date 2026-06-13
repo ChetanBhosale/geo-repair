@@ -19,7 +19,7 @@ export function useAiVisibilityInterest() {
 export function useMarkAiVisibilityInterest() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: markAiVisibilityInterest,
+    mutationFn: (projectId?: string) => markAiVisibilityInterest({ projectId }),
     onSuccess: (interest) => {
       qc.setQueryData(AI_VISIBILITY_QUERY_KEY, interest)
     },

@@ -3,6 +3,7 @@ import {
   ScrapingError,
   getLatestScrapingForProject,
   getScrapingDetail,
+  getScrapingDetailByProjectSlug,
   listActiveWorkerStatus,
   listScrapingsForProject,
   reconcileScraping,
@@ -42,6 +43,20 @@ export async function getProjectScrapings(req: Request, res: Response) {
   const projectId = String(req.params.id ?? "");
   const scrapings = await listScrapingsForProject(userId, projectId);
   return res.json({ scrapings });
+}
+
+// GET /api/projects/:id/scrapings/:slug -> one scan detail by project-scoped slug
+export async function getProjectScrapingBySlug(req: Request, res: Response) {
+  const userId = req.userId!;
+  const projectId = String(req.params.id ?? "");
+  const slug = String(req.params.slug ?? "");
+  const scraping = await getScrapingDetailByProjectSlug(
+    userId,
+    projectId,
+    slug,
+  );
+  if (!scraping) return res.status(404).json({ error: "Scraping not found" });
+  return res.json({ scraping });
 }
 
 // GET /api/worker-status?projectId=... -> active (QUEUED/RUNNING) workers

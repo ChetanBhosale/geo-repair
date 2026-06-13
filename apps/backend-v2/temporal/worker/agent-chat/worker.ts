@@ -1,7 +1,10 @@
+import { createRequire } from "node:module";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { temporalConnectionConfig } from "../../connection";
 import { TASK_QUEUES, WORKER_NAMES } from "../../constants";
 import * as activities from "./activities";
+
+const require = createRequire(import.meta.url);
 
 export async function runAgentChatWorker(): Promise<void> {
   const config = temporalConnectionConfig();
@@ -21,6 +24,8 @@ export async function runAgentChatWorker(): Promise<void> {
     identity: WORKER_NAMES.agentChat,
   });
 
-  console.log(`[temporal] ${WORKER_NAMES.agentChat} started on "${TASK_QUEUES.agentChat}"`);
+  console.log(
+    `[temporal] ${WORKER_NAMES.agentChat} started on "${TASK_QUEUES.agentChat}"`,
+  );
   await worker.run();
 }

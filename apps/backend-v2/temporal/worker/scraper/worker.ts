@@ -1,7 +1,10 @@
+import { createRequire } from "node:module";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { temporalConnectionConfig } from "../../connection";
 import { TASK_QUEUES, WORKER_NAMES } from "../../constants";
 import * as activities from "./run-activity";
+
+const require = createRequire(import.meta.url);
 
 export async function runScraperWorker(): Promise<void> {
   const config = temporalConnectionConfig();
@@ -21,6 +24,8 @@ export async function runScraperWorker(): Promise<void> {
     identity: WORKER_NAMES.scraping,
   });
 
-  console.log(`[temporal] ${WORKER_NAMES.scraping} started on "${TASK_QUEUES.scraping}"`);
+  console.log(
+    `[temporal] ${WORKER_NAMES.scraping} started on "${TASK_QUEUES.scraping}"`,
+  );
   await worker.run();
 }

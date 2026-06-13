@@ -4,6 +4,7 @@ import { AuthProviderSchema } from "./auth";
 // A project: a user's GitHub repo paired with the website to fix.
 export interface Project {
   id: string;
+  slug: string;
   githubRepoId: number;
   name: string;
   fullName: string;

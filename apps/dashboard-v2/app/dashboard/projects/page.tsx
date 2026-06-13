@@ -19,6 +19,7 @@ import { useBreadcrumbs } from "@/context/breadcrumb"
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog"
 import { ProjectFavicon } from "@/components/dashboard/project-favicon"
 import { DashboardInlineLoading } from "@/components/dashboard/inline-loading"
+import { projectOverviewPath } from "@/lib/project-routes"
 
 export default function ProjectsPage() {
   useBreadcrumbs([{ label: "Projects" }])
@@ -110,11 +111,11 @@ export default function ProjectsPage() {
         open={createOpen}
         initialWebsite={initialWebsite}
         autoCreate={!!handoffWebsite}
-        onCreated={(project) => {
-          if (handoffWebsite) {
-            router.replace(`/dashboard/projects/${project.id}`)
-          }
-        }}
+	        onCreated={(project) => {
+	          if (handoffWebsite) {
+	            router.replace(projectOverviewPath(project))
+	          }
+	        }}
         onOpenChange={onCreateOpenChange}
       />
     </div>
@@ -173,7 +174,7 @@ function ProjectCard({ project }: { project: Project }) {
 
   return (
     <Link
-      href={`/dashboard/projects/${project.id}`}
+      href={projectOverviewPath(project)}
       className="group flex min-h-[128px] flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/20"
     >
       <div className="flex items-center gap-2.5">

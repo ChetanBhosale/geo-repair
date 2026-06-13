@@ -12,15 +12,15 @@ function dashboardUrl(path = "/dashboard"): string {
   return `${trimBase(Secrets.DASHBOARD_URL)}${path}`;
 }
 
-function projectUrl(projectId: string | null | undefined): string {
-  return projectId
-    ? dashboardUrl(`/dashboard/projects/${encodeURIComponent(projectId)}`)
+function projectUrl(project: { slug: string } | null | undefined): string {
+  return project?.slug
+    ? dashboardUrl(`/dashboard/${encodeURIComponent(project.slug)}`)
     : dashboardUrl("/dashboard/projects");
 }
 
-function agentRunUrl(projectId: string, agentRunId: string): string {
+function agentRunUrl(project: { slug: string }, run: { slug: string }): string {
   return dashboardUrl(
-    `/dashboard/projects/${encodeURIComponent(projectId)}/agent/${encodeURIComponent(agentRunId)}`,
+    `/dashboard/${encodeURIComponent(project.slug)}/fix-agent/${encodeURIComponent(run.slug)}`,
   );
 }
 
@@ -74,7 +74,7 @@ export async function sendAccountWelcomeEmail(user: {
     "accountWelcome",
     {
       name: user.name ?? undefined,
-      dashboardUrl: dashboardUrl("/dashboard/projects"),
+      dashboardUrl: dashboardUrl("/dashboard"),
     },
     user.email,
   );
@@ -91,7 +91,7 @@ export async function sendScrapingFinishedEmail(
       score: true,
       scoreStatus: true,
       error: true,
-      projectId: true,
+      project: { select: { slug: true } },
       user: { select: { email: true } },
     },
   });
@@ -105,7 +105,7 @@ export async function sendScrapingFinishedEmail(
         websiteUrl: scraping.websiteUrl,
         score: scraping.score ?? 0,
         scoreStatus: scoreStatusForEmail(scraping.scoreStatus, scraping.score),
-        reportUrl: projectUrl(scraping.projectId),
+        reportUrl: projectUrl(scraping.project),
       },
       scraping.user.email,
     );
@@ -118,7 +118,7 @@ export async function sendScrapingFinishedEmail(
       {
         websiteUrl: scraping.websiteUrl,
         error: shortError(scraping.error),
-        retryUrl: projectUrl(scraping.projectId),
+        retryUrl: projectUrl(scraping.project),
       },
       scraping.user.email,
     );
@@ -134,7 +134,7 @@ export async function sendBillingOrderEmail(orderId: string): Promise<void> {
       amountCents: true,
       currency: true,
       website: true,
-      projectId: true,
+      project: { select: { slug: true } },
       user: { select: { email: true } },
     },
   });
@@ -164,7 +164,7 @@ export async function sendBillingOrderEmail(orderId: string): Promise<void> {
       "paymentFailed",
       {
         ...baseProps,
-        retryUrl: projectUrl(order.projectId),
+        retryUrl: projectUrl(order.project),
       },
       order.user?.email,
     );
@@ -192,9 +192,9 @@ export async function sendFixPlanReadyEmail(
     where: { id: agentRunId },
     select: {
       id: true,
-      projectId: true,
+      slug: true,
       user: { select: { email: true } },
-      project: { select: { fullName: true, name: true } },
+      project: { select: { fullName: true, name: true, slug: true } },
     },
   });
   if (!run) return;
@@ -204,7 +204,7 @@ export async function sendFixPlanReadyEmail(
     {
       projectName: run.project.fullName || run.project.name,
       checkCount,
-      reviewUrl: agentRunUrl(run.projectId, run.id),
+      reviewUrl: agentRunUrl(run.project, run),
     },
     run.user.email,
   );
@@ -215,11 +215,11 @@ export async function sendFixPrOpenedEmail(agentRunId: string): Promise<void> {
     where: { id: agentRunId },
     select: {
       id: true,
-      projectId: true,
+      slug: true,
       prUrl: true,
       fixedChecks: true,
       user: { select: { email: true } },
-      project: { select: { fullName: true, name: true } },
+      project: { select: { fullName: true, name: true, slug: true } },
     },
   });
   if (!run) return;
@@ -230,7 +230,7 @@ export async function sendFixPrOpenedEmail(agentRunId: string): Promise<void> {
       projectName: run.project.fullName || run.project.name,
       prUrl: run.prUrl ?? undefined,
       fixedChecks: run.fixedChecks,
-      dashboardUrl: agentRunUrl(run.projectId, run.id),
+      dashboardUrl: agentRunUrl(run.project, run),
     },
     run.user.email,
   );
@@ -244,10 +244,10 @@ export async function sendFixFailedEmail(
     where: { id: agentRunId },
     select: {
       id: true,
-      projectId: true,
+      slug: true,
       error: true,
       user: { select: { email: true } },
-      project: { select: { fullName: true, name: true } },
+      project: { select: { fullName: true, name: true, slug: true } },
     },
   });
   if (!run) return;
@@ -257,7 +257,7 @@ export async function sendFixFailedEmail(
     {
       projectName: run.project.fullName || run.project.name,
       error: shortError(error ?? run.error),
-      dashboardUrl: agentRunUrl(run.projectId, run.id),
+      dashboardUrl: agentRunUrl(run.project, run),
     },
     run.user.email,
   );

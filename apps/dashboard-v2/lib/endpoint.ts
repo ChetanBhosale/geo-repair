@@ -24,18 +24,27 @@ export const ENDPOINTS = {
     `${BACKEND_URL}/api/billing/orders/${encodeURIComponent(id)}/reconcile`,
 
   projects: `${BACKEND_URL}/api/projects`,
+  selectedProject: `${BACKEND_URL}/api/projects/selected`,
   project: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}`,
+  projectBySlug: (slug: string) =>
+    `${BACKEND_URL}/api/projects/by-slug/${encodeURIComponent(slug)}`,
+  selectProject: (id: string) =>
+    `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/select`,
   projectScan: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/scan`,
   projectScraping: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/scraping`,
   projectScrapings: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/scrapings`,
+  projectScrapingBySlug: (id: string, slug: string) =>
+    `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/scrapings/${encodeURIComponent(slug)}`,
   projectAgentPlan: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/agent-plan`,
   projectAgentRuns: (id: string) =>
     `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/agent-runs`,
+  projectAgentRunBySlug: (id: string, slug: string) =>
+    `${BACKEND_URL}/api/projects/${encodeURIComponent(id)}/agent-runs/${encodeURIComponent(slug)}`,
   agentRun: (id: string) =>
     `${BACKEND_URL}/api/agent-runs/${encodeURIComponent(id)}`,
   agentRunFix: (id: string) =>

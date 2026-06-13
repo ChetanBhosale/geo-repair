@@ -8,6 +8,9 @@ workflow activities, providers, and persistence models.
 
 - Public website: `apps/web` on `geo.repair`.
 - Authenticated dashboard: `apps/dashboard-v2` on `dashboard.geo.repair`.
+  Dashboard URLs are project-first: `/dashboard` resolves the selected project,
+  then routes to `/dashboard/:projectSlug` and project tabs below it. Legacy
+  ID-heavy URLs under `/dashboard/projects/:id` still resolve and redirect.
 - Backend API: `apps/backend-v2`, Express routes under `/api`.
 - Job plane today: Temporal workflows and workers in `apps/backend-v2/temporal`.
 - Execution plane: E2B sandbox via `@repo/sandbox`, with the model/tool loop in
@@ -19,7 +22,7 @@ workflow activities, providers, and persistence models.
   the `Project` brand fields. The database stores URLs only, not image files.
 - Payments: Dodo checkout, with webhooks as the payment source of truth and
   checkout-return reconciliation as a backup. Project-linked orders return to
-  the dashboard project page; `/checkout/return` is a fallback handoff page.
+  the dashboard project slug URL; `/checkout/return` is a fallback handoff page.
 - Transactional email: `@repo/email` renders React Email templates and sends
   through Resend best-effort. Live notifications cover new accounts, scan
   completion/failure, billing receipt/failure/refund, fix plan ready, PR/no-change
@@ -32,10 +35,14 @@ workflow activities, providers, and persistence models.
   `apps/backend-v2/functions/agent-plan.service.ts`,
   `apps/backend-v2/functions/fix.service.ts`, and
   `apps/backend-v2/functions/chat.service.ts`.
-- AI Visibility: dashboard route `/dashboard/ai-visibility` is a coming-soon
-  surface. Today it only records authenticated user interest in
-  `feature_interests`; no monitoring workflow, AI platform call, report, or
-  scoring path is live yet. Product intent lives in `docs/ai-visibility.md`.
+- AI Visibility: dashboard route `/dashboard/:projectSlug/ai-visibility` is a
+  project-scoped coming-soon surface. Today it records authenticated user
+  interest plus the selected project context in `feature_interests`; no
+  monitoring workflow, AI platform call, report, or scoring path is live yet.
+  Product intent lives in `docs/ai-visibility.md`.
+- Stable dashboard slugs live on `Project.slug`, `Scraping.slug`, and
+  `AgentRun.slug`. Internal IDs remain the backend source of truth; slugs are
+  for readable routes and handoffs.
 
 `plan/plan.md` still describes some future pieces. In these diagrams,
 implementation paths are shown as current; future branches are explicitly
@@ -78,10 +85,10 @@ flowchart TD
   Dodo["Dodo hosted checkout"]
   DodoWebhook["Dodo webhook<br/>/api/webhooks/dodo"]
   Email["Transactional email<br/>@repo/email via Resend"]
-  DashboardReturn["Dashboard project return<br/>/dashboard/projects/:id?order_id=..."]
+  DashboardReturn["Dashboard project return<br/>/dashboard/:projectSlug?order_id=..."]
   ReturnPage["Checkout return fallback<br/>/checkout/return"]
   PaidOrder["Order PAID<br/>Start fix unlocked"]
-  FixWorkspace["Dashboard purchase / project agent screen"]
+  FixWorkspace["Selected project overview<br/>/dashboard/:projectSlug"]
   StartFix["POST /api/projects/:id/agent-plan<br/>requires paid matching order"]
   FixRunDB["AgentRun, AgentPlan,<br/>AgentPlanCheck, Log"]
   TemporalFix["Temporal fixSiteWorkflow"]
@@ -98,7 +105,7 @@ flowchart TD
   Failed["Failed or support required"]
   Teardown["Teardown sandbox<br/>record sandbox COGS"]
   PRReady["PR opened<br/>dashboard transcript and summary"]
-  AgentThread["Agent thread<br/>AI credits, update PR or follow-up PR"]
+  AgentThread["Agent thread<br/>/dashboard/:projectSlug/fix-agent/:agentSlug"]
   Reports["Reports API<br/>/api/reports/generate"]
   ProjectReports["ProjectReport and ReportShareLink"]
   MergeWebhook["GitHub merge webhook<br/>planned"]
@@ -229,9 +236,10 @@ sequenceDiagram
     User->>Dashboard: Select repo and bind website
     Dashboard->>API: POST /api/projects
   end
-  API->>DB: Save Project
+  API->>DB: Save Project with stable slug and selected=true
   API->>Temporal: Start scrapeWorkflow best-effort
   API-->>Dashboard: Created project, scan starts in background
+  Dashboard-->>User: Redirect to /dashboard/:projectSlug
   Temporal->>Worker: scrapeWorkflow
   Worker->>DB: Save Scraping COMPLETED or FAILED
   Worker->>Email: Send checkupComplete or scanFailed
@@ -246,7 +254,7 @@ sequenceDiagram
   Dashboard-->>User: Redirect to Dodo checkout
 
   User->>Dodo: Pay
-  Dodo-->>Dashboard: Return to /dashboard/projects/:id?order_id=...&start_fix=1
+  Dodo-->>Dashboard: Return to /dashboard/:projectSlug?order_id=...&start_fix=1
   par Source of truth webhook
     Dodo->>API: POST /api/webhooks/dodo with raw signed body
     API->>DB: Store PaymentWebhookEvent and update Order
@@ -265,12 +273,13 @@ sequenceDiagram
   Dashboard->>API: POST /api/projects/:id/agent-plan with orderId
   API->>DB: Verify paid order matches user and project
   alt Existing live agent thread
-    API-->>Dashboard: Existing agentRunId and agentPlanId
+    API-->>Dashboard: Existing agentRunId, agentRunSlug, and agentPlanId
   else No live agent thread
-    API->>DB: Create AgentRun and AgentPlan
+    API->>DB: Create AgentRun with project-scoped slug and AgentPlan
     API->>Temporal: Start agentPlanWorkflow
-    API-->>Dashboard: agentRunId, agentPlanId
+    API-->>Dashboard: agentRunId, agentRunSlug, agentPlanId
   end
+  Dashboard-->>User: Open /dashboard/:projectSlug/fix-agent/:agentSlug
 
   Temporal->>Worker: planRun
   Worker->>Target: Fresh checkSite scan

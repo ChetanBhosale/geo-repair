@@ -112,6 +112,7 @@ export interface AgentChatLog {
 
 export interface AgentRunSummary {
   id: string;
+  slug: string;
   projectId: string;
   status: AgentRunStatus;
   scrapingId: string | null;
@@ -143,6 +144,7 @@ export interface AgentRunDetail extends AgentRunSummary {
 
 export interface StartAgentPlanResponse {
   agentRunId: string;
+  agentRunSlug: string;
   agentPlanId: string;
   status: AgentRunStatus;
   plannedChecks: number;
