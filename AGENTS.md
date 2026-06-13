@@ -225,7 +225,7 @@ templates already exist; as each segment ships, wire the matching one at its tri
 - **Auth** → `accountWelcome` on first user creation.
 - **Scan / checkup** → `checkupComplete` / `scanFailed` on `Scraping` COMPLETED/FAILED.
 - **Billing (Dodo)** → `paymentReceipt` / `paymentFailed` / `refund` on order PAID/FAILED/REFUNDED.
-- **Fix agent** → `fixPlanReady` / `fixPrOpened` / `fixFailed` / `chatLimitReached` on the run's
+- **Fix agent** → `fixPlanReady` / `fixPrOpened` / `fixFailed` / `aiCreditsExhausted` on the run's
   status transitions.
 
 Sends are best-effort and must never block or break the triggering work. Presence-aware
@@ -234,4 +234,5 @@ idempotency are deferred until the dashboard/billing exist — implement them wh
 segments. Full mapping, trigger files, and recipient rules live in
 [`packages/email/AGENTS.md`](packages/email/AGENTS.md).
 
-keep [Todo.md](Todo.md) file always up to date.
+
+When asked to restart all servers, retart all - web, dashboard, backend, temporal.
